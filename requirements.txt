@@ -1,10 +1,16 @@
-pipecat-ai[twilio,elevenlabs,openai,silero]
+# Core pipeline
+pipecat-ai[twilio,openai,silero]
 pipecat-ai[sarvam]
+
+# Backend
 fastapi
 uvicorn
 celery
 redis
 python-dotenv
+
+# Telephony
 twilio
-deepgram-sdk
+
+# Utilities
 loguru
