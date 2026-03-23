@@ -1,0 +1,10 @@
+pipecat-ai[twilio,elevenlabs,openai,silero]
+pipecat-ai[sarvam]
+fastapi
+uvicorn
+celery
+redis
+python-dotenv
+twilio
+deepgram-sdk
+loguru
