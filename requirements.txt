@@ -1,6 +1,10 @@
 # Core pipeline
-pipecat-ai[twilio,openai,silero]
+pipecat-ai[openai,silero]
 pipecat-ai[sarvam]
+pipecat-ai[websocket]
+
+# PIOPIY SDK
+piopiy
 
 # Backend
 fastapi
@@ -8,9 +12,8 @@ uvicorn
 celery
 redis
 python-dotenv
-
-# Telephony
-twilio
+requests
 
 # Utilities
 loguru
+websockets
