@@ -25,7 +25,8 @@ echo "✅ Redis running"
 
 # Start Celery worker in background
 echo "⚙️  Starting Celery worker..."
-celery -A app.celery_worker worker --loglevel=info --detach \
+mkdir -p logs
+celery -A celery_worker worker --loglevel=info --detach \
     --logfile=logs/celery.log \
     --pidfile=logs/celery.pid
 
@@ -33,7 +34,7 @@ echo "✅ Celery worker started"
 
 # Start FastAPI server
 echo "🌐 Starting FastAPI server..."
-uvicorn app.main:app \
+uvicorn main:app \
     --host 0.0.0.0 \
     --port 8000 \
     --log-level info \
