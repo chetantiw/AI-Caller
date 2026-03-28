@@ -1,11 +1,16 @@
 """
 app/pipeline.py
-Core Pipecat pipeline: PIOPIY WebSocket -> Sarvam STT -> StepFun Flash -> Sarvam TTS -> PIOPIY
+Core Pipecat pipeline: PIOPIY WebSocket -> Sarvam STT -> OpenRouter LLM -> Sarvam TTS -> PIOPIY
 
 Stack:
-  STT : Sarvam saarika:v2          — Indian multilingual speech recognition
-  LLM : StepFun Step-3.5-Flash     — Free, 100-300 tok/s, via OpenRouter
-  TTS : Sarvam bulbul:v2           — Natural Indian voice output
+  STT : Sarvam saarika:v2              — Indian multilingual speech recognition
+  LLM : OpenRouter (configurable free) — Default: Llama 3.3 70B (best for Hindi/English)
+  TTS : Sarvam bulbul:v2               — Natural Indian voice output
+
+Supported free models (set OPENROUTER_MODEL in .env):
+  meta-llama/llama-3.3-70b-instruct:free  ← Default (best quality + Hindi support)
+  stepfun/step-3.5-flash:free             ← Fastest (disable reasoning)
+  arcee-ai/trinity-mini:free              ← Ultra fast (lower quality)
 """
 
 import os
@@ -59,9 +64,8 @@ async def run_pipeline(websocket, lead: dict = None):
     """
     Full voice AI pipeline for a PIOPIY WebSocket call.
 
-    LLM uses OpenRouter with StepFun Step-3.5-Flash (free).
-    Reasoning is intentionally disabled for lowest latency in voice calls.
-    OpenRouter uses OpenAI-compatible API — just change base_url + model.
+    LLM is configured via OPENROUTER_MODEL env variable — swap models without code changes.
+    OpenRouter uses OpenAI-compatible API format.
     """
 
     lead_name     = lead.get("name", "there")  if lead else "there"
@@ -69,7 +73,10 @@ async def run_pipeline(websocket, lead: dict = None):
     lead_language = lead.get("language", "en") if lead else "en"
     sarvam_lang   = SARVAM_LANG_MAP.get(lead_language, "en-IN")
 
-    logger.info(f"Pipeline | Lead: {lead_name} @ {lead_company} | Lang: {sarvam_lang}")
+    # Get model from env — easy to swap without code changes
+    llm_model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+    logger.info(f"Pipeline | Lead: {lead_name} @ {lead_company} | Lang: {sarvam_lang} | LLM: {llm_model}")
 
     # ── Personalized system prompt ────────────────────────────────────────────
     system_prompt = load_system_prompt()
@@ -82,7 +89,7 @@ async def run_pipeline(websocket, lead: dict = None):
 - Preferred Language: {"Hindi" if lead_language == "hi" else "English (Indian accent)"}
 - Speak naturally with Indian cultural context.
 - Keep each response under 3 sentences.
-- IMPORTANT: Respond directly and concisely. Do NOT think out loud or show reasoning.
+- Respond DIRECTLY. Do NOT show any thinking, reasoning, or internal monologue.
 """
 
     # ── 1. TRANSPORT — PIOPIY WebSocket ──────────────────────────────────────
@@ -107,21 +114,17 @@ async def run_pipeline(websocket, lead: dict = None):
         input_audio_codec="wav",
     )
 
-    # ── 3. LLM — StepFun Step-3.5-Flash via OpenRouter (FREE) ───────────────
-    # OpenRouter is OpenAI API compatible — just change base_url and model
-    # Reasoning is disabled by default when not passing the reasoning parameter
+    # ── 3. LLM — OpenRouter (configurable free model) ────────────────────────
+    # Uses OpenAI-compatible API — just different base_url
+    # No reasoning tokens for voice — direct responses only
     llm = OpenAILLMService(
         api_key=os.getenv("OPENROUTER_API_KEY"),
-        model="stepfun/step-3.5-flash:free",
-        params=OpenAILLMService.InputParams(
-            extra_kwargs={
-                "base_url": "https://openrouter.ai/api/v1",
-                "default_headers": {
-                    "HTTP-Referer": os.getenv("PUBLIC_URL", "https://ai.mutechautomation.com"),
-                    "X-Title": os.getenv("COMPANY_NAME", "MuTech Automation"),
-                },
-            }
-        ),
+        model=llm_model,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": os.getenv("PUBLIC_URL", "https://ai.mutechautomation.com"),
+            "X-Title": os.getenv("COMPANY_NAME", "MuTech Automation"),
+        },
     )
 
     # ── 4. TTS — Sarvam bulbul:v2 ────────────────────────────────────────────
