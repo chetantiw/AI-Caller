@@ -1,0 +1,19 @@
+# Core pipeline
+pipecat-ai[openai,silero]
+pipecat-ai[sarvam]
+pipecat-ai[websocket]
+
+# PIOPIY SDK
+piopiy
+
+# Backend
+fastapi
+uvicorn
+celery
+redis
+python-dotenv
+requests
+
+# Utilities
+loguru
+websockets
