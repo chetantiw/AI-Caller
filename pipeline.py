@@ -1,44 +1,50 @@
 """
 app/pipeline.py
-Core Pipecat voice pipeline: PIOPIY WebSocket -> STT (Sarvam) -> LLM (GPT-4o) -> TTS (Sarvam) -> PIOPIY
+Core Pipecat pipeline: PIOPIY WebSocket -> Sarvam STT -> GPT-4o -> Sarvam TTS -> PIOPIY
 
-PIOPIY streams raw mulaw/PCM audio over a plain WebSocket TCP connection.
-We handle the WebSocket manually and plug into Pipecat's pipeline directly.
+100% Indian voice stack:
+  STT : Sarvam saarika:v2  — Indian multilingual speech recognition
+  LLM : OpenAI GPT-4o      — conversation intelligence
+  TTS : Sarvam bulbul:v2   — natural Indian voice output
 """
 
 import os
-import json
-import base64
-import asyncio
-import websockets
 from loguru import logger
 from dotenv import load_dotenv
 
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.transports.network.fastapi_websocket import (
+from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams,
 )
-from pipecat.services.openai import OpenAILLMService
-from pipecat.services.sarvam import SarvamTTSService, SarvamSTTService
+from pipecat.services.sarvam.stt import SarvamSTTService
+from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSpeakerV2
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import AudioRawFrame, EndFrame
 
 load_dotenv()
 
+# ── Sarvam language codes ─────────────────────────────────────────────────────
 SARVAM_LANG_MAP = {
-    "en": "en-IN", "hi": "hi-IN", "mr": "mr-IN",
-    "gu": "gu-IN", "ta": "ta-IN", "te": "te-IN",
-    "kn": "kn-IN", "bn": "bn-IN", "pa": "pa-IN", "ml": "ml-IN",
+    "en": "en-IN",
+    "hi": "hi-IN",
+    "mr": "mr-IN",
+    "gu": "gu-IN",
+    "ta": "ta-IN",
+    "te": "te-IN",
+    "kn": "kn-IN",
+    "bn": "bn-IN",
+    "pa": "pa-IN",
+    "ml": "ml-IN",
 }
 
-SARVAM_VOICE_MAP = {
-    "en-IN": "anushka", "hi-IN": "anushka", "mr-IN": "anushka",
-    "gu-IN": "anushka", "ta-IN": "anushka", "te-IN": "anushka",
-}
+# ── Sarvam V2 speakers ────────────────────────────────────────────────────────
+# Female: anushka, manisha, vidya, arya
+# Male  : abhilash, karun, hitesh
+SARVAM_SPEAKER = SarvamTTSSpeakerV2.ANUSHKA
 
 
 def load_system_prompt() -> str:
@@ -53,26 +59,18 @@ def load_system_prompt() -> str:
 
 async def run_pipeline(websocket, lead: dict = None):
     """
-    Run full voice AI pipeline for a PIOPIY WebSocket connection.
-
-    PIOPIY sends raw binary audio frames over WebSocket.
-    We receive audio -> STT -> LLM -> TTS -> send audio back.
-
-    Args:
-        websocket : FastAPI WebSocket from PIOPIY audio stream
-        lead      : Dict with prospect info {name, company, language}
+    Full voice AI pipeline for a PIOPIY WebSocket call.
+    Uses Sarvam AI for both STT and TTS — single API key, full Indian language support.
     """
 
     lead_name     = lead.get("name", "there")  if lead else "there"
     lead_company  = lead.get("company", "")    if lead else ""
     lead_language = lead.get("language", "en") if lead else "en"
+    sarvam_lang   = SARVAM_LANG_MAP.get(lead_language, "en-IN")
 
-    sarvam_lang  = SARVAM_LANG_MAP.get(lead_language, "en-IN")
-    sarvam_voice = SARVAM_VOICE_MAP.get(sarvam_lang, "anushka")
+    logger.info(f"Pipeline | Lead: {lead_name} @ {lead_company} | Lang: {sarvam_lang}")
 
-    logger.info(f"Pipeline starting | Lead: {lead_name} @ {lead_company} | Lang: {sarvam_lang}")
-
-    # Personalized system prompt
+    # ── Personalized system prompt ────────────────────────────────────────────
     system_prompt = load_system_prompt()
     personalized_prompt = f"""
 {system_prompt}
@@ -82,11 +80,10 @@ async def run_pipeline(websocket, lead: dict = None):
 - Company           : {lead_company}
 - Preferred Language: {"Hindi" if lead_language == "hi" else "English (Indian accent)"}
 - Speak naturally with Indian cultural context.
-- Keep each response under 3 sentences for natural conversation flow.
-- You are calling via phone — be concise and respect the prospect's time.
+- Keep each response under 3 sentences.
 """
 
-    # ── 1. TRANSPORT — FastAPI WebSocket (PIOPIY streams raw audio) ───────────
+    # ── 1. TRANSPORT — PIOPIY WebSocket ──────────────────────────────────────
     transport = FastAPIWebsocketTransport(
         websocket=websocket,
         params=FastAPIWebsocketParams(
@@ -99,11 +96,13 @@ async def run_pipeline(websocket, lead: dict = None):
         ),
     )
 
-    # ── 2. STT — Sarvam Speech to Text ───────────────────────────────────────
+    # ── 2. STT — Sarvam saarika:v2 ───────────────────────────────────────────
     stt = SarvamSTTService(
         api_key=os.getenv("SARVAM_API_KEY"),
-        language_code=sarvam_lang,
         model=os.getenv("SARVAM_STT_MODEL", "saarika:v2"),
+        mode="codemix",           # Handles Hindi-English code switching naturally
+        sample_rate=8000,
+        input_audio_codec="wav",
     )
 
     # ── 3. LLM — OpenAI GPT-4o ───────────────────────────────────────────────
@@ -112,20 +111,18 @@ async def run_pipeline(websocket, lead: dict = None):
         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
     )
 
-    # ── 4. TTS — Sarvam Text to Speech ───────────────────────────────────────
+    # ── 4. TTS — Sarvam bulbul:v2 ────────────────────────────────────────────
     tts = SarvamTTSService(
         api_key=os.getenv("SARVAM_API_KEY"),
-        language_code=sarvam_lang,
-        speaker=sarvam_voice,
         model=os.getenv("SARVAM_TTS_MODEL", "bulbul:v2"),
-        output_format="wav",
+        voice_id=SARVAM_SPEAKER.value,
         sample_rate=8000,
     )
 
     # ── 5. LLM Context ───────────────────────────────────────────────────────
     messages = [
         {"role": "system", "content": personalized_prompt},
-        {"role": "user", "content": "The call just connected. Start your introduction now."},
+        {"role": "user",   "content": "The call just connected. Start your introduction now."},
     ]
     context = OpenAILLMContext(messages)
     context_aggregator = llm.create_context_aggregator(context)
@@ -133,12 +130,12 @@ async def run_pipeline(websocket, lead: dict = None):
     # ── 6. Pipeline ──────────────────────────────────────────────────────────
     pipeline = Pipeline([
         transport.input(),               # Audio in from PIOPIY
-        stt,                             # Speech -> Text (Sarvam)
-        context_aggregator.user(),       # Add to conversation
+        stt,                             # Speech -> Text  (Sarvam saarika:v2)
+        context_aggregator.user(),       # Add to LLM context
         llm,                             # GPT-4o response
-        tts,                             # Text -> Speech (Sarvam)
+        tts,                             # Text -> Speech  (Sarvam bulbul:v2)
         transport.output(),              # Audio out to PIOPIY
-        context_aggregator.assistant(),  # Save turn
+        context_aggregator.assistant(),  # Save assistant turn
     ])
 
     task = PipelineTask(
@@ -153,12 +150,12 @@ async def run_pipeline(websocket, lead: dict = None):
 
     @transport.event_handler("on_client_connected")
     async def on_connected(transport, client):
-        logger.info(f"PIOPIY stream connected | {lead_name}")
+        logger.info(f"✅ Call connected: {lead_name}")
         await task.queue_frames([context_aggregator.user().get_context_frame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_disconnected(transport, client):
-        logger.info(f"PIOPIY stream disconnected | {lead_name}")
+        logger.info(f"📴 Call ended: {lead_name}")
         await task.cancel()
 
     await runner.run(task)
