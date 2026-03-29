@@ -1,0 +1,17 @@
+[0;1;32m●[0m ai-caller.service - MuTech AI Cold Calling Agent
+     Loaded: loaded (/etc/systemd/system/ai-caller.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Sun 2026-03-29 16:48:55 UTC; 51s ago
+   Main PID: 17710 (uvicorn)
+      Tasks: 3 (limit: 9476)
+     Memory: 127.6M
+        CPU: 2.864s
+     CGroup: /system.slice/ai-caller.service
+             └─17710 /root/ai-caller-env/bin/python3 /root/ai-caller-env/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+Mar 29 16:48:55 srv1300859 systemd[1]: Started MuTech AI Cold Calling Agent.
+Mar 29 16:48:55 srv1300859 uvicorn[17710]: 2026-03-29 16:48:55.720 | INFO     | pipecat:<module>:14 - ᓚᘏᗢ Pipecat 0.0.106 (Python 3.10.12 (main, Mar  3 2026, 11:56:32) [GCC 11.4.0]) ᓚᘏᗢ
+Mar 29 16:48:57 srv1300859 uvicorn[17710]: 2026-03-29 16:48:57.688 | INFO     | app.main:load_leads:37 - Loaded 8 leads from leads/sample_leads.csv
+Mar 29 16:48:57 srv1300859 uvicorn[17710]: INFO:     Started server process [17710]
+Mar 29 16:48:57 srv1300859 uvicorn[17710]: INFO:     Waiting for application startup.
+Mar 29 16:48:57 srv1300859 uvicorn[17710]: INFO:     Application startup complete.
+Mar 29 16:48:57 srv1300859 uvicorn[17710]: INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
