@@ -1,19 +1,17 @@
 
 """
 
-outbound_call.py
+outbound_call.py - Trigger outbound calls via Exotel API
 
-Trigger outbound calls via Exotel API
+Usage:
 
-Usage: 
+  Single call:  python outbound_call.py +91XXXXXXXXXX "Name" "Company"
 
-  Single call:   python outbound_call.py +91XXXXXXXXXX "Name" "Company"
-
-  From CSV:      python outbound_call.py --campaign leads/sample_leads.csv
+  Campaign:     python outbound_call.py --campaign leads/sample_leads.csv 30
 
 """
 
-import os, sys, time, csv, requests
+import os, sys, time, csv, subprocess
 
 from dotenv import load_dotenv
 
@@ -31,7 +29,7 @@ API_KEY     = os.getenv("EXOTEL_API_KEY")
 
 API_TOKEN   = os.getenv("EXOTEL_API_TOKEN")
 
-FROM_NUMBER = "07314854688"  # Landline - approved for outbound
+FROM_NUMBER = "07314854688"
 
 CALLER_ID   = "+917314854688"
 
@@ -51,6 +49,10 @@ def make_call(to_number: str, name: str = "", company: str = "") -> dict:
 
         to_number = "+91" + to_number[1:]
 
+    elif len(to_number) == 10:
+
+        to_number = "+91" + to_number
+
     elif not to_number.startswith("+"):
 
         to_number = "+91" + to_number
@@ -63,45 +65,43 @@ def make_call(to_number: str, name: str = "", company: str = "") -> dict:
 
     try:
 
-        r = requests.post(
+        result = subprocess.run([
 
-            API_URL,
+            "curl", "-s", "-X", "POST", API_URL,
 
-            auth=(API_KEY, API_TOKEN),
+            "-u", f"{API_KEY}:{API_TOKEN}",
 
-            data={
+            "-d", f"From={FROM_NUMBER}",
 
-                "From": FROM_NUMBER,
+            "-d", f"To={to_number}",
 
-                "To": to_number,
+            "-d", f"CallerId={CALLER_ID}",
 
-                "CallerId": CALLER_ID,
+            "-d", f"Url={APP_URL}",
 
-                "Url": APP_URL,
+            "-d", "TimeLimit=300",
 
-                "TimeLimit": 300,
+            "-d", "TimeOut=30",
 
-                "TimeOut": 30,
+        ], capture_output=True, text=True, timeout=15)
 
-                "CustomField": f"{name}|{company}",
 
-            },
 
-            timeout=10
+        response = result.stdout
 
-        )
+        if "<Status>in-progress</Status>" in response or "<Status>queued</Status>" in response:
 
-        if r.status_code == 200:
+            logger.info(f"✅ Call initiated to {to_number} ({name})")
 
-            logger.info(f"✅ Call initiated to {to_number}")
-
-            return {"success": True}
+            return {"success": True, "response": response}
 
         else:
 
-            logger.error(f"❌ Failed {r.status_code}: {r.text[:200]}")
+            logger.error(f"❌ Failed for {to_number}: {response[:200]}")
 
-            return {"success": False, "error": r.text}
+            return {"success": False, "error": response}
+
+
 
     except Exception as e:
 
@@ -113,15 +113,25 @@ def make_call(to_number: str, name: str = "", company: str = "") -> dict:
 
 def run_campaign(csv_file: str, delay_seconds: int = 30):
 
-    """Call all leads from CSV file with delay between calls"""
+    """Call all leads from CSV with delay between calls"""
 
-    logger.info(f"Starting campaign from {csv_file}")
+    logger.info(f"Starting campaign from: {csv_file}")
 
-    with open(csv_file, newline="") as f:
+
+
+    with open(csv_file, newline="", encoding="utf-8-sig") as f:  # utf-8-sig handles BOM
 
         reader = csv.DictReader(f)
 
         leads = list(reader)
+
+    
+
+    # Debug: show columns found
+
+    if leads:
+
+        logger.info(f"CSV columns: {list(leads[0].keys())}")
 
 
 
@@ -129,7 +139,7 @@ def run_campaign(csv_file: str, delay_seconds: int = 30):
 
     success = 0
 
-    failed = 0
+    failed  = 0
 
 
 
@@ -145,7 +155,7 @@ def run_campaign(csv_file: str, delay_seconds: int = 30):
 
         if not number:
 
-            logger.warning(f"Skipping row {i+1} - no phone number")
+            logger.warning(f"Row {i+1}: no phone number, skipping")
 
             continue
 
@@ -171,7 +181,7 @@ def run_campaign(csv_file: str, delay_seconds: int = 30):
 
 
 
-    logger.info(f"Campaign done! ✅ {success} success | ❌ {failed} failed")
+    logger.info(f"Campaign complete! ✅ {success} success | ❌ {failed} failed")
 
 
 
@@ -199,7 +209,7 @@ if __name__ == "__main__":
 
         print("Usage:")
 
-        print("  Single: python outbound_call.py +91XXXXXXXXXX 'Name' 'Company'")
+        print("  Single:   python outbound_call.py +91XXXXXXXXXX 'Name' 'Company'")
 
         print("  Campaign: python outbound_call.py --campaign leads/sample_leads.csv 30")
 
