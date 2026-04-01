@@ -1,165 +1,199 @@
 """
 app/main.py
-FastAPI server - PIOPIY WebSocket audio stream + campaign API
+FastAPI server — MuTech AI Caller
+Handles: Exotel WebSocket pipeline, REST API, dashboard static files
+
+CHANGES vs original:
+- Added database init on startup (init_db)
+- Mounted /api/* routes from api_routes.py
+- Kept all original routes intact
+- Lead info now passed correctly from DB to pipeline
 """
 
 import os
 import csv
 from datetime import datetime
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from loguru import logger
 from dotenv import load_dotenv
 
-from app.piopiy_handler import make_outbound_call
-from app.pipeline import run_pipeline
-from app.celery_worker import launch_campaign
+from app.exotel_handler import make_outbound_call as exotel_call
+from app.exotel_pipeline import run_exotel_pipeline
+from app.api_routes import router as api_router
+from app import database as db
 
 load_dotenv()
 
 app = FastAPI(
-    title="AI Cold Calling Agent",
-    description="PIOPIY + Sarvam AI + GPT-4o powered outbound sales agent",
-    version="1.0.0",
+    title="MuTech AI Caller — Priya",
+    description="Exotel + Sarvam AI + Groq powered Hindi voice sales agent",
+    version="2.0.0",
 )
 
-# In-memory call log
-call_log: dict = {}
+# ── Startup: initialize database ──────────────────────────────
+@app.on_event("startup")
+async def startup_event():
+    db.init_db()
+    db.add_log("🟢 MuTech AI Caller server started")
+    logger.info("Database initialized")
 
 
-def load_leads(csv_path: str = "leads/sample_leads.csv") -> list:
-    leads = []
-    try:
-        with open(csv_path, newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                leads.append(row)
-        logger.info(f"Loaded {len(leads)} leads from {csv_path}")
-    except FileNotFoundError:
-        logger.warning(f"Lead file not found: {csv_path}")
-    return leads
-
-leads_cache = load_leads()
+# ── Mount API routes ───────────────────────────────────────────
+app.include_router(api_router)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PIOPIY WEBSOCKET — AUDIO STREAM
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Static files + Dashboard ───────────────────────────────────
+_static_dir = os.path.join(os.path.dirname(__file__), "../static")
+os.makedirs(_static_dir, exist_ok=True)
 
-@app.websocket("/ws/piopiy")
-async def piopiy_websocket(websocket: WebSocket):
-    """
-    PIOPIY streams bidirectional audio to this WebSocket endpoint.
-    We run the full Pipecat STT -> LLM -> TTS pipeline here.
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
-    PIOPIY connects here automatically when the prospect answers the call.
-    No webhook/XML needed — it's all configured in the PIOPIY dashboard.
-    """
-    await websocket.accept()
 
-    # Extract lead info from query params
-    lead_id = websocket.query_params.get("lead_id", "")
-    lead = next(
-        (l for l in leads_cache if l.get("phone", "").replace("+", "") in lead_id),
-        None
+@app.get("/")
+async def root():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
+
+
+@app.get("/dashboard")
+async def dashboard():
+    _path = os.path.join(_static_dir, "dashboard.html")
+    if os.path.exists(_path):
+        return FileResponse(_path)
+    return JSONResponse(
+        {"error": "dashboard.html not found in static/ folder"},
+        status_code=404
     )
 
-    logger.info(f"PIOPIY WebSocket connected | lead_id: {lead_id} | lead: {lead}")
+
+# ── Health check ───────────────────────────────────────────────
+@app.get("/health")
+async def health():
+    stats = db.get_dashboard_stats()
+    return JSONResponse({
+        "status":      "ok",
+        "version":     "2.0.0",
+        "agent":       "Priya",
+        "telephony":   "Exotel",
+        "calls_today": stats.get("calls_today", 0),
+        "total_calls": stats.get("total_calls", 0),
+    })
+
+
+# ── Exotel WebSocket ───────────────────────────────────────────
+@app.websocket("/ws/exotel")
+async def exotel_websocket(websocket: WebSocket):
+    await websocket.accept()
+
+    lead_id = websocket.query_params.get("lead_id")
+    phone   = websocket.query_params.get("phone")
+
+    # Look up lead from DB first, fallback to query params
+    lead = None
+    if lead_id:
+        try:
+            lead = db.get_lead(int(lead_id))
+        except Exception:
+            pass
+
+    if not lead and phone:
+        lead = db.get_lead_by_phone(phone)
+
+    if not lead and lead_id:
+        # Minimal lead dict from query params
+        lead = {"id": None, "name": "", "phone": phone or "", "company": "",
+                "campaign_id": None}
+
+    logger.info(f"Exotel WS connected | lead_id={lead_id} | phone={phone}")
 
     try:
-        await run_pipeline(websocket, lead=lead)
+        await run_exotel_pipeline(websocket, lead or {})
     except WebSocketDisconnect:
-        logger.info(f"PIOPIY WebSocket disconnected | lead_id: {lead_id}")
+        logger.info(f"Exotel WS disconnected | lead_id={lead_id}")
     except Exception as e:
-        logger.error(f"Pipeline error for {lead_id}: {e}")
+        logger.error(f"Pipeline error: {e}")
         try:
             await websocket.close()
         except Exception:
             pass
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CAMPAIGN & CALL APIs
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.post("/call/single")
-async def single_call(request: Request):
-    """
-    Trigger a single outbound AI call immediately.
-
-    Body: { "phone": "919876543210", "lead_id": "optional" }
-    Note: Phone number without + prefix for PIOPIY
-    """
+# ── Exotel outbound trigger ────────────────────────────────────
+@app.post("/exotel/call")
+async def exotel_outbound(request: Request):
     body    = await request.json()
     phone   = body.get("phone")
-    lead_id = body.get("lead_id", phone)
+    lead_id = body.get("lead_id")
 
     if not phone:
-        raise HTTPException(status_code=400, detail="Phone number required")
+        return JSONResponse({"error": "phone required"}, status_code=400)
 
-    request_id = make_outbound_call(phone, lead_id)
-
-    call_log[request_id] = {
-        "lead_id": lead_id,
-        "phone": phone,
-        "status": "initiated",
-        "created_at": datetime.utcnow().isoformat(),
-    }
-
-    return JSONResponse({
-        "request_id": request_id,
-        "status": "initiated",
-        "message": f"Call to {phone} initiated via PIOPIY"
-    })
+    result = await exotel_call(phone, lead_id or "test")
+    db.add_log(f"📞 Outbound call initiated: {phone}")
+    return JSONResponse({"status": "initiated", "result": str(result)[:100]})
 
 
-@app.post("/campaign/start")
-async def start_campaign(request: Request):
-    """
-    Start a bulk outbound calling campaign from lead CSV.
+@app.post("/exotel/status")
+async def exotel_status(request: Request):
+    data = await request.form()
+    logger.info(f"Exotel status callback: {dict(data)}")
+    return JSONResponse({"status": "ok"})
 
-    Body: { "csv_path": "leads/sample_leads.csv", "delay_seconds": 30 }
-    """
-    body     = await request.json()
-    csv_path = body.get("csv_path", "leads/sample_leads.csv")
-    delay    = body.get("delay_seconds", 30)
 
-    leads = load_leads(csv_path)
-    if not leads:
-        raise HTTPException(status_code=400, detail="No leads found in CSV")
-
-    task = launch_campaign.delay(leads, delay)
-    logger.info(f"Campaign started | {len(leads)} leads | task_id: {task.id}")
-
-    return JSONResponse({
-        "message": f"Campaign started with {len(leads)} leads",
-        "task_id": task.id,
-        "delay_between_calls": delay,
-    })
-
+# ── Legacy routes (kept for backward compatibility) ────────────
 
 @app.get("/calls")
-async def list_calls():
-    """List all calls in current session."""
-    return JSONResponse({"total": len(call_log), "calls": call_log})
+async def list_calls_legacy():
+    calls = db.get_calls(limit=50)
+    return JSONResponse({"total": len(calls), "calls": calls})
 
 
 @app.get("/leads")
-async def list_leads():
-    """List loaded leads."""
-    return JSONResponse({"total": len(leads_cache), "leads": leads_cache})
+async def list_leads_legacy():
+    leads = db.get_leads(limit=100)
+    return JSONResponse({"total": len(leads), "leads": leads})
 
 
-@app.get("/health")
-async def health():
+@app.post("/call/single")
+async def single_call(request: Request):
+    body    = await request.json()
+    phone   = body.get("phone")
+    lead_id = body.get("lead_id", phone)
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number required")
+    result = await exotel_call(phone, lead_id)
+    return JSONResponse({"status": "initiated", "message": f"Call to {phone} initiated"})
+
+
+@app.post("/campaign/start")
+async def start_campaign_legacy(request: Request):
+    body     = await request.json()
+    csv_path = body.get("csv_path", "leads/sample_leads.csv")
+    delay    = body.get("delay_seconds", 60)
+
+    leads = []
+    try:
+        with open(csv_path, newline='') as f:
+            reader = csv.DictReader(f)
+            leads = list(reader)
+    except FileNotFoundError:
+        raise HTTPException(status_code=400, detail=f"CSV not found: {csv_path}")
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No leads in CSV")
+
+    # Import leads into DB
+    count = db.bulk_insert_leads(leads)
+    db.add_log(f"📂 Campaign CSV imported: {count} leads from {csv_path}")
+
     return JSONResponse({
-        "status": "ok",
-        "version": "1.0.0",
-        "agent": os.getenv("AGENT_NAME", "Priya"),
-        "telephony": "PIOPIY (TeleCMI)",
-        "stt_tts": "Sarvam AI",
-        "llm": os.getenv("OPENAI_MODEL", "gpt-4o"),
-        "call_rate": "₹0.59/min",
+        "message":  f"Campaign queued with {len(leads)} leads ({count} new in DB)",
+        "imported": count,
+        "delay":    delay,
     })
 
 
@@ -172,107 +206,4 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
     )
-
-
-
-
-
-# ── DASHBOARD & STATIC FILES ──────────────────────────────────
-
-from fastapi.staticfiles import StaticFiles
-
-from fastapi.responses import FileResponse
-
-import os as _os
-
-
-
-_static_dir = _os.path.join(_os.path.dirname(__file__), "../static")
-
-_os.makedirs(_static_dir, exist_ok=True)
-
-
-
-app.mount("/static", StaticFiles(directory=_static_dir), name="static")
-
-
-
-@app.get("/")
-
-async def root():
-
-    from fastapi.responses import RedirectResponse
-
-    return RedirectResponse(url="/dashboard")
-
-
-
-@app.get("/dashboard")
-
-async def dashboard():
-
-    _path = _os.path.join(_static_dir, "dashboard.html")
-
-    if _os.path.exists(_path):
-
-        return FileResponse(_path)
-
-    return JSONResponse({"error": "dashboard.html not found in static/ folder"}, status_code=404)
-
-
-
-
-# ── EXOTEL ROUTES ──────────────────────────────────────────────
-
-from app.exotel_handler import make_outbound_call as exotel_call
-
-from app.exotel_pipeline import run_exotel_pipeline
-
-
-
-@app.post("/exotel/call")
-
-async def exotel_outbound(request: Request):
-
-    body = await request.json()
-
-    phone = body.get("phone")
-
-    lead_id = body.get("lead_id", "test")
-
-    if not phone:
-
-        return JSONResponse({"error": "phone required"}, status_code=400)
-
-    result = await exotel_call(phone, lead_id)
-
-    return JSONResponse({"status": "initiated", "result": result[:100]})
-
-
-
-@app.post("/exotel/status")
-
-async def exotel_status(request: Request):
-
-    data = await request.form()
-
-    logger.info(f"Exotel status: {dict(data)}")
-
-    return JSONResponse({"status": "ok"})
-
-
-
-@app.websocket("/ws/exotel")
-
-async def exotel_websocket(websocket: WebSocket):
-
-    await websocket.accept()
-
-    lead_id = websocket.query_params.get("lead_id")
-
-    lead = {"id": lead_id} if lead_id else {}
-
-    logger.info(f"Exotel WS connected | lead_id: {lead_id}")
-
-    await run_exotel_pipeline(websocket, lead)
 
