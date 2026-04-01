@@ -231,9 +231,9 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
 
         {"role": "assistant", "content": greeting},
 
-        {"role": "user", "content": "[कॉल शुरू हुई]"},
-
     ]
+
+    greeting_triggered = False  # Track if greeting has been sent
 
 
 
@@ -243,11 +243,53 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
 
 
 
+    from pipecat.frames.frames import UserStartedSpeakingFrame
+
+    from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
+
+
+
+    class GreetingTrigger(FrameProcessor):
+
+        """Send greeting on first customer speech detected by VAD"""
+
+        def __init__(self):
+
+            super().__init__()
+
+            self._greeted = False
+
+
+
+        async def process_frame(self, frame, direction):
+
+            await super().process_frame(frame, direction)
+
+            if isinstance(frame, UserStartedSpeakingFrame) and not self._greeted:
+
+                self._greeted = True
+
+                logger.info("Customer started speaking - triggering greeting")
+
+                from pipecat.frames.frames import LLMMessagesFrame
+
+                await task.queue_frames([context_aggregator.user().get_context_frame()])
+
+            await self.push_frame(frame, direction)
+
+
+
+    greeting_trigger = GreetingTrigger()
+
+
+
     # Build pipeline
 
     pipeline = Pipeline([
 
         transport.input(),           # Audio from Exotel
+
+        greeting_trigger,            # Trigger greeting on first speech
 
         stt,                         # Sarvam STT → transcription
 
@@ -285,15 +327,15 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
 
 
 
-    # Send greeting when call starts
+    # Do NOT send greeting on connect for outbound calls
+
+    # Greeting will be triggered after customer speaks
 
     @transport.event_handler("on_client_connected")
 
     async def on_connected(transport, client):
 
-        logger.info("Client connected - sending greeting")
-
-        await task.queue_frames([context_aggregator.user().get_context_frame()])
+        logger.info("Client connected - waiting for customer to speak first")
 
 
 
