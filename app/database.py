@@ -542,6 +542,18 @@ def get_recent_calls(limit: int = 10) -> list:
         ).fetchall()]
 
 
+def get_call_by_phone(phone: str) -> Optional[dict]:
+    """Find most recent call by phone number."""
+    clean = phone.replace("+91", "").replace("+", "").lstrip("0").strip()
+    with get_conn() as conn:
+        row = conn.execute(
+            """SELECT * FROM calls WHERE phone LIKE ?
+               ORDER BY started_at DESC LIMIT 1""",
+            (f"%{clean}",)
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def get_call(call_id: int) -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM calls WHERE id=?", (call_id,)).fetchone()

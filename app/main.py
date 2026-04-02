@@ -139,8 +139,51 @@ async def exotel_outbound(request: Request):
 
 @app.post("/exotel/status")
 async def exotel_status(request: Request):
-    data = await request.form()
-    logger.info(f"Exotel status callback: {dict(data)}")
+    data = dict(await request.form())
+    logger.info(f"Exotel status callback: {data}")
+
+    call_sid  = data.get("CallSid", "")
+    status    = data.get("Status", "unknown")       # completed, no-answer, busy, failed
+    duration  = int(data.get("ConversationDuration", 0) or 0)
+    from_num  = data.get("From", "")
+
+    # Map Exotel status → our outcome/sentiment
+    outcome_map = {
+        "completed": "answered",
+        "no-answer": "no_answer",
+        "busy":      "no_answer",
+        "failed":    "failed",
+    }
+    outcome = outcome_map.get(status, "unknown")
+
+    # Find matching call record by call_sid or phone
+    call = None
+    if call_sid:
+        with db.get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM calls WHERE call_sid=?", (call_sid,)
+            ).fetchone()
+            if row:
+                call = dict(row)
+
+    if not call and from_num:
+        call = db.get_call_by_phone(from_num)
+
+    if call:
+        db.complete_call(
+            call_id      = call["id"],
+            duration_sec = duration,
+            outcome      = outcome,
+            sentiment    = "neutral",
+            summary      = f"Exotel: {status} | Duration: {duration}s",
+        )
+        # Update lead status
+        if call.get("lead_id") and outcome == "answered":
+            db.update_lead(call["lead_id"], status="called")
+        logger.info(f"DB updated for CallSid {call_sid}: {outcome} ({duration}s)")
+    else:
+        logger.info(f"No matching call found for CallSid {call_sid}")
+
     return JSONResponse({"status": "ok"})
 
 
@@ -206,4 +249,3 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
     )
-
