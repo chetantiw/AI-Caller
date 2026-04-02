@@ -168,6 +168,106 @@ async def list_leads(
 
 
 
+# ── IMPORTANT: specific paths MUST come before /{lead_id} ──
+
+
+@router.get("/leads/groups")
+
+async def lead_groups():
+
+    """Return available lead groupings for campaign assignment."""
+
+    with db.get_conn() as conn:
+
+        total      = conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+        new        = conn.execute("SELECT COUNT(*) FROM leads WHERE status='new'").fetchone()[0]
+
+        called     = conn.execute("SELECT COUNT(*) FROM leads WHERE status='called'").fetchone()[0]
+
+        interested = conn.execute("SELECT COUNT(*) FROM leads WHERE status='interested'").fetchone()[0]
+
+        unassigned = conn.execute(
+
+            "SELECT COUNT(*) FROM leads WHERE campaign_id IS NULL"
+
+        ).fetchone()[0]
+
+    return {
+
+        "groups": [
+
+            {"id": "new",        "label": "New leads",         "count": new},
+
+            {"id": "unassigned", "label": "Unassigned leads",  "count": unassigned},
+
+            {"id": "called",     "label": "Previously called", "count": called},
+
+            {"id": "interested", "label": "Interested leads",  "count": interested},
+
+            {"id": "all",        "label": "All leads",         "count": total},
+
+        ]
+
+    }
+
+
+
+@router.post("/leads/upload-csv")
+
+async def upload_leads_csv(
+
+    file:        UploadFile = File(...),
+
+    campaign_id: int = None,
+
+):
+
+    """Upload leads from CSV. Expected columns: name, phone, company, designation, language"""
+
+    if not file.filename.endswith('.csv'):
+
+        raise HTTPException(status_code=400, detail="File must be a .csv")
+
+
+    content = await file.read()
+
+    try:
+
+        text   = content.decode('utf-8-sig')
+
+        reader = csv.DictReader(io.StringIO(text))
+
+        rows   = list(reader)
+
+    except Exception as e:
+
+        raise HTTPException(status_code=400, detail=f"CSV parse error: {e}")
+
+
+    if not rows:
+
+        raise HTTPException(status_code=400, detail="CSV is empty")
+
+
+    count = db.bulk_insert_leads(rows, campaign_id=campaign_id)
+
+    db.add_log(f"📂 CSV uploaded: {count} new leads from {file.filename}")
+
+    return {
+
+        "message":  f"Successfully imported {count} leads",
+
+        "imported": count,
+
+        "skipped":  len(rows) - count,
+
+        "total":    len(rows),
+
+    }
+
+
+
 @router.get("/leads/{lead_id}")
 
 async def get_lead(lead_id: int):
@@ -195,7 +295,6 @@ async def create_lead(request: Request):
     if not name or not phone:
 
         raise HTTPException(status_code=400, detail="name and phone are required")
-
 
     lead_id = db.create_lead(
 
@@ -233,16 +332,7 @@ async def update_lead(lead_id: int, request: Request):
 
         raise HTTPException(status_code=404, detail="Lead not found")
 
-
-    db.update_lead(
-
-        lead_id = lead_id,
-
-        status  = body.get("status"),
-
-        notes   = body.get("notes"),
-
-    )
+    db.update_lead(lead_id=lead_id, status=body.get("status"), notes=body.get("notes"))
 
     return {"message": "Lead updated"}
 
@@ -264,68 +354,6 @@ async def delete_lead(lead_id: int):
 
 
 
-@router.post("/leads/upload-csv")
-
-async def upload_leads_csv(
-
-    file:        UploadFile = File(...),
-
-    campaign_id: int = None,
-
-):
-
-    """
-
-    Upload leads from CSV file.
-
-    Expected columns: name, phone, company, designation, language
-
-    """
-
-    if not file.filename.endswith('.csv'):
-
-        raise HTTPException(status_code=400, detail="File must be a .csv")
-
-
-    content = await file.read()
-
-    try:
-
-        text   = content.decode('utf-8-sig')   # handle BOM
-
-        reader = csv.DictReader(io.StringIO(text))
-
-        rows   = list(reader)
-
-    except Exception as e:
-
-        raise HTTPException(status_code=400, detail=f"CSV parse error: {e}")
-
-
-    if not rows:
-
-        raise HTTPException(status_code=400, detail="CSV is empty")
-
-
-    count = db.bulk_insert_leads(rows, campaign_id=campaign_id)
-
-    db.add_log(f"📂 CSV uploaded: {count} new leads from {file.filename}")
-
-
-    return {
-
-        "message":  f"Successfully imported {count} leads",
-
-        "imported": count,
-
-        "skipped":  len(rows) - count,
-
-        "total":    len(rows),
-
-    }
-
-
-
 # ═══════════════════════════════════════════════════════
 
 # CAMPAIGNS
@@ -333,45 +361,13 @@ async def upload_leads_csv(
 # ═══════════════════════════════════════════════════════
 
 
-@router.get("/leads/groups")
+@router.get("/campaigns")
 
-async def lead_groups():
+async def list_campaigns(status: str = None):
 
-    """Return available lead groupings for campaign assignment."""
+    campaigns = db.get_campaigns(status=status)
 
-    with db.get_conn() as conn:
-
-        total    = conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
-
-        new      = conn.execute("SELECT COUNT(*) FROM leads WHERE status='new'").fetchone()[0]
-
-        called   = conn.execute("SELECT COUNT(*) FROM leads WHERE status='called'").fetchone()[0]
-
-        interest = conn.execute("SELECT COUNT(*) FROM leads WHERE status='interested'").fetchone()[0]
-
-        unassigned = conn.execute(
-
-            "SELECT COUNT(*) FROM leads WHERE campaign_id IS NULL"
-
-        ).fetchone()[0]
-
-    return {
-
-        "groups": [
-
-            {"id": "new",        "label": f"New leads",          "count": new,        "status": "new"},
-
-            {"id": "unassigned", "label": f"Unassigned leads",   "count": unassigned, "status": None},
-
-            {"id": "called",     "label": f"Previously called",  "count": called,     "status": "called"},
-
-            {"id": "interested", "label": f"Interested leads",   "count": interest,   "status": "interested"},
-
-            {"id": "all",        "label": f"All leads",          "count": total,      "status": None},
-
-        ]
-
-    }
+    return {"total": len(campaigns), "campaigns": campaigns}
 
 
 
@@ -383,7 +379,7 @@ async def create_campaign(request: Request):
 
     name        = body.get("name", "").strip()
 
-    lead_group  = body.get("lead_group", "new")   # which leads to assign
+    lead_group  = body.get("lead_group", "new")
 
     description = body.get("description", "")
 
@@ -393,10 +389,7 @@ async def create_campaign(request: Request):
         raise HTTPException(status_code=400, detail="Campaign name required")
 
 
-    camp_id = db.create_campaign(name=name, description=description)
-
-
-    # Assign matching leads to this campaign
+    camp_id  = db.create_campaign(name=name, description=description)
 
     assigned = db.assign_leads_to_campaign(camp_id, lead_group)
 
@@ -404,7 +397,6 @@ async def create_campaign(request: Request):
     db.add_log(f"🚀 Campaign created: {name} — {assigned} leads assigned ({lead_group})")
 
     return {"id": camp_id, "message": "Campaign created", "leads_assigned": assigned}
-
 
 
 

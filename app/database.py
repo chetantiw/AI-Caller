@@ -424,6 +424,74 @@ def delete_lead(lead_id: int):
 
 
 
+def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
+
+    """Insert list of dicts from CSV. Returns count inserted. Skips duplicates by phone."""
+
+    count = 0
+
+    with get_conn() as conn:
+
+        for row in leads:
+
+            phone = str(row.get('phone', '')).strip()
+
+            name  = str(row.get('name', 'Unknown')).strip()
+
+            if not phone or not name:
+
+                continue
+
+            exists = conn.execute(
+
+                "SELECT id FROM leads WHERE phone=?", (phone,)
+
+            ).fetchone()
+
+            if exists:
+
+                continue
+
+            conn.execute(
+
+                """INSERT INTO leads (name, phone, company, designation, language, campaign_id)
+
+                   VALUES (?,?,?,?,?,?)""",
+
+                (name, phone,
+
+                 row.get('company', ''),
+
+                 row.get('designation', ''),
+
+                 row.get('language', 'hi'),
+
+                 campaign_id)
+
+            )
+
+            count += 1
+
+        conn.commit()
+
+        # Update campaign leads_count if assigned
+
+        if campaign_id and count > 0:
+
+            conn.execute(
+
+                "UPDATE campaigns SET leads_count = leads_count + ? WHERE id=?",
+
+                (count, campaign_id)
+
+            )
+
+            conn.commit()
+
+    return count
+
+
+
 def assign_leads_to_campaign(campaign_id: int, group: str) -> int:
 
     """
