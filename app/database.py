@@ -220,7 +220,48 @@ def init_db():
             pass  # column already exists
 
 
+        # Migration: fix scientific notation phone numbers
+
+        _fix_scientific_notation_phones(conn)
+
+
     print(f"[DB] Initialized at {DB_PATH}")
+
+
+
+def _fix_scientific_notation_phones(conn):
+
+    """Fix any phone numbers stored in scientific notation (e.g. 9.18827E+11)."""
+
+    import re
+
+    rows = conn.execute("SELECT id, phone FROM leads").fetchall()
+
+    fixed = 0
+
+    for row in rows:
+
+        phone = str(row['phone'] or '')
+
+        if 'e' in phone.lower() or 'E' in phone:
+
+            try:
+
+                clean = str(int(float(phone)))
+
+                conn.execute("UPDATE leads SET phone=? WHERE id=?", (clean, row['id']))
+
+                fixed += 1
+
+            except Exception:
+
+                pass
+
+    if fixed:
+
+        conn.commit()
+
+        print(f"[DB] Fixed {fixed} scientific notation phone numbers")
 
 
 
@@ -382,6 +423,46 @@ def create_lead(name: str, phone: str, company: str = None, designation: str = N
 
 
 
+def update_lead_full(lead_id: int, name: str = None, phone: str = None,
+
+                     company: str = None, designation: str = None,
+
+                     language: str = None, status: str = None, notes: str = None):
+
+    """Update any fields of a lead."""
+
+    with get_conn() as conn:
+
+        # Build dynamic SET clause
+
+        sets, params = [], []
+
+        if name        is not None: sets.append("name=?");        params.append(name)
+
+        if phone       is not None: sets.append("phone=?");       params.append(phone)
+
+        if company     is not None: sets.append("company=?");     params.append(company)
+
+        if designation is not None: sets.append("designation=?"); params.append(designation)
+
+        if language    is not None: sets.append("language=?");    params.append(language)
+
+        if status      is not None: sets.append("status=?");      params.append(status)
+
+        if notes       is not None: sets.append("notes=?");       params.append(notes)
+
+        if not sets:
+
+            return
+
+        params.append(lead_id)
+
+        conn.execute(f"UPDATE leads SET {', '.join(sets)} WHERE id=?", params)
+
+        conn.commit()
+
+
+
 def update_lead(lead_id: int, status: str = None, notes: str = None):
 
     with get_conn() as conn:
@@ -424,9 +505,63 @@ def delete_lead(lead_id: int):
 
 
 
+def _normalize_phone(phone: str) -> str:
+
+    """Convert any phone format to clean digit string (e.g. 919876543210)."""
+
+    import re
+
+    phone = str(phone).strip()
+
+    # Handle scientific notation: 9.18827E+11 → 918827000000
+
+    if 'e' in phone.lower():
+
+        try:
+
+            phone = str(int(float(phone)))
+
+        except Exception:
+
+            pass
+
+    # Strip everything except digits
+
+    digits = re.sub(r'[^\d]', '', phone)
+
+    # Normalize: remove leading 91 if 12 digits, keep 10-digit local
+
+    if len(digits) == 12 and digits.startswith('91'):
+
+        return digits  # already 91XXXXXXXXXX — keep as is
+
+    elif len(digits) == 11 and digits.startswith('0'):
+
+        return '91' + digits[1:]  # 0XXXXXXXXXX → 91XXXXXXXXXX
+
+    elif len(digits) == 10:
+
+        return '91' + digits  # local → 91XXXXXXXXXX
+
+    return digits
+
+
+
 def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
 
-    """Insert list of dicts from CSV. Returns count inserted. Skips duplicates by phone."""
+    """
+
+    Insert leads from CSV into DB.
+
+    - Normalizes phone numbers (handles scientific notation, various formats)
+
+    - Skips rows with no name or phone
+
+    - If a phone already exists in DB, skips it (won't create duplicate)
+
+    - Returns count of newly inserted leads
+
+    """
 
     count = 0
 
@@ -434,13 +569,25 @@ def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
 
         for row in leads:
 
-            phone = str(row.get('phone', '')).strip()
+            raw_phone = str(row.get('phone', '')).strip()
 
-            name  = str(row.get('name', 'Unknown')).strip()
+            name      = str(row.get('name', 'Unknown')).strip()
 
-            if not phone or not name:
+            if not raw_phone or not name:
 
                 continue
+
+
+            # Normalize phone to clean digit string
+
+            phone = _normalize_phone(raw_phone)
+
+            if not phone or len(phone) < 10:
+
+                continue
+
+
+            # Check if this phone already exists
 
             exists = conn.execute(
 
@@ -452,19 +599,22 @@ def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
 
                 continue
 
+
             conn.execute(
 
-                """INSERT INTO leads (name, phone, company, designation, language, campaign_id)
+                """INSERT INTO leads
+
+                   (name, phone, company, designation, language, campaign_id)
 
                    VALUES (?,?,?,?,?,?)""",
 
                 (name, phone,
 
-                 row.get('company', ''),
+                 str(row.get('company',     '') or '').strip(),
 
-                 row.get('designation', ''),
+                 str(row.get('designation', '') or '').strip(),
 
-                 row.get('language', 'hi'),
+                 str(row.get('language',    'hi') or 'hi').strip(),
 
                  campaign_id)
 
@@ -472,7 +622,9 @@ def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
 
             count += 1
 
+
         conn.commit()
+
 
         # Update campaign leads_count if assigned
 
@@ -487,6 +639,7 @@ def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
             )
 
             conn.commit()
+
 
     return count
 
@@ -564,72 +717,6 @@ def assign_leads_to_campaign(campaign_id: int, group: str) -> int:
 
         return count
 
-
-
-
-    """Insert list of dicts from CSV. Returns count inserted."""
-
-    count = 0
-
-    with get_conn() as conn:
-
-        for row in leads:
-
-            phone = str(row.get('phone', '')).strip()
-
-            name  = str(row.get('name', 'Unknown')).strip()
-
-            if not phone or not name:
-
-                continue
-
-            exists = conn.execute(
-
-                "SELECT id FROM leads WHERE phone=?", (phone,)
-
-            ).fetchone()
-
-            if exists:
-
-                continue
-
-            conn.execute(
-
-                """INSERT INTO leads (name, phone, company, designation, language, campaign_id)
-
-                   VALUES (?,?,?,?,?,?)""",
-
-                (name, phone,
-
-                 row.get('company', ''),
-
-                 row.get('designation', ''),
-
-                 row.get('language', 'hi'),
-
-                 campaign_id)
-
-            )
-
-            count += 1
-
-        conn.commit()
-
-        # Update campaign leads_count
-
-        if campaign_id and count > 0:
-
-            conn.execute(
-
-                "UPDATE campaigns SET leads_count = leads_count + ? WHERE id=?",
-
-                (count, campaign_id)
-
-            )
-
-            conn.commit()
-
-    return count
 
 
 

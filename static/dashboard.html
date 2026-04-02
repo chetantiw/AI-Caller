@@ -3048,7 +3048,7 @@ tr:hover td { background: var(--teal-dim); }
 
                   <div class="upload-title">Drop CSV file here</div>
 
-                  <div class="upload-sub">name, phone, company, designation, language</div>
+                  <div class="upload-sub">name, phone (91XXXXXXXXXX), company, designation, language</div>
 
                   <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)"/>
 
@@ -3060,9 +3060,17 @@ tr:hover td { background: var(--teal-dim); }
 
                 </div>
 
-                <div style="margin-top:12px; display:flex; gap:8px;">
+                <div style="margin-top:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
 
                   <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">⬇ Download Template</button>
+
+                  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
+
+                    <input type="checkbox" id="csv-force" style="cursor:pointer;accent-color:var(--teal)"/>
+
+                    Replace existing contacts (use if re-uploading same list)
+
+                  </label>
 
                 </div>
 
@@ -3612,6 +3620,131 @@ tr:hover td { background: var(--teal-dim); }
 </div>
 
 
+<!-- Edit Lead Modal -->
+
+<div class="modal-overlay" id="modal-edit-lead">
+
+  <div class="modal">
+
+    <div class="modal-header">
+
+      <h3>✏️ Edit Lead</h3>
+
+      <button class="modal-close" onclick="closeModal('modal-edit-lead')">✕</button>
+
+    </div>
+
+    <div class="modal-body">
+
+      <input type="hidden" id="edit-lead-id"/>
+
+      <div class="form-grid">
+
+        <div class="form-row">
+
+          <label>Full Name *</label>
+
+          <input type="text" id="edit-lead-name" placeholder="Rahul Sharma"/>
+
+        </div>
+
+        <div class="form-row">
+
+          <label>Phone *</label>
+
+          <input type="text" id="edit-lead-phone" placeholder="919876543210"/>
+
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px;">
+
+            Format: 91XXXXXXXXXX (12 digits, no spaces or dashes)
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-row">
+
+          <label>Company</label>
+
+          <input type="text" id="edit-lead-company" placeholder="Tata Motors"/>
+
+        </div>
+
+        <div class="form-row">
+
+          <label>Designation</label>
+
+          <input type="text" id="edit-lead-designation" placeholder="Plant Manager"/>
+
+        </div>
+
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-row">
+
+          <label>Status</label>
+
+          <select id="edit-lead-status">
+
+            <option value="new">New</option>
+
+            <option value="called">Called</option>
+
+            <option value="interested">Interested</option>
+
+            <option value="demo_booked">Demo Booked</option>
+
+            <option value="not_interested">Not Interested</option>
+
+          </select>
+
+        </div>
+
+        <div class="form-row">
+
+          <label>Language</label>
+
+          <select id="edit-lead-language">
+
+            <option value="hi">Hindi</option>
+
+            <option value="en">English</option>
+
+          </select>
+
+        </div>
+
+      </div>
+
+      <div class="form-row">
+
+        <label>Notes</label>
+
+        <textarea id="edit-lead-notes" placeholder="Any notes about this lead…" style="min-height:60px;"></textarea>
+
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+
+      <button class="btn btn-outline" onclick="closeModal('modal-edit-lead')">Cancel</button>
+
+      <button class="btn btn-primary" onclick="saveLead()">Save Changes →</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
 <!-- Transcript Modal -->
 
 <div class="modal-overlay" id="modal-transcript">
@@ -4014,9 +4147,11 @@ async function loadSystemLog() {
 
   try {
 
-    const logs = await apiFetch('/api/dashboard/logs?limit=30');
+    const logs = await apiFetch('/api/dashboard/logs?limit=50');
 
     const el   = document.getElementById('system-log');
+
+    if (!el) return;
 
     if (!logs || logs.length === 0) {
 
@@ -4026,15 +4161,25 @@ async function loadSystemLog() {
 
     }
 
+    // API returns newest first (DESC) — display as-is so latest is at top
+
     el.innerHTML = logs.map(l => {
 
       const time = l.created_at ? l.created_at.slice(11,19) : '';
 
-      return `<div>[${time}] ${l.message}</div>`;
+      const color = l.level === 'error' ? 'var(--red)'
+
+                  : l.level === 'warn'  ? 'var(--amber)'
+
+                  : 'var(--muted)';
+
+      return `<div style="color:${color};padding:1px 0;">[${time}] ${l.message}</div>`;
 
     }).join('');
 
-    el.scrollTop = el.scrollHeight;
+    // Scroll to TOP so newest entry is always visible
+
+    el.scrollTop = 0;
 
   } catch(e) { console.error('Log error:', e); }
 
@@ -4078,11 +4223,15 @@ function renderCampaigns(campaigns) {
 
   el.innerHTML = campaigns.map(c => {
 
-    const total = c.leads_count  || 0;
+    const total    = c.leads_count    || 0;
 
-    const done  = c.calls_made   || 0;
+    const done     = c.calls_made     || 0;
 
-    const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+    const answered = c.calls_answered || 0;
+
+    const demos    = c.demos_booked   || 0;
+
+    const pct      = total > 0 ? Math.round((done / total) * 100) : 0;
 
     return `
 
@@ -4092,7 +4241,13 @@ function renderCampaigns(campaigns) {
 
         <div class="campaign-name">${c.name}</div>
 
-        <div class="campaign-meta">${total} contacts · ${c.demos_booked||0} demos · Created: ${c.created_at ? c.created_at.slice(0,10) : ''}</div>
+        <div class="campaign-meta">
+
+          ${total} contacts · ${done} called · ${answered} answered · ${demos} demos
+
+          · Created: ${c.created_at ? c.created_at.slice(0,10) : ''}
+
+        </div>
 
       </div>
 
@@ -4100,7 +4255,11 @@ function renderCampaigns(campaigns) {
 
         <div class="progress-label"><span>${done}/${total} called</span><span>${pct}%</span></div>
 
-        <div class="progress-bar"><div class="progress-fill ${c.status==='scheduled'?'amber':''}" style="width:${pct}%"></div></div>
+        <div class="progress-bar">
+
+          <div class="progress-fill ${c.status==='scheduled'?'amber':''}" style="width:${pct}%"></div>
+
+        </div>
 
       </div>
 
@@ -4116,7 +4275,7 @@ function renderCampaigns(campaigns) {
 
           ? `<button class="btn btn-outline btn-sm btn-icon" onclick="pauseCampaign(${c.id})" title="Pause">⏸</button>`
 
-          : `<button class="btn btn-primary btn-sm btn-icon" onclick="resumeCampaign(${c.id})" title="Start">▶</button>`
+          : `<button class="btn btn-primary btn-sm btn-icon" onclick="resumeCampaign(${c.id},60)" title="Start">▶</button>`
 
         }
 
@@ -4146,15 +4305,23 @@ async function pauseCampaign(id) {
 }
 
 
-async function resumeCampaign(id) {
+async function resumeCampaign(id, delay) {
 
   try {
 
-    await apiFetch(`/api/campaigns/${id}/start`, { method: 'POST' });
+    await apiFetch(`/api/campaigns/${id}/start`, {
 
-    toast('Campaign started', 'success');
+      method: 'POST',
+
+      body: JSON.stringify({ delay_seconds: delay || 60 }),
+
+    });
+
+    toast('Campaign started — calls are being made 📞', 'success');
 
     loadCampaigns();
+
+    loadDashboardStats();
 
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 
@@ -4261,6 +4428,10 @@ async function createCampaign() {
 
   const notes      = document.getElementById('camp-notes').value;
 
+  const delay      = parseInt(document.getElementById('camp-delay')?.value) || 60;
+
+  const schedule   = document.getElementById('camp-schedule')?.value || 'now';
+
 
   if (!name) { toast('Please enter a campaign name', 'error'); return; }
 
@@ -4277,7 +4448,37 @@ async function createCampaign() {
 
     });
 
+
+    if (res.leads_assigned === 0) {
+
+      toast('Campaign created but 0 leads matched. Upload leads first via Settings.', 'error');
+
+      closeModal('modal-new-campaign');
+
+      loadCampaigns();
+
+      return;
+
+    }
+
+
     toast(`Campaign "${name}" created — ${res.leads_assigned} leads assigned 🚀`, 'success');
+
+
+    if (schedule === 'now') {
+
+      await apiFetch(`/api/campaigns/${res.id}/start`, {
+
+        method: 'POST',
+
+        body: JSON.stringify({ delay_seconds: delay }),
+
+      });
+
+      toast(`Calls starting now! ${res.leads_assigned} leads queued, ${delay}s between each 📞`, 'success');
+
+    }
+
 
     closeModal('modal-new-campaign');
 
@@ -4322,14 +4523,37 @@ async function renderLiveCalls() {
     document.getElementById('mon-queue').textContent = stats.total_calls  ?? '0';
 
 
-    // Get all calls and find active ones (started_at set, ended_at null)
+    // Fetch recent calls — get 100 to find active ones
 
-    const res   = await apiFetch('/api/calls?limit=50');
+    const res  = await apiFetch('/api/calls?limit=100');
 
-    const calls = (res.calls || []).filter(c => c.started_at && !c.ended_at);
+    const all  = res.calls || [];
 
 
-    document.getElementById('mon-live').textContent  = calls.length;
+    // A call is "live" if ended_at is null/empty
+
+    // Also treat calls started within last 10 min with no ended_at as possibly live
+
+    const now = Date.now();
+
+    const calls = all.filter(c => {
+
+      if (c.ended_at) return false;              // definitely ended
+
+      if (!c.started_at) return false;           // no start time
+
+      // Only show calls started in last 30 minutes to avoid stale records
+
+      const started = new Date(c.started_at.replace(' ', 'T') +
+
+        (c.started_at.includes('T') || c.started_at.includes('Z') ? '' : 'Z')).getTime();
+
+      return (now - started) < 30 * 60 * 1000;  // within last 30 min
+
+    });
+
+
+    document.getElementById('mon-live').textContent         = calls.length;
 
     document.getElementById('live-calls-badge').textContent = calls.length || '0';
 
@@ -4340,8 +4564,6 @@ async function renderLiveCalls() {
 
 
     if (calls.length === 0) {
-
-      // Clear any running timers
 
       Object.values(_liveTimerIntervals).forEach(clearInterval);
 
@@ -4355,7 +4577,7 @@ async function renderLiveCalls() {
 
           No active calls right now.<br>
 
-          <span style="font-size:11px;font-family:var(--mono)">Page refreshes every 10 seconds.</span>
+          <span style="font-size:11px;font-family:var(--mono)">Refreshes every 10 seconds.</span>
 
         </div>`;
 
@@ -4364,67 +4586,104 @@ async function renderLiveCalls() {
     }
 
 
-    // Build cards for each live call
+    // Only rebuild HTML if the call set changed (avoids timer flicker)
 
-    el.innerHTML = calls.map(c => {
+    const currentIds = new Set(calls.map(c => c.id));
 
-      const initials = (c.lead_name || c.phone || '?')
+    const renderedIds = new Set(
 
-        .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      [...el.querySelectorAll('[id^="live-card-"]')]
 
-      return `
+        .map(el => parseInt(el.id.replace('live-card-', '')))
 
-      <div class="live-call-card active" id="live-card-${c.id}">
+    );
 
-        <div class="call-avatar">${initials}</div>
+    const setsMatch = currentIds.size === renderedIds.size &&
 
-        <div class="live-call-info">
-
-          <div class="name">${c.lead_name || c.phone || 'Unknown'}</div>
-
-          <div class="detail">${c.company || '—'} · ${c.phone || ''} · 🇮🇳 Hindi</div>
-
-        </div>
-
-        <div class="live-timer" id="live-timer-${c.id}">0:00</div>
-
-        <div class="live-actions">
-
-          <button class="btn btn-outline btn-sm">📋 Notes</button>
-
-        </div>
-
-      </div>`;
-
-    }).join('');
+      [...currentIds].every(id => renderedIds.has(id));
 
 
-    // Start live timers for each active call
+    if (!setsMatch) {
+
+      // Clear timers for calls that ended
+
+      Object.keys(_liveTimerIntervals).forEach(id => {
+
+        if (!currentIds.has(parseInt(id))) {
+
+          clearInterval(_liveTimerIntervals[id]);
+
+          delete _liveTimerIntervals[id];
+
+        }
+
+      });
+
+
+      el.innerHTML = calls.map(c => {
+
+        const initials = (c.lead_name || c.phone || '?')
+
+          .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+        return `
+
+        <div class="live-call-card active" id="live-card-${c.id}">
+
+          <div class="call-avatar">${initials}</div>
+
+          <div class="live-call-info">
+
+            <div class="name">${c.lead_name || c.phone || 'Unknown'}</div>
+
+            <div class="detail">${c.company || '—'} · ${c.phone || ''} · 🇮🇳 Hindi</div>
+
+          </div>
+
+          <div class="live-timer" id="live-timer-${c.id}">0:00</div>
+
+          <div class="live-actions">
+
+            <button class="btn btn-outline btn-sm">📋 Notes</button>
+
+          </div>
+
+        </div>`;
+
+      }).join('');
+
+    }
+
+
+    // Start/restart timers for all active calls
 
     calls.forEach(c => {
 
-      // Clear existing timer for this call if any
+      if (_liveTimerIntervals[c.id]) return; // already ticking
 
-      if (_liveTimerIntervals[c.id]) clearInterval(_liveTimerIntervals[c.id]);
+      try {
 
+        const raw = c.started_at.replace(' ', 'T');
 
-      const startedAt = new Date(c.started_at.replace(' ', 'T') + (c.started_at.includes('T') ? '' : 'Z'));
+        const startedAt = new Date(raw.includes('Z') || raw.includes('+') ? raw : raw + 'Z');
 
-      _liveTimerIntervals[c.id] = setInterval(() => {
+        _liveTimerIntervals[c.id] = setInterval(() => {
 
-        const el = document.getElementById('live-timer-' + c.id);
+          const timerEl = document.getElementById('live-timer-' + c.id);
 
-        if (!el) { clearInterval(_liveTimerIntervals[c.id]); return; }
+          if (!timerEl) { clearInterval(_liveTimerIntervals[c.id]); delete _liveTimerIntervals[c.id]; return; }
 
-        const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+          const elapsed = Math.max(0, Math.floor((Date.now() - startedAt.getTime()) / 1000));
 
-        const m = Math.floor(elapsed / 60);
+          const m = Math.floor(elapsed / 60);
 
-        const s = String(elapsed % 60).padStart(2, '0');
+          const s = String(elapsed % 60).padStart(2, '0');
 
-        el.textContent = `${m}:${s}`;
+          timerEl.textContent = `${m}:${s}`;
 
-      }, 1000);
+        }, 1000);
+
+      } catch(e) { console.error('Timer error for call', c.id, e); }
 
     });
 
@@ -4773,6 +5032,60 @@ async function handleCSVUpload(e) {
   if (!file) return;
 
 
+  // ── Pre-validate CSV client-side before uploading ──
+
+  const text = await file.text();
+
+  const lines = text.trim().split('\n');
+
+
+  // Detect scientific notation in phone column
+
+  const sciLines = [];
+
+  lines.slice(1).forEach((line, i) => {
+
+    const cols = line.split(',');
+
+    const phone = (cols[1] || '').trim().replace(/"/g, '');
+
+    if (/\d+\.\d+e[+\-]?\d+/i.test(phone)) {
+
+      sciLines.push({ row: i + 2, name: (cols[0] || '').trim(), phone });
+
+    }
+
+  });
+
+
+  if (sciLines.length > 0) {
+
+    document.getElementById('upload-preview').style.display = 'block';
+
+    document.getElementById('upload-info').innerHTML =
+
+      `⚠️ <strong>Phone numbers are in scientific notation</strong> — Excel has truncated your numbers!<br>` +
+
+      `Affected rows: ${sciLines.map(r => `Row ${r.row} (${r.name}: ${r.phone})`).join(', ')}<br><br>` +
+
+      `<strong>Fix:</strong> In Excel, select phone column → Format Cells → Text → re-enter numbers → Save as CSV.<br>` +
+
+      `Or use Google Sheets which preserves full numbers automatically.`;
+
+    toast(`⚠️ ${sciLines.length} phone numbers are truncated by Excel. Fix the CSV first.`, 'error');
+
+    // Reset file input
+
+    e.target.value = '';
+
+    return;
+
+  }
+
+
+  const force = document.getElementById('csv-force')?.checked || false;
+
+
   const formData = new FormData();
 
   formData.append('file', file);
@@ -4785,7 +5098,7 @@ async function handleCSVUpload(e) {
 
   try {
 
-    const res = await fetch(API + '/api/leads/upload-csv', {
+    const res = await fetch(API + '/api/leads/upload-csv' + (force ? '?force=true' : ''), {
 
       method: 'POST',
 
@@ -4799,11 +5112,38 @@ async function handleCSVUpload(e) {
 
     if (!res.ok) throw new Error(data.detail || 'Upload failed');
 
-    document.getElementById('upload-info').textContent =
 
-      `✓ ${file.name} — ${data.imported} new leads imported (${data.skipped} skipped as duplicates)`;
+    if (data.imported === 0 && data.skipped > 0) {
 
-    toast(`Imported ${data.imported} leads from ${file.name}`, 'success');
+      document.getElementById('upload-info').textContent =
+
+        `⚠ ${file.name} — 0 imported, ${data.skipped} already exist in DB. ` +
+
+        `Check "Replace existing" below and upload again to overwrite.`;
+
+      toast(`All ${data.skipped} contacts already exist. Enable "Replace existing" to re-import.`, 'error');
+
+    } else {
+
+      document.getElementById('upload-info').textContent =
+
+        `✓ ${file.name} — ${data.imported} imported` +
+
+        (data.skipped > 0 ? `, ${data.skipped} skipped (duplicates)` : '');
+
+      toast(`Imported ${data.imported} contacts from ${file.name}`, 'success');
+
+    }
+
+
+    const cb = document.getElementById('csv-force');
+
+    if (cb) cb.checked = false;
+
+
+    loadLeads();
+
+    loadDashboardStats();
 
   } catch(err) {
 
@@ -4818,7 +5158,22 @@ async function handleCSVUpload(e) {
 
 function downloadTemplate() {
 
-  const csv = 'name,phone,company,designation,language\nRahul Sharma,919876543210,Your Company,Plant Manager,hi\nJohn Smith,919876543211,Another Company,Operations Head,en';
+  // Use tab-separated or quoted numbers to prevent Excel from converting to scientific notation
+
+  // Wrapping numbers in quotes in CSV prevents Excel auto-conversion
+
+  const csv = [
+
+    'name,phone,company,designation,language',
+
+    '"Rahul Sharma","919876543210","Tata Motors","Plant Manager","hi"',
+
+    '"John Smith","919876543211","L&T Engineering","Operations Head","en"',
+
+    '"Priya Mehta","917654321098","Bajaj Auto","Maintenance Engineer","hi"',
+
+  ].join('\n');
+
 
   const a = document.createElement('a');
 
@@ -4828,7 +5183,22 @@ function downloadTemplate() {
 
   a.click();
 
-  toast('Template downloaded', 'success');
+  toast('Template downloaded — phone numbers are quoted to prevent Excel truncation', 'success');
+
+
+  // Show instructions
+
+  document.getElementById('upload-preview').style.display = 'block';
+
+  document.getElementById('upload-info').innerHTML =
+
+    `📋 Template downloaded.<br>` +
+
+    `<strong>Important:</strong> Phone numbers must be full 12-digit format (91XXXXXXXXXX).<br>` +
+
+    `If using Excel: select phone column → Format Cells → <strong>Text</strong> → enter numbers → Save as CSV.<br>` +
+
+    `Google Sheets is recommended — it preserves full numbers without truncation.`;
 
 }
 
@@ -4881,6 +5251,8 @@ function showPage(name, el) {
 
   if (name === 'monitor')   renderLiveCalls();
 
+  if (name === 'campaigns') loadCampaigns();
+
 }
 
 
@@ -4923,6 +5295,14 @@ function initDashboard() {
       loadRecentCalls();
 
       loadSystemLog();
+
+      // Refresh campaigns if page is active (shows live progress bar)
+
+      if (document.getElementById('page-campaigns').classList.contains('active')) {
+
+        loadCampaigns();
+
+      }
 
     }
 
@@ -5283,6 +5663,10 @@ function renderLeadsTable() {
 
           <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
 
+            onclick="openEditLead(${l.id})">✏️</button>
+
+          <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
+
             onclick="callLead('${l.phone}','${(l.name||'').replace(/'/g,'')}')">📞</button>
 
           <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px"
@@ -5375,6 +5759,150 @@ async function deleteLead(id) {
     loadDashboardStats();
 
   } catch(e) { toast('Error: ' + e.message, 'error'); }
+
+}
+
+
+function openEditLead(id) {
+
+  // Find lead from in-memory list
+
+  const lead = allLeads.find(l => l.id === id);
+
+  if (!lead) { toast('Lead not found', 'error'); return; }
+
+
+  document.getElementById('edit-lead-id').value          = lead.id;
+
+  document.getElementById('edit-lead-name').value        = lead.name        || '';
+
+  document.getElementById('edit-lead-phone').value       = lead.phone       || '';
+
+  document.getElementById('edit-lead-company').value     = lead.company     || '';
+
+  document.getElementById('edit-lead-designation').value = lead.designation || '';
+
+  document.getElementById('edit-lead-notes').value       = lead.notes       || '';
+
+
+  // Set status dropdown
+
+  const statusEl = document.getElementById('edit-lead-status');
+
+  statusEl.value = lead.status || 'new';
+
+
+  // Set language dropdown
+
+  const langEl = document.getElementById('edit-lead-language');
+
+  langEl.value = lead.language || 'hi';
+
+
+  openModal('modal-edit-lead');
+
+}
+
+
+async function saveLead() {
+
+  const id    = parseInt(document.getElementById('edit-lead-id').value);
+
+  const name  = document.getElementById('edit-lead-name').value.trim();
+
+  const phone = document.getElementById('edit-lead-phone').value.trim().replace(/[\s\-\(\)]/g, '');
+
+
+  if (!name)  { toast('Name is required', 'error');  return; }
+
+  if (!phone) { toast('Phone is required', 'error'); return; }
+
+
+  // Basic phone validation
+
+  const digits = phone.replace(/\D/g, '');
+
+  if (digits.length < 10 || digits.length > 13) {
+
+    toast('Phone must be 10–13 digits (e.g. 919876543210)', 'error');
+
+    return;
+
+  }
+
+
+  const body = {
+
+    name,
+
+    phone:       digits,
+
+    company:     document.getElementById('edit-lead-company').value.trim(),
+
+    designation: document.getElementById('edit-lead-designation').value.trim(),
+
+    status:      document.getElementById('edit-lead-status').value,
+
+    notes:       document.getElementById('edit-lead-notes').value.trim(),
+
+    language:    document.getElementById('edit-lead-language').value,
+
+  };
+
+
+  // Disable save button to prevent double-click
+
+  const saveBtn = document.querySelector('#modal-edit-lead .btn-primary');
+
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+
+  try {
+
+    await apiFetch('/api/leads/' + id, {
+
+      method: 'PUT',
+
+      body: JSON.stringify(body),
+
+    });
+
+
+    // ── Optimistic update: patch allLeads in memory immediately ──
+
+    const idx = allLeads.findIndex(l => l.id === id);
+
+    if (idx !== -1) {
+
+      allLeads[idx] = { ...allLeads[idx], ...body };
+
+    }
+
+
+    // Re-render table at current page position (don't reset offset)
+
+    renderLeadsTable();
+
+
+    closeModal('modal-edit-lead');
+
+    toast(`Lead "${name}" updated ✓`, 'success');
+
+
+    // Background refresh to sync with server
+
+    loadLeads();
+
+
+  } catch(e) {
+
+    toast('Save failed: ' + e.message, 'error');
+
+  } finally {
+
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Changes →'; }
+
+  }
 
 }
 

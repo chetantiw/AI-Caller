@@ -221,6 +221,8 @@ async def upload_leads_csv(
 
     campaign_id: int = None,
 
+    force:       bool = False,   # if True, delete existing leads with same phone first
+
 ):
 
     """Upload leads from CSV. Expected columns: name, phone, company, designation, language"""
@@ -250,19 +252,62 @@ async def upload_leads_csv(
         raise HTTPException(status_code=400, detail="CSV is empty")
 
 
+    # If force=True, remove existing leads with same phones so re-import works
+
+    if force:
+
+        from app.database import _normalize_phone
+
+        deleted = 0
+
+        with db.get_conn() as conn:
+
+            for row in rows:
+
+                raw = str(row.get('phone', '')).strip()
+
+                if not raw: continue
+
+                phone = _normalize_phone(raw)
+
+                if not phone: continue
+
+                result = conn.execute("DELETE FROM leads WHERE phone=?", (phone,))
+
+                deleted += result.rowcount
+
+            conn.commit()
+
+        db.add_log(f"🗑️ Force re-import: cleared {deleted} existing leads before upload")
+
+
     count = db.bulk_insert_leads(rows, campaign_id=campaign_id)
 
-    db.add_log(f"📂 CSV uploaded: {count} new leads from {file.filename}")
+    skipped = len(rows) - count
+
+
+    msg = f"Imported {count} leads"
+
+    if skipped > 0 and not force:
+
+        msg += f" ({skipped} skipped — already exist. Use 'Replace existing' to re-import)"
+
+    db.add_log(f"📂 CSV uploaded: {count} new leads from {file.filename}" +
+
+               (f" ({skipped} skipped)" if skipped else ""))
+
 
     return {
 
-        "message":  f"Successfully imported {count} leads",
+        "message":  msg,
 
         "imported": count,
 
-        "skipped":  len(rows) - count,
+        "skipped":  skipped,
 
         "total":    len(rows),
+
+        "force":    force,
 
     }
 
@@ -332,9 +377,36 @@ async def update_lead(lead_id: int, request: Request):
 
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    db.update_lead(lead_id=lead_id, status=body.get("status"), notes=body.get("notes"))
 
-    return {"message": "Lead updated"}
+    name   = body.get("name")
+
+    phone  = body.get("phone")
+
+
+    db.update_lead_full(
+
+        lead_id     = lead_id,
+
+        name        = name,
+
+        phone       = phone,
+
+        company     = body.get("company"),
+
+        designation = body.get("designation"),
+
+        language    = body.get("language"),
+
+        status      = body.get("status"),
+
+        notes       = body.get("notes"),
+
+    )
+
+
+    db.add_log(f"✏️ Lead #{lead_id} updated — {name or lead['name']} ({phone or lead['phone']})")
+
+    return {"message": "Lead updated", "id": lead_id}
 
 
 
@@ -400,12 +472,6 @@ async def create_campaign(request: Request):
 
 
 
-    campaigns = db.get_campaigns(status=status)
-
-    return {"total": len(campaigns), "campaigns": campaigns}
-
-
-
 @router.get("/campaigns/{campaign_id}")
 
 async def get_campaign(campaign_id: int):
@@ -422,7 +488,12 @@ async def get_campaign(campaign_id: int):
 
 @router.post("/campaigns/{campaign_id}/start")
 
-async def start_campaign(campaign_id: int):
+async def start_campaign(campaign_id: int, request: Request, background_tasks=None):
+
+    from fastapi import BackgroundTasks
+
+    from app.campaign_runner import run_campaign
+
 
     c = db.get_campaign(campaign_id)
 
@@ -430,11 +501,45 @@ async def start_campaign(campaign_id: int):
 
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    if c['status'] == 'running':
+
+        return {"message": f"Campaign '{c['name']}' is already running"}
+
+
+    # Get delay from request body (optional)
+
+    try:
+
+        body  = await request.json()
+
+        delay = int(body.get("delay_seconds", 60))
+
+    except Exception:
+
+        delay = 60
+
+
     db.update_campaign_status(campaign_id, "running")
 
-    db.add_log(f"▶️ Campaign started: {c['name']}")
+    db.add_log(f"▶️ Campaign started: {c['name']} — {c.get('leads_count',0)} leads, {delay}s delay")
 
-    return {"message": f"Campaign '{c['name']}' started"}
+
+    # Fire background task — actual outbound calls
+
+    import asyncio
+
+    asyncio.create_task(run_campaign(campaign_id, delay))
+
+
+    return {
+
+        "message": f"Campaign '{c['name']}' started",
+
+        "leads":   c.get('leads_count', 0),
+
+        "delay":   delay,
+
+    }
 
 
 
