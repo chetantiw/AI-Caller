@@ -42,13 +42,19 @@ async def make_single_call(phone: str) -> bool:
     import re
     phone_digits = re.sub(r'[^\d]', '', phone)
 
+    # Valid Indian mobile: 91XXXXXXXXXX = 12 digits
     if len(phone_digits) == 10:
         phone = "+91" + phone_digits
     elif len(phone_digits) == 12 and phone_digits.startswith("91"):
         phone = "+" + phone_digits
     elif len(phone_digits) == 11 and phone_digits.startswith("0"):
         phone = "+91" + phone_digits[1:]
-    elif len(phone_digits) >= 11:
+    elif len(phone_digits) == 11 and phone_digits.startswith("91"):
+        # 11 digits starting with 91 = truncated, only 9-digit local number
+        # Skip — this is a bad number we cannot fix
+        logger.error(f"Phone {phone_digits} has only 11 digits — likely truncated, skipping")
+        return False
+    elif len(phone_digits) >= 12:
         phone = "+" + phone_digits
     else:
         logger.error(f"Cannot normalize phone number: {phone} (digits: {phone_digits})")
@@ -56,11 +62,9 @@ async def make_single_call(phone: str) -> bool:
 
     logger.info(f"Normalized phone: {phone_digits} → {phone}")
 
-    # Exotel outbound call API:
-    # - From    = number to call (customer)
-    # - CallerId = your Exotel landline (shows as caller ID)
-    # - Url     = ExoML app URL that handles the call flow
-    # NOTE: Url uses + as space in flow name — must NOT be percent-encoded
+    # Exotel outbound call — exact working format from KB
+    # Uses StreamType=bidirectional + StreamUrl pointing to ExoML Voicebot flow
+    # StatusCallback is NOT sent (empty value causes error 34001)
     app_url = f"http://my.exotel.com/{sid}/exoml/start/{sid}+Landing+Flow"
 
     cmd = [
@@ -68,8 +72,8 @@ async def make_single_call(phone: str) -> bool:
         f"https://{api_key}:{api_token}@{subdomain}/v1/Accounts/{sid}/Calls/connect",
         "-F", f"From={phone}",
         "-F", f"CallerId={caller_id}",
-        "-F", f"Url={app_url}",
-        "-F", "StatusCallback=",
+        "-F", "StreamType=bidirectional",
+        "-F", f"StreamUrl={app_url}",
     ]
 
     # Log the exact command for debugging (mask credentials)
