@@ -172,3 +172,107 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
     )
+
+
+
+
+
+# ── DASHBOARD & STATIC FILES ──────────────────────────────────
+
+from fastapi.staticfiles import StaticFiles
+
+from fastapi.responses import FileResponse
+
+import os as _os
+
+
+
+_static_dir = _os.path.join(_os.path.dirname(__file__), "../static")
+
+_os.makedirs(_static_dir, exist_ok=True)
+
+
+
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+
+
+@app.get("/")
+
+async def root():
+
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/dashboard")
+
+
+
+@app.get("/dashboard")
+
+async def dashboard():
+
+    _path = _os.path.join(_static_dir, "dashboard.html")
+
+    if _os.path.exists(_path):
+
+        return FileResponse(_path)
+
+    return JSONResponse({"error": "dashboard.html not found in static/ folder"}, status_code=404)
+
+
+
+
+# ── EXOTEL ROUTES ──────────────────────────────────────────────
+
+from app.exotel_handler import make_outbound_call as exotel_call
+
+from app.exotel_pipeline import run_exotel_pipeline
+
+
+
+@app.post("/exotel/call")
+
+async def exotel_outbound(request: Request):
+
+    body = await request.json()
+
+    phone = body.get("phone")
+
+    lead_id = body.get("lead_id", "test")
+
+    if not phone:
+
+        return JSONResponse({"error": "phone required"}, status_code=400)
+
+    result = await exotel_call(phone, lead_id)
+
+    return JSONResponse({"status": "initiated", "result": result[:100]})
+
+
+
+@app.post("/exotel/status")
+
+async def exotel_status(request: Request):
+
+    data = await request.form()
+
+    logger.info(f"Exotel status: {dict(data)}")
+
+    return JSONResponse({"status": "ok"})
+
+
+
+@app.websocket("/ws/exotel")
+
+async def exotel_websocket(websocket: WebSocket):
+
+    await websocket.accept()
+
+    lead_id = websocket.query_params.get("lead_id")
+
+    lead = {"id": lead_id} if lead_id else {}
+
+    logger.info(f"Exotel WS connected | lead_id: {lead_id}")
+
+    await run_exotel_pipeline(websocket, lead)
+
