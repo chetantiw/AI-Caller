@@ -1,0 +1,282 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.wrap { padding: 1.2rem 1rem 2rem; font-family: var(--font-sans); }
+
+h2 { font-size: 17px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
+.meta { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 18px; }
+
+.scene { border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); margin-bottom: 20px; overflow: hidden; }
+
+.scene-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--color-background-secondary); border-bottom: 1px solid var(--color-border-tertiary); }
+.snum { font-size: 22px; font-weight: 500; color: var(--color-text-secondary); min-width: 28px; line-height: 1; }
+.stitle { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.sdur { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+
+/* Unified script block */
+.script-block { padding: 14px; display: grid; gap: 0; }
+
+.line { display: grid; grid-template-columns: 110px 1fr; border-bottom: 1px solid var(--color-border-tertiary); }
+.line:last-child { border-bottom: none; }
+
+.line-label { padding: 10px 10px 10px 0; font-size: 10px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; color: var(--color-text-secondary); line-height: 1.4; display: flex; align-items: flex-start; padding-top: 12px; }
+
+.line-content { padding: 10px 0 10px 14px; border-left: 2px solid var(--color-border-tertiary); font-size: 12.5px; color: var(--color-text-primary); line-height: 1.7; }
+
+/* color coding per row */
+.line.visual .line-label  { color: #0F6E56; }
+.line.visual .line-content { border-left-color: #1D9E75; background: #E1F5EE22; }
+@media (prefers-color-scheme: dark) {
+  .line.visual .line-label  { color: #9FE1CB; }
+  .line.visual .line-content { border-left-color: #1D9E75; background: #04342C44; }
+}
+
+.line.voice .line-label  { color: #534AB7; }
+.line.voice .line-content { border-left-color: #7F77DD; background: #EEEDFE22; }
+@media (prefers-color-scheme: dark) {
+  .line.voice .line-label  { color: #CCC; }
+  .line.voice .line-content { border-left-color: #7F77DD; background: #26215C44; }
+}
+
+.line.action .line-label  { color: #993C1D; }
+.line.action .line-content { border-left-color: #D85A30; background: #FAECE722; }
+@media (prefers-color-scheme: dark) {
+  .line.action .line-label  { color: #F0997B; }
+  .line.action .line-content { border-left-color: #D85A30; background: #4A1B0C44; }
+}
+
+.line.split .line-label  { color: #3C3489; }
+.line.split .line-content { border-left-color: #534AB7; background: #EEEDFE33; font-style: italic; }
+@media (prefers-color-scheme: dark) {
+  .line.split .line-label  { color: #AFA9EC; }
+  .line.split .line-content { border-left-color: #AFA9EC; background: #26215C33; }
+}
+
+.line.overlay .line-label  { color: #854F0B; }
+.line.overlay .line-content { border-left-color: #EF9F27; background: #FAEEDA22; }
+
+/* Tags */
+.tag-row { padding: 8px 14px; display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--color-border-tertiary); background: var(--color-background-secondary); }
+.tag { font-size: 10px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--color-border-secondary); color: var(--color-text-secondary); background: var(--color-background-primary); }
+
+/* legend */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-text-secondary); }
+.leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* footer */
+.footer-note { background: var(--color-background-secondary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px 14px; font-size: 12px; color: var(--color-text-secondary); line-height: 1.7; margin-top: 6px; }
+.footer-note strong { font-weight: 500; color: var(--color-text-primary); }
+
+.action-btn { display: inline-block; margin-top: 14px; margin-right: 8px; font-size: 12px; padding: 5px 14px; border-radius: 20px; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: var(--color-text-secondary); cursor: pointer; }
+.action-btn:hover { border-color: var(--color-border-primary); color: var(--color-text-primary); }
+</style>
+
+<div class="wrap">
+  <h2>AI Calling Agent · Beauty Ad · Instagram Reels (9:16)</h2>
+  <p class="meta">Unified production script · Each scene: Visual prompt + Voice narration + Director action · 60 sec total</p>
+
+  <div class="legend">
+    <div class="leg-item"><div class="leg-dot" style="background:#1D9E75"></div> Veo 3 video prompt</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#7F77DD"></div> Nano Banana voice</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#D85A30"></div> Director action / timing</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#EF9F27"></div> Text overlay / caption</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#534AB7"></div> Screen layout note</div>
+  </div>
+
+  <!-- SCENE 1 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="snum">01</div>
+      <div>
+        <div class="stitle">The Awakening — Brand Hook</div>
+        <div class="sdur">0:00 – 0:10 · No dialogue · Attract attention in first 2 seconds</div>
+      </div>
+    </div>
+    <div class="tag-row">
+      <span class="tag">9:16 vertical</span><span class="tag">Macro beauty</span><span class="tag">Golden hour</span><span class="tag">Slow motion 120fps</span><span class="tag">No voice</span>
+    </div>
+    <div class="script-block">
+      <div class="line visual">
+        <div class="line-label">Veo 3<br>Video Prompt</div>
+        <div class="line-content">
+          Extreme close-up macro shot, 9:16 vertical frame, slow motion 120fps. A woman's fingertip gently presses into a pearl-pink lip balm, leaving a soft indent — the texture catches warm golden-hour light. Cut immediately to a serum dropper releasing a single drop of amber-gold liquid onto a glass surface — the droplet spreads in slow motion, refracting rainbow light. Next cut: a compact blush compact snapping open, releasing a tiny puff of rose-pink powder that drifts upward in soft bokeh. Ultra-realistic 8K, shallow depth of field, warm peachy-gold color grade, no text. Cinematic beauty editorial style.
+        </div>
+      </div>
+      <div class="line action">
+        <div class="line-label">Director<br>Action</div>
+        <div class="line-content">
+          Start cut on frame 1 — no logo, no intro. The first visual must hit in under 0.5 sec to beat the Instagram scroll. Use hard cuts between the three macro shots, each held for 3 seconds. Add subtle whoosh sound design on each cut. Fade sound up from silence over 2 seconds.
+        </div>
+      </div>
+      <div class="line overlay">
+        <div class="line-label">Text<br>Overlay</div>
+        <div class="line-content">
+          None in this scene. Let the visuals speak. Brand name appears only in Scene 4.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 2 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="snum">02</div>
+      <div>
+        <div class="stitle">The Call Arrives — AI Agent Introduction</div>
+        <div class="sdur">0:10 – 0:28 · Voice begins · Horizontal split — top/bottom</div>
+      </div>
+    </div>
+    <div class="tag-row">
+      <span class="tag">Horizontal split top/bottom</span><span class="tag">Top: customer</span><span class="tag">Bottom: AI agent UI</span><span class="tag">Phone vibration moment</span>
+    </div>
+    <div class="script-block">
+      <div class="line split">
+        <div class="line-label">Screen<br>Layout</div>
+        <div class="line-content">
+          <strong>Horizontal split — top half and bottom half of the 9:16 frame.</strong><br>
+          TOP HALF: Real woman in a bright bathroom, applying skincare. Her phone lights up on the counter — she picks it up and answers with a soft smile.<br>
+          BOTTOM HALF: Animated AI agent UI — a glowing soft orb in warm pink and gold gradient pulses rhythmically as it speaks. Clean minimal dark background with subtle waveform animation around the orb representing the voice. A thin dividing line with a soft glow separates the two halves.
+        </div>
+      </div>
+      <div class="line visual">
+        <div class="line-label">Veo 3<br>Video Prompt</div>
+        <div class="line-content">
+          9:16 vertical frame divided horizontally into two equal halves by a soft luminous white line. TOP HALF: Photorealistic young woman, late 20s, natural dewy makeup, standing in a bright minimal bathroom with white tiles and soft daylight. She is mid-skincare routine — cleanser on fingertips. Her phone on the marble counter buzzes and lights up. She rinses her hands and answers, curious then warmly smiling. Cinematic handheld camera, natural lighting. BOTTOM HALF: Animated UI panel — deep soft black background, centered glowing orb with pink-to-gold gradient that pulses gently like a breathing animation. Soft concentric waveform rings expand outward from the orb as voice plays. Text in clean white sans-serif appears character by character below the orb: "Hi! I'm Lumina ✨". No other elements.
+        </div>
+      </div>
+      <div class="line voice">
+        <div class="line-label">Nano Banana<br>Voice Script</div>
+        <div class="line-content">
+          "Hi! Is this Priya? I'm Lumina — your personal beauty advisor from Glow Cosmetics. I hope I caught you at a good time! I have something really exciting to share with you today — we just launched our new Glow Serum Collection, and I think you're going to love it."
+        </div>
+      </div>
+      <div class="line action">
+        <div class="line-label">Director<br>Action</div>
+        <div class="line-content">
+          Voice begins exactly at 0:10 as the split screen appears. TOP half: woman's expression shifts from neutral → curious → warm smile as she says "Oh, hi!" (her voice is NOT heard — only the AI voice plays). BOTTOM half orb pulses brighter on stressed words: "exciting", "love it". Keep cut pace slow — this is a trust-building moment, not a fast sell. Total duration: 18 seconds.
+        </div>
+      </div>
+      <div class="line overlay">
+        <div class="line-label">Text<br>Overlay</div>
+        <div class="line-content">
+          Bottom-left corner, small white text: "Lumina AI · Powered by Glow Cosmetics" — fades in at 0:14. Subtitle captions in white below the orb, synced to voice, font size 13px.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 3 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="snum">03</div>
+      <div>
+        <div class="stitle">The Recommendation — Product Showcase</div>
+        <div class="sdur">0:28 – 0:48 · Core selling moment · Full screen product + voice</div>
+      </div>
+    </div>
+    <div class="tag-row">
+      <span class="tag">Full screen product hero</span><span class="tag">360° rotation</span><span class="tag">Skin glow close-up</span><span class="tag">Benefit callouts</span>
+    </div>
+    <div class="script-block">
+      <div class="line split">
+        <div class="line-label">Screen<br>Layout</div>
+        <div class="line-content">
+          <strong>Full 9:16 vertical frame — no split in this scene.</strong><br>
+          Transitions: Scene 2 split collapses — bottom AI panel slides down out of frame, top panel expands to full screen. Product takes over the full canvas. This gives maximum visual space for the product hero moment.
+        </div>
+      </div>
+      <div class="line visual">
+        <div class="line-label">Veo 3<br>Video Prompt</div>
+        <div class="line-content">
+          9:16 vertical. Seamless transition from previous scene — the frame opens to a full-screen 360-degree rotating product shot of a slim frosted glass serum bottle with a rose-gold dropper cap, set on a white marble surface surrounded by fresh white jasmine blossoms and scattered rose petals. The amber-gold serum inside glows warmly under directional studio light. Camera orbits slowly around the product — smooth, luxurious rotation. Cut to: extreme macro of smooth radiant skin — light bouncing naturally off a woman's cheekbone, a single droplet of serum being gently pressed into the skin with a fingertip. Skin looks dewy, lit, alive. Warm gold and peach tones throughout. 8K beauty ad quality.
+        </div>
+      </div>
+      <div class="line voice">
+        <div class="line-label">Nano Banana<br>Voice Script</div>
+        <div class="line-content">
+          "Our new Lumina Glow Serum has 15% Vitamin C, hyaluronic acid, and our signature pearl peptide complex. It brightens, firms, and hydrates — all in just one step. And 98% of women who tried it said their skin felt visibly different within 14 days. The best part? — I've reserved an exclusive 20% introductory discount, just for you, Priya. No code needed."
+        </div>
+      </div>
+      <div class="line action">
+        <div class="line-label">Director<br>Action</div>
+        <div class="line-content">
+          Voice pacing: pause 0.5 sec after "one step" — let the skin close-up breathe. Emphasize "98% of women" and "just for you, Priya" with a slight voice slow-down. Cut to skin macro exactly on "felt visibly different." Product rotation plays during the ingredient list. Skin shot plays during the results claim. Hold on product bottle for the discount offer.
+        </div>
+      </div>
+      <div class="line overlay">
+        <div class="line-label">Text<br>Overlay</div>
+        <div class="line-content">
+          Animated benefit pills appear one by one, synced to voice:
+          → "✦ 15% Vitamin C" (at "15% Vitamin C")
+          → "✦ Hyaluronic Acid" (at "hyaluronic acid")
+          → "✦ Pearl Peptide Complex" (at "pearl peptide")
+          → Large centered "20% OFF — Just For You" badge fades in on discount mention. Warm gold color, rounded rectangle, clean sans-serif. Bottom strip: "Dermatologist Tested · Fragrance Free"
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 4 -->
+  <div class="scene">
+    <div class="scene-header">
+      <div class="snum">04</div>
+      <div>
+        <div class="stitle">The Close — Booking & Brand Signature</div>
+        <div class="sdur">0:48 – 1:00 · Conversion close · Horizontal split returns + logo</div>
+      </div>
+    </div>
+    <div class="tag-row">
+      <span class="tag">Horizontal split returns</span><span class="tag">Top: happy customer</span><span class="tag">Bottom: order confirmation</span><span class="tag">Brand logo reveal</span>
+    </div>
+    <div class="script-block">
+      <div class="line split">
+        <div class="line-label">Screen<br>Layout</div>
+        <div class="line-content">
+          <strong>Horizontal split returns — top 60% / bottom 40% this time (not equal halves).</strong><br>
+          TOP 60%: Customer — her reaction to the offer. Wider face framing than Scene 2.<br>
+          BOTTOM 40%: Order confirmation UI animation — a clean white card slides up showing the product name, discount applied, and a pulsing "Order Confirmed ✓" checkmark. Then fades to brand logo on black background.
+        </div>
+      </div>
+      <div class="line visual">
+        <div class="line-label">Veo 3<br>Video Prompt</div>
+        <div class="line-content">
+          9:16 vertical frame, horizontal split — top 60% and bottom 40% separated by a soft glowing divider line. TOP: Same woman from Scene 2, now close-up on her face — genuine warm smile, eyes brightening, nodding slightly as she hears the offer. Natural bathroom light, loose hair, fresh skin. She mouths "Yes, please!" but no audio from her. BOTTOM: Animated white UI card on soft cream background — clean sans-serif text reads "Lumina Glow Serum · 20% off applied ✓ · Delivery in 2 days." A soft green pulsing checkmark animates in. Then the bottom panel transitions to deep black with a gold script wordmark logo fading in: "Lumina." Small tagline below in white: "Beauty, Redefined by Intelligence."
+        </div>
+      </div>
+      <div class="line voice">
+        <div class="line-label">Nano Banana<br>Voice Script</div>
+        <div class="line-content">
+          "Wonderful! I've gone ahead and confirmed your order — your Lumina Glow Serum will arrive within 2 days. You'll receive a confirmation SMS shortly. Thank you for choosing Lumina, Priya. Here's to your most radiant skin yet. ✨"
+        </div>
+      </div>
+      <div class="line action">
+        <div class="line-label">Director<br>Action</div>
+        <div class="line-content">
+          Voice begins on the split-screen return — customer's smile widens as the voice says "confirmed your order." At "SMS shortly," the bottom panel transitions to the logo. Music swells gently — a soft 2-note piano chord or a light chime sound. Hold on the brand logo for 2.5 seconds before a clean fade to black. Final frame: logo + tagline + website URL centered.
+        </div>
+      </div>
+      <div class="line overlay">
+        <div class="line-label">Text<br>Overlay</div>
+        <div class="line-content">
+          Logo animation on bottom panel during close. Final card overlay on black:
+          "Lumina Beauty" (gold script, 24px)
+          "Beauty, Redefined by Intelligence." (white, 13px)
+          "www.lumianabeauty.com" (white, 11px, underlined)
+          "📲 Try Lumina AI — Link in Bio" (call-to-action, white, 12px bold)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Production footer -->
+  <div class="footer-note">
+    <strong>Instagram Reel Format Rules Applied:</strong> All splits are horizontal (top/bottom) to respect the 9:16 portrait canvas. Split proportions: 50/50 in Scene 2 (equal weight), 60/40 in Scene 4 (customer dominates). Full-screen product in Scene 3 gives the hero product maximum impact. Text overlays use bottom-safe zone (avoid bottom 15% on Instagram — covered by like/comment buttons). Voice runs uninterrupted; only music and sound design change across scenes.
+  </div>
+
+  <div style="text-align:center; margin-top:4px;">
+    <span class="action-btn" onclick="sendPrompt('Generate the Nano Banana agent configuration JSON with all four voice scripts, dynamic variables for customer name and product, and webhook settings for order confirmation')">Nano Banana Config JSON →</span>
+    <span class="action-btn" onclick="sendPrompt('Write a Hindi language version of all four scene voice scripts for the Indian market')">Hindi Version →</span>
+    <span class="action-btn" onclick="sendPrompt('Write a 15-second cut-down version of this ad for Instagram Stories')">15-sec Stories Cut →</span>
+  </div>
+</div>
