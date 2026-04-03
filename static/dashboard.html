@@ -1527,13 +1527,23 @@ tr:hover td { background: var(--teal-dim); }
 
           <!-- Right column -->
           <div>
+            <!-- Model & Voice Config -->
+            <div class="card" style="margin-bottom:20px;">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> Model & Voice Configuration</div>
+              </div>
+              <div class="card-body" id="config-panel">
+                <div style="color:var(--muted);font-size:12px">Loading configuration…</div>
+              </div>
+            </div>
+
             <!-- API Key Status -->
             <div class="card" style="margin-bottom:20px;">
               <div class="card-header">
                 <div class="card-title"><span class="dot"></span> API Key Status</div>
               </div>
               <div class="card-body" id="apikey-panel">
-                <div style="color:var(--muted);font-size:12px">Checking…</div>
+                <div style="color:var(--muted);font-size:12px">Checking keys…</div>
               </div>
             </div>
 
@@ -1971,11 +1981,19 @@ async function doLogin() {
     authToken   = data.token;
     currentUser = { name: data.name, role: data.role, username: data.username };
 
-    // Persist to localStorage so refresh doesn't log out
-    localStorage.setItem('mutech_token', data.token);
-    localStorage.setItem('mutech_user',  JSON.stringify(currentUser));
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('login-error').style.display = 'none';
 
-    showApp();
+    const initials = data.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+    document.getElementById('sidebar-avatar').textContent = initials;
+    document.getElementById('sidebar-name').textContent = data.name.split(' ')[0];
+    document.getElementById('sidebar-role').textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+
+    if (data.role !== 'admin') {
+      document.getElementById('admin-nav').style.display = 'none';
+    }
+
     initDashboard();
     toast('Welcome back, ' + data.name.split(' ')[0] + '! 👋', 'success');
   } catch (err) {
@@ -1986,21 +2004,6 @@ async function doLogin() {
   }
 }
 
-function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.getElementById('login-error').style.display = 'none';
-
-  const initials = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-  document.getElementById('sidebar-avatar').textContent = initials;
-  document.getElementById('sidebar-name').textContent   = currentUser.name.split(' ')[0];
-  document.getElementById('sidebar-role').textContent   = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
-
-  if (currentUser.role !== 'admin') {
-    document.getElementById('admin-nav').style.display = 'none';
-  }
-}
-
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') doLogin();
 });
@@ -2008,37 +2011,11 @@ document.addEventListener('keydown', e => {
 function doLogout() {
   currentUser = null;
   authToken   = null;
-  localStorage.removeItem('mutech_token');
-  localStorage.removeItem('mutech_user');
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
 }
-
-// ── Auto-restore session on page load ──────────────────
-(function restoreSession() {
-  const savedToken = localStorage.getItem('mutech_token');
-  const savedUser  = localStorage.getItem('mutech_user');
-  if (savedToken && savedUser) {
-    try {
-      authToken   = savedToken;
-      currentUser = JSON.parse(savedUser);
-      showApp();
-      // Defer initDashboard until DOM is ready
-      document.addEventListener('DOMContentLoaded', () => {
-        initDashboard();
-      });
-      // If DOMContentLoaded already fired
-      if (document.readyState !== 'loading') {
-        initDashboard();
-      }
-    } catch(e) {
-      localStorage.removeItem('mutech_token');
-      localStorage.removeItem('mutech_user');
-    }
-  }
-})();
 
 // ════════════════════════════════════════
 // DASHBOARD STATS
@@ -2764,10 +2741,7 @@ function showPage(name, el) {
 // ════════════════════════════════════════
 // INIT DASHBOARD
 // ════════════════════════════════════════
-let _dashboardInitialized = false;
 function initDashboard() {
-  if (_dashboardInitialized) return;
-  _dashboardInitialized = true;
   loadSystemHealth();
   loadDashboardStats();
   loadRecentCalls();
@@ -2890,7 +2864,7 @@ function renderCallLogsTable() {
       <td>
         <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
           onclick="openTranscript(${c.id},'${safeName}',${c.duration_sec||0},'${c.outcome||''}','${c.sentiment||''}','${safeSum}')">
-          📄 ${c.summary ? 'Summary' : 'Detail'}
+          📄 View
         </button>
       </td>
     </tr>`;
@@ -3281,45 +3255,39 @@ async function loadSettings() {
     if (el) el.textContent = 'Could not load prompt: ' + e.message;
   }
 
-  // Load config + API key status + ExoPhone
+  // Load config
   try {
     const cfg = await apiFetch('/api/system/config');
+    const panel = document.getElementById('config-panel');
+    if (panel) {
+      panel.innerHTML = [
+        ['Telephony',    cfg.telephony],
+        ['Phone Number', cfg.number],
+        ['STT Model',    cfg.stt_model],
+        ['TTS Model',    cfg.tts_model + ' · ' + cfg.tts_voice],
+        ['LLM Model',    cfg.llm_model],
+        ['LLM Provider', cfg.llm_provider],
+        ['Language',     cfg.language],
+      ].map(([k,v]) => `
+        <div class="config-row">
+          <span class="config-key">${k}</span>
+          <span class="config-val">${v}</span>
+        </div>`).join('');
+    }
 
-    // API Key Status panel
     const kPanel = document.getElementById('apikey-panel');
     if (kPanel) {
       kPanel.innerHTML = [
-        ['Exotel API Key',  cfg.exotel_key_set, 'Telephony — outbound/inbound calls'],
-        ['Sarvam API Key',  cfg.sarvam_key_set, 'STT (saarika:v2.5) + TTS (bulbul:v2)'],
-        ['Groq API Key',    cfg.groq_key_set,   'LLM (llama-3.3-70b-versatile)'],
-      ].map(([k, v, desc]) => `
-        <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-            <span class="config-key">${k}</span>
-            <span class="config-badge ${v ? 'ok' : 'err'}">${v ? '✓ Set' : '✗ Missing'}</span>
-          </div>
-          <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${desc}</span>
-        </div>`).join('') + `
-        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ExoPhone (Caller ID)</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <input id="exo-number-input" type="text" value="${cfg.number || ''}"
-              style="font-family:var(--mono);font-size:12px;padding:5px 10px;
-                     background:var(--bg2);border:1px solid var(--border);
-                     border-radius:4px;color:var(--fg);width:150px;"
-              placeholder="07314854688"/>
-            <button class="btn btn-primary btn-sm" onclick="saveExoPhone()">Save</button>
-            <span id="exo-save-status" style="font-size:11px;color:var(--teal);"></span>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)">
-            Current: ${cfg.number || 'not set'} · Changes apply immediately, no restart needed
-          </div>
-        </div>`;
+        ['Exotel API Key',  cfg.exotel_key_set],
+        ['Sarvam API Key',  cfg.sarvam_key_set],
+        ['Groq API Key',    cfg.groq_key_set],
+      ].map(([k,v]) => `
+        <div class="config-row">
+          <span class="config-key">${k}</span>
+          <span class="config-badge ${v?'ok':'err'}">${v ? '✓ Set' : '✗ Missing'}</span>
+        </div>`).join('');
     }
-  } catch(e) {
-    const kPanel = document.getElementById('apikey-panel');
-    if (kPanel) kPanel.innerHTML = `<div style="color:var(--red);font-size:12px">Could not load config: ${e.message}</div>`;
-  }
+  } catch(e) { console.error('Config error:', e); }
 }
 
 async function savePrompt() {
@@ -3353,34 +3321,6 @@ function toggleSchedule(sel) {
 // ════════════════════════════════════════
 // MISC
 // ════════════════════════════════════════
-async function saveExoPhone() {
-  const input  = document.getElementById('exo-number-input');
-  const status = document.getElementById('exo-save-status');
-  if (!input) return;
-
-  const raw    = input.value.trim();
-  // Accept any format — strip to digits, remove leading 91/0
-  const digits = raw.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
-
-  if (digits.length !== 10) {
-    toast('Enter a valid 10-digit mobile/landline number (e.g. 7314854688)', 'error');
-    return;
-  }
-
-  try {
-    const res = await apiFetch('/api/system/config', {
-      method: 'POST',
-      body: JSON.stringify({ virtual_number: digits }),
-    });
-    if (status) status.textContent = '✓ Saved';
-    input.value = '0' + digits;
-    toast(`ExoPhone updated to 0${digits} — live immediately 📞`, 'success');
-    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-  } catch(e) {
-    toast('Save failed: ' + e.message, 'error');
-  }
-}
-
 function saveSettings() { toast('Agent settings saved successfully ✓', 'success'); }
 function refreshData() {
   loadDashboardStats();

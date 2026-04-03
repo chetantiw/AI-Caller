@@ -373,35 +373,27 @@ def reset_campaign_leads(campaign_id: int) -> int:
 def assign_leads_to_campaign(campaign_id: int, group: str) -> int:
     """
     Assign leads to a campaign based on group selection.
-    Only assigns leads whose current campaign is NULL or completed.
-    This prevents stealing leads from active/paused campaigns.
-    group options: 'new' | 'unassigned' | 'called' | 'interested' | 'all' | 'not_interested'
+    group options: 'new' | 'unassigned' | 'called' | 'interested' | 'all'
     Returns count of leads assigned.
     """
-    # Sub-query: only allow leads whose campaign is null OR campaign is completed/draft
-    safe_camp = """(campaign_id IS NULL OR campaign_id IN (
-        SELECT id FROM campaigns WHERE status IN ('completed','draft')
-    ))"""
-
     with get_conn() as conn:
         if group == 'new':
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='new' AND {safe_camp}"
+            query = "UPDATE leads SET campaign_id=? WHERE status='new'"
             params = [campaign_id]
         elif group == 'unassigned':
-            query  = "UPDATE leads SET campaign_id=? WHERE campaign_id IS NULL"
+            query = "UPDATE leads SET campaign_id=? WHERE campaign_id IS NULL"
             params = [campaign_id]
         elif group == 'called':
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='called' AND {safe_camp}"
+            query = "UPDATE leads SET campaign_id=? WHERE status='called'"
             params = [campaign_id]
         elif group == 'interested':
-            # demo_booked is a superset of interested — include both
-            query  = f"UPDATE leads SET campaign_id=? WHERE status IN ('interested','demo_booked') AND {safe_camp}"
+            query = "UPDATE leads SET campaign_id=? WHERE status='interested'"
             params = [campaign_id]
         elif group == 'not_interested':
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='not_interested' AND {safe_camp}"
+            query = "UPDATE leads SET campaign_id=? WHERE status='not_interested'"
             params = [campaign_id]
         elif group == 'all':
-            query  = f"UPDATE leads SET campaign_id=? WHERE {safe_camp}"
+            query = "UPDATE leads SET campaign_id=? WHERE 1=1"
             params = [campaign_id]
         else:
             return 0
