@@ -105,7 +105,9 @@ async def lead_groups():
         total      = conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
         new        = conn.execute("SELECT COUNT(*) FROM leads WHERE status='new'").fetchone()[0]
         called     = conn.execute("SELECT COUNT(*) FROM leads WHERE status='called'").fetchone()[0]
-        interested = conn.execute("SELECT COUNT(*) FROM leads WHERE status='interested'").fetchone()[0]
+        interested = conn.execute(
+            "SELECT COUNT(*) FROM leads WHERE status IN ('interested','demo_booked')"
+        ).fetchone()[0]
         not_int    = conn.execute("SELECT COUNT(*) FROM leads WHERE status='not_interested'").fetchone()[0]
         unassigned = conn.execute(
             "SELECT COUNT(*) FROM leads WHERE campaign_id IS NULL"
@@ -604,8 +606,48 @@ async def save_prompt(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/system/config")
-async def get_config():
+@router.post("/system/config")
+async def save_config(request: Request):
+    """Update editable config values — writes to .env file."""
+    body = await request.json()
+    env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+
+    updates = {}
+    if "virtual_number" in body:
+        num = str(body["virtual_number"]).strip().lstrip("+").lstrip("91")
+        if not num.isdigit() or len(num) != 10:
+            raise HTTPException(status_code=400,
+                detail="Phone must be 10 digits (e.g. 7314854688)")
+        updates["EXOTEL_VIRTUAL_NUMBER"] = "0" + num  # store as 07XXXXXXXXX
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    try:
+        # Read current .env
+        lines = open(env_path).readlines()
+        for key, val in updates.items():
+            found = False
+            for i, line in enumerate(lines):
+                if line.startswith(f"{key}="):
+                    lines[i] = f"{key}={val}\n"
+                    found = True
+                    break
+            if not found:
+                lines.append(f"{key}={val}\n")
+        open(env_path, 'w').writelines(lines)
+
+        # Reload into current process
+        for key, val in updates.items():
+            os.environ[key] = val
+
+        db.add_log(f"⚙️ Config updated: {', '.join(f'{k}={v}' for k,v in updates.items())}")
+        return {"message": "Saved. Changes are live immediately.", "updated": updates}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
+
+
+
     """Return current model/voice configuration (non-secret)."""
     return {
         "telephony":  "Exotel",
