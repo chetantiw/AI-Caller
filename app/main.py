@@ -21,7 +21,6 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from dotenv import load_dotenv
 
-from app.exotel_handler import make_outbound_call as exotel_call
 from app.exotel_pipeline import run_exotel_pipeline
 from app.api_routes import router as api_router
 from app import database as db
@@ -125,6 +124,8 @@ async def exotel_websocket(websocket: WebSocket):
 # ── Exotel outbound trigger ────────────────────────────────────
 @app.post("/exotel/call")
 async def exotel_outbound(request: Request):
+    from app.campaign_runner import make_single_call
+
     body    = await request.json()
     phone   = body.get("phone")
     lead_id = body.get("lead_id")
@@ -132,9 +133,33 @@ async def exotel_outbound(request: Request):
     if not phone:
         return JSONResponse({"error": "phone required"}, status_code=400)
 
-    result = await exotel_call(phone, lead_id or "test")
-    db.add_log(f"📞 Outbound call initiated: {phone}")
-    return JSONResponse({"status": "initiated", "result": str(result)[:100]})
+    # Look up lead for DB record
+    lead = None
+    if lead_id:
+        try:
+            lead = db.get_lead(int(lead_id))
+        except Exception:
+            pass
+    if not lead and phone:
+        lead = db.get_lead_by_phone(phone)
+
+    result = await make_single_call(phone)
+
+    if result:
+        call_sid = result.get("call_sid")
+        norm_phone = result.get("phone", phone)
+        db.create_call(
+            phone       = norm_phone,
+            lead_name   = lead.get("name") if lead else None,
+            company     = lead.get("company") if lead else None,
+            lead_id     = lead.get("id") if lead else None,
+            campaign_id = None,
+            call_sid    = call_sid,
+        )
+        db.add_log(f"📞 Manual call initiated: {lead.get('name','') if lead else phone} ({norm_phone})")
+        return JSONResponse({"status": "initiated", "call_sid": call_sid})
+    else:
+        return JSONResponse({"status": "failed", "error": "Call not initiated"}, status_code=400)
 
 
 @app.post("/exotel/status")
@@ -203,13 +228,15 @@ async def list_leads_legacy():
 
 @app.post("/call/single")
 async def single_call(request: Request):
-    body    = await request.json()
-    phone   = body.get("phone")
-    lead_id = body.get("lead_id", phone)
+    from app.campaign_runner import make_single_call
+    body  = await request.json()
+    phone = body.get("phone")
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number required")
-    result = await exotel_call(phone, lead_id)
-    return JSONResponse({"status": "initiated", "message": f"Call to {phone} initiated"})
+    result = await make_single_call(phone)
+    if result:
+        return JSONResponse({"status": "initiated", "message": f"Call to {phone} initiated"})
+    return JSONResponse({"status": "failed"}, status_code=400)
 
 
 @app.post("/campaign/start")

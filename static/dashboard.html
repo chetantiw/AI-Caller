@@ -1971,19 +1971,11 @@ async function doLogin() {
     authToken   = data.token;
     currentUser = { name: data.name, role: data.role, username: data.username };
 
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('login-error').style.display = 'none';
+    // Persist to localStorage so refresh doesn't log out
+    localStorage.setItem('mutech_token', data.token);
+    localStorage.setItem('mutech_user',  JSON.stringify(currentUser));
 
-    const initials = data.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-    document.getElementById('sidebar-avatar').textContent = initials;
-    document.getElementById('sidebar-name').textContent = data.name.split(' ')[0];
-    document.getElementById('sidebar-role').textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
-
-    if (data.role !== 'admin') {
-      document.getElementById('admin-nav').style.display = 'none';
-    }
-
+    showApp();
     initDashboard();
     toast('Welcome back, ' + data.name.split(' ')[0] + '! 👋', 'success');
   } catch (err) {
@@ -1994,6 +1986,21 @@ async function doLogin() {
   }
 }
 
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('login-error').style.display = 'none';
+
+  const initials = currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('sidebar-avatar').textContent = initials;
+  document.getElementById('sidebar-name').textContent   = currentUser.name.split(' ')[0];
+  document.getElementById('sidebar-role').textContent   = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+
+  if (currentUser.role !== 'admin') {
+    document.getElementById('admin-nav').style.display = 'none';
+  }
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') doLogin();
 });
@@ -2001,11 +2008,37 @@ document.addEventListener('keydown', e => {
 function doLogout() {
   currentUser = null;
   authToken   = null;
+  localStorage.removeItem('mutech_token');
+  localStorage.removeItem('mutech_user');
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
 }
+
+// ── Auto-restore session on page load ──────────────────
+(function restoreSession() {
+  const savedToken = localStorage.getItem('mutech_token');
+  const savedUser  = localStorage.getItem('mutech_user');
+  if (savedToken && savedUser) {
+    try {
+      authToken   = savedToken;
+      currentUser = JSON.parse(savedUser);
+      showApp();
+      // Defer initDashboard until DOM is ready
+      document.addEventListener('DOMContentLoaded', () => {
+        initDashboard();
+      });
+      // If DOMContentLoaded already fired
+      if (document.readyState !== 'loading') {
+        initDashboard();
+      }
+    } catch(e) {
+      localStorage.removeItem('mutech_token');
+      localStorage.removeItem('mutech_user');
+    }
+  }
+})();
 
 // ════════════════════════════════════════
 // DASHBOARD STATS
@@ -2731,7 +2764,10 @@ function showPage(name, el) {
 // ════════════════════════════════════════
 // INIT DASHBOARD
 // ════════════════════════════════════════
+let _dashboardInitialized = false;
 function initDashboard() {
+  if (_dashboardInitialized) return;
+  _dashboardInitialized = true;
   loadSystemHealth();
   loadDashboardStats();
   loadRecentCalls();
