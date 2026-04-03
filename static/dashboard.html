@@ -1527,23 +1527,13 @@ tr:hover td { background: var(--teal-dim); }
 
           <!-- Right column -->
           <div>
-            <!-- Model & Voice Config -->
-            <div class="card" style="margin-bottom:20px;">
-              <div class="card-header">
-                <div class="card-title"><span class="dot"></span> Model & Voice Configuration</div>
-              </div>
-              <div class="card-body" id="config-panel">
-                <div style="color:var(--muted);font-size:12px">Loading configuration…</div>
-              </div>
-            </div>
-
             <!-- API Key Status -->
             <div class="card" style="margin-bottom:20px;">
               <div class="card-header">
                 <div class="card-title"><span class="dot"></span> API Key Status</div>
               </div>
               <div class="card-body" id="apikey-panel">
-                <div style="color:var(--muted);font-size:12px">Checking keys…</div>
+                <div style="color:var(--muted);font-size:12px">Checking…</div>
               </div>
             </div>
 
@@ -2864,7 +2854,7 @@ function renderCallLogsTable() {
       <td>
         <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
           onclick="openTranscript(${c.id},'${safeName}',${c.duration_sec||0},'${c.outcome||''}','${c.sentiment||''}','${safeSum}')">
-          📄 View
+          📄 ${c.summary ? 'Summary' : 'Detail'}
         </button>
       </td>
     </tr>`;
@@ -3255,39 +3245,45 @@ async function loadSettings() {
     if (el) el.textContent = 'Could not load prompt: ' + e.message;
   }
 
-  // Load config
+  // Load config + API key status + ExoPhone
   try {
     const cfg = await apiFetch('/api/system/config');
-    const panel = document.getElementById('config-panel');
-    if (panel) {
-      panel.innerHTML = [
-        ['Telephony',    cfg.telephony],
-        ['Phone Number', cfg.number],
-        ['STT Model',    cfg.stt_model],
-        ['TTS Model',    cfg.tts_model + ' · ' + cfg.tts_voice],
-        ['LLM Model',    cfg.llm_model],
-        ['LLM Provider', cfg.llm_provider],
-        ['Language',     cfg.language],
-      ].map(([k,v]) => `
-        <div class="config-row">
-          <span class="config-key">${k}</span>
-          <span class="config-val">${v}</span>
-        </div>`).join('');
-    }
 
+    // API Key Status panel
     const kPanel = document.getElementById('apikey-panel');
     if (kPanel) {
       kPanel.innerHTML = [
-        ['Exotel API Key',  cfg.exotel_key_set],
-        ['Sarvam API Key',  cfg.sarvam_key_set],
-        ['Groq API Key',    cfg.groq_key_set],
-      ].map(([k,v]) => `
-        <div class="config-row">
-          <span class="config-key">${k}</span>
-          <span class="config-badge ${v?'ok':'err'}">${v ? '✓ Set' : '✗ Missing'}</span>
-        </div>`).join('');
+        ['Exotel API Key',  cfg.exotel_key_set, 'Telephony — outbound/inbound calls'],
+        ['Sarvam API Key',  cfg.sarvam_key_set, 'STT (saarika:v2.5) + TTS (bulbul:v2)'],
+        ['Groq API Key',    cfg.groq_key_set,   'LLM (llama-3.3-70b-versatile)'],
+      ].map(([k, v, desc]) => `
+        <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+            <span class="config-key">${k}</span>
+            <span class="config-badge ${v ? 'ok' : 'err'}">${v ? '✓ Set' : '✗ Missing'}</span>
+          </div>
+          <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${desc}</span>
+        </div>`).join('') + `
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ExoPhone (Caller ID)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input id="exo-number-input" type="text" value="${cfg.number || ''}"
+              style="font-family:var(--mono);font-size:12px;padding:5px 10px;
+                     background:var(--bg2);border:1px solid var(--border);
+                     border-radius:4px;color:var(--fg);width:150px;"
+              placeholder="07314854688"/>
+            <button class="btn btn-primary btn-sm" onclick="saveExoPhone()">Save</button>
+            <span id="exo-save-status" style="font-size:11px;color:var(--teal);"></span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)">
+            Current: ${cfg.number || 'not set'} · Changes apply immediately, no restart needed
+          </div>
+        </div>`;
     }
-  } catch(e) { console.error('Config error:', e); }
+  } catch(e) {
+    const kPanel = document.getElementById('apikey-panel');
+    if (kPanel) kPanel.innerHTML = `<div style="color:var(--red);font-size:12px">Could not load config: ${e.message}</div>`;
+  }
 }
 
 async function savePrompt() {
@@ -3321,6 +3317,34 @@ function toggleSchedule(sel) {
 // ════════════════════════════════════════
 // MISC
 // ════════════════════════════════════════
+async function saveExoPhone() {
+  const input  = document.getElementById('exo-number-input');
+  const status = document.getElementById('exo-save-status');
+  if (!input) return;
+
+  const raw    = input.value.trim();
+  // Accept any format — strip to digits, remove leading 91/0
+  const digits = raw.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
+
+  if (digits.length !== 10) {
+    toast('Enter a valid 10-digit mobile/landline number (e.g. 7314854688)', 'error');
+    return;
+  }
+
+  try {
+    const res = await apiFetch('/api/system/config', {
+      method: 'POST',
+      body: JSON.stringify({ virtual_number: digits }),
+    });
+    if (status) status.textContent = '✓ Saved';
+    input.value = '0' + digits;
+    toast(`ExoPhone updated to 0${digits} — live immediately 📞`, 'success');
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  } catch(e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
 function saveSettings() { toast('Agent settings saved successfully ✓', 'success'); }
 function refreshData() {
   loadDashboardStats();
