@@ -3,8 +3,9 @@ pipecat-ai[openai,silero]
 pipecat-ai[sarvam]
 pipecat-ai[websocket]
 
-# PIOPIY SDK
-piopiy
+# PIOPIY SDK - Install with: pip install "piopiy-ai[openai,deepgram,cartesia,silero,groq,sarvam]"
+# This includes support for all STT/LLM/TTS providers (Deepgram, OpenAI, Cartesia, Groq, Sarvam)
+piopiy-ai[openai,deepgram,cartesia,silero,groq,sarvam]
 
 # Backend
 fastapi
