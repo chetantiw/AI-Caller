@@ -71,15 +71,19 @@ async def make_single_call(phone: str):
     logger.info(f"Normalized: {digits} → {phone}")
 
     url = f"https://{api_key}:{api_token}@{subdomain}/v1/Accounts/{sid}/Calls/connect"
+
+    # Call-to-flow API: calls customer first, then connects them to the Priya voicebot flow
+    # Url = ExoML flow URL using app_id from Exotel dashboard
+    app_url = f"http://my.exotel.com/{sid}/exoml/start_voice/1214846"
+
     payload = {
-        "From":                    phone,
-        "To":                      exo_phone,
-        "CallerId":                exo_phone,
-        "StatusCallback":          f"{public_url}/exotel/status",
-        "StatusCallbackEvents[0]": "terminal",
+        "From":           phone,       # customer — called first
+        "CallerId":       exo_phone,   # shown as caller ID to customer
+        "Url":            app_url,     # connects to Priya voicebot when customer picks up
+        "StatusCallback": f"{public_url}/exotel/status",
     }
 
-    logger.info(f"Dialing {phone} → ExoPhone {exo_phone}")
+    logger.info(f"Dialing {phone} via flow 1214846 (CallerID: {exo_phone})")
 
     try:
         async with aiohttp.ClientSession() as session:
