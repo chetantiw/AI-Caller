@@ -1,9 +1,6 @@
-"""
-app/api_routes.py
-All /api/* REST endpoints for the MuTech dashboard
-Covers: auth, dashboard stats, leads, campaigns, calls, analytics, logs, users
-"""
-
+""" app/api_routes.py All /api/* REST endpoints for the MuTech dashboard Covers: auth, dashboard stats, leads, 
+campaigns, calls, analytics, logs, users """
+# Delete the orphaned docstring + return block (about 12 lines)
 import io
 import csv
 import hashlib
@@ -668,18 +665,95 @@ async def save_config(request: Request):
 
 
 
-    """Return current model/voice configuration (non-secret)."""
+
+
+
+
+
+
+# ═══════════════════════════════════════════════════════
+
+# TELEPHONY SWITCH  (admin only)
+
+# ═══════════════════════════════════════════════════════
+
+
+
+@router.get("/system/telephony")
+
+async def get_telephony():
+
+    """Return current active telephony provider."""
+
+    provider = db.get_config("telephony_provider", "piopiy")
+
     return {
-        "telephony":  "Exotel",
-        "number":     os.getenv("EXOTEL_VIRTUAL_NUMBER", "07314854688"),
-        "stt_model":  "saarika:v2.5",
-        "tts_model":  "bulbul:v2",
-        "tts_voice":  "anushka",
-        "llm_model":  "llama-3.3-70b-versatile",
-        "llm_provider": "Groq",
-        "language":   "Hindi (hi-IN)",
-        "sarvam_key_set": bool(os.getenv("SARVAM_API_KEY")),
-        "groq_key_set":   bool(os.getenv("GROQ_API_KEY")),
-        "exotel_key_set": bool(os.getenv("EXOTEL_API_KEY")),
+
+        "active": provider,
+
+        "options": [
+
+            {
+
+                "id":          "piopiy",
+
+                "name":        "PIOPIY (TeleCMI)",
+
+                "description": "AI Agent via signaling server — recommended",
+
+                "number":      os.getenv("PIOPIY_NUMBER", "+911203134158"),
+
+                "status":      "active" if provider == "piopiy" else "standby",
+
+            },
+
+            {
+
+                "id":          "exotel",
+
+                "name":        "Exotel",
+
+                "description": "WebSocket voicebot via Exotel landline",
+
+                "number":      os.getenv("EXOTEL_VIRTUAL_NUMBER", "07314854688"),
+
+                "status":      "active" if provider == "exotel" else "standby",
+
+            },
+
+        ],
+
+    }
+
+
+
+
+
+@router.post("/system/telephony")
+
+async def set_telephony(request: Request):
+
+    """Switch active telephony provider. Admin only."""
+
+    body     = await request.json()
+
+    provider = body.get("provider", "").lower().strip()
+
+    if provider not in ("piopiy", "exotel"):
+
+        raise HTTPException(status_code=400, detail="provider must be 'piopiy' or 'exotel'")
+
+    db.set_config("telephony_provider", provider)
+
+    db.add_log(f"🔄 Telephony switched to {provider.upper()} by admin")
+
+    return {
+
+        "message": f"Active telephony switched to {provider.upper()}",
+
+        "active":  provider,
+
+        "note":    "Change is immediate — no restart required",
+
     }
 

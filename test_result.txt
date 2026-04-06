@@ -1,0 +1,1 @@
+❌ Call failed: PIOPIY call failed: HTTPSConnectionPool(host='api.telecmi.com', port=443): Max retries exceeded with url: /v1/call (Caused by NameResolutionError("HTTPSConnection(host='api.telecmi.com', port=443): Failed to resolve 'api.telecmi.com' ([Errno -2] Name or service not known)"))
