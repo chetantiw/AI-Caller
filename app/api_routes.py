@@ -395,6 +395,26 @@ async def get_call(call_id: int):
     return call
 
 
+@router.post("/calls/test")
+async def test_call(request: Request):
+    """Manually test an outbound call to a phone number."""
+    body = await request.json()
+    phone = body.get("phone", "").strip()
+    
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number required")
+    
+    from app.campaign_runner import make_single_call
+    
+    result = await make_single_call(phone)
+    if result:
+        db.add_log(f"📞 Test call to {phone} — ID: {result['call_id']}")
+        return {"message": f"Call initiated to {phone}", "call_id": result["call_id"]}
+    else:
+        db.add_log(f"❌ Test call failed to {phone}")
+        raise HTTPException(status_code=500, detail="Call failed")
+
+
 # ═══════════════════════════════════════════════════════
 # ANALYTICS
 # ═══════════════════════════════════════════════════════

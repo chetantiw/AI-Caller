@@ -17,95 +17,17 @@ load_dotenv()
 
 async def make_single_call(phone: str):
     """
-    Fire one outbound call via Exotel.
-    Returns call_sid string on success, None on failure.
+    Fire one outbound call via PIOPIY.
+    Returns {"phone": ..., "call_id": ...} on success, None on failure.
     """
-    import aiohttp
-    import re
-
-    api_key    = os.getenv("EXOTEL_API_KEY", "")
-    api_token  = os.getenv("EXOTEL_API_TOKEN", "")
-    sid        = os.getenv("EXOTEL_ACCOUNT_SID", "mutechautomation1")
-    subdomain  = os.getenv("EXOTEL_SUBDOMAIN", "api.exotel.com")
-    public_url = os.getenv("PUBLIC_URL", "https://ai.mutechautomation.com")
-
-    # ExoPhone: normalize to E.164
-    _raw = os.getenv("EXOTEL_VIRTUAL_NUMBER", "07314854688")
-    _d   = "".join(c for c in _raw if c.isdigit())
-    if _d.startswith("0") and len(_d) == 11:
-        exo_phone = "+91" + _d[1:]
-    elif _d.startswith("91") and len(_d) == 12:
-        exo_phone = "+" + _d
-    else:
-        exo_phone = _raw
-
-    if not api_key or not api_token:
-        logger.error("Exotel credentials missing")
-        return None
-
-    # Normalize customer phone
-    phone = str(phone).strip()
-    try:
-        if "E" in phone.upper():
-            phone = str(int(float(phone)))
-    except Exception:
-        pass
-
-    digits = re.sub(r"[^\d]", "", phone)
-
-    if len(digits) == 10:
-        phone = "+91" + digits
-    elif len(digits) == 12 and digits.startswith("91"):
-        phone = "+" + digits
-    elif len(digits) == 11 and digits.startswith("0"):
-        phone = "+91" + digits[1:]
-    elif len(digits) == 11 and digits.startswith("91"):
-        logger.error(f"Phone {digits} has only 11 digits — truncated, skipping")
-        return None
-    elif len(digits) >= 12:
-        phone = "+" + digits
-    else:
-        logger.error(f"Cannot normalize phone: {phone} ({len(digits)} digits)")
-        return None
-
-    logger.info(f"Normalized: {digits} → {phone}")
-
-    url = f"https://{api_key}:{api_token}@{subdomain}/v1/Accounts/{sid}/Calls/connect"
-
-    # Call-to-flow API: calls customer first, then connects them to the Priya voicebot flow
-    # Url = ExoML flow URL using app_id from Exotel dashboard
-    app_url = f"http://my.exotel.com/{sid}/exoml/start_voice/1214846"
-
-    payload = {
-        "From":           phone,       # customer — called first
-        "CallerId":       exo_phone,   # shown as caller ID to customer
-        "Url":            app_url,     # connects to Priya voicebot when customer picks up
-        "StatusCallback": f"{public_url}/exotel/status",
-    }
-
-    logger.info(f"Dialing {phone} via flow 1214846 (CallerID: {exo_phone})")
+    from app.piopiy_handler import make_outbound_call
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=payload) as resp:
-                text = await resp.text()
-                logger.info(f"Exotel [{resp.status}]: {text[:150]}")
-
-                if resp.status in (200, 201):
-                    import re as _re
-                    m = _re.search(r"<Sid>([^<]+)</Sid>", text)
-                    call_sid = m.group(1) if m else "unknown"
-                    logger.info(f"✅ Call initiated to {phone} — Sid: {call_sid}")
-                    return {"phone": phone, "call_sid": call_sid}
-                elif resp.status == 403:
-                    logger.warning(f"DND/NDNC blocked: {phone}")
-                    return None
-                else:
-                    logger.warning(f"Exotel failed [{resp.status}] for {phone}: {text[:200]}")
-                    return None
-
+        call_id = await asyncio.to_thread(make_outbound_call, phone)
+        logger.info(f"✅ PIOPIY call initiated to {phone} — ID: {call_id}")
+        return {"phone": phone, "call_id": call_id}
     except Exception as e:
-        logger.error(f"Exotel error for {phone}: {e}")
+        logger.error(f"PIOPIY call failed for {phone}: {e}")
         return None
 
 
@@ -165,7 +87,7 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
         if result:
             called += 1
-            call_sid = result.get("call_sid")
+            call_id          = result.get("call_id")
             normalized_phone = result.get("phone", phone)
 
             # Create DB call record so stats/dashboard update immediately
@@ -175,12 +97,12 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
                 company     = lead.get("company", ""),
                 lead_id     = lead_id,
                 campaign_id = campaign_id,
-                call_sid    = call_sid,
+                call_sid    = call_id,
             )
 
             db.update_lead(lead_id, status='called')
             db.increment_campaign_calls(campaign_id, answered=False)
-            db.add_log(f"✅ Call initiated — {name} ({normalized_phone}) Sid:{call_sid}")
+            db.add_log(f"✅ Call initiated — {name} ({normalized_phone}) ID:{call_id}")
         else:
             skipped += 1
             db.update_lead(lead_id, status='called')

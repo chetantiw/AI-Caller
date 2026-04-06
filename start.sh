@@ -32,6 +32,14 @@ celery -A celery_worker worker --loglevel=info --detach \
 
 echo "✅ Celery worker started"
 
+# Start PIOPIY Agent in background
+echo "🤖 Starting PIOPIY Agent..."
+python -m app.piopiy_agent > logs/piopiy_agent.log 2>&1 &
+echo $! > logs/piopiy_agent.pid
+sleep 2
+
+echo "✅ PIOPIY Agent started"
+
 # Start FastAPI server
 echo "🌐 Starting FastAPI server..."
 uvicorn main:app \
