@@ -204,24 +204,6 @@ def init_db():
 
         );
 
-        CREATE TABLE IF NOT EXISTS sessions (
-
-            token      TEXT PRIMARY KEY,
-
-            user_id    INTEGER NOT NULL,
-
-            username   TEXT NOT NULL,
-
-            name       TEXT,
-
-            role       TEXT NOT NULL,
-
-            tenant_id  INTEGER NOT NULL DEFAULT 1,
-
-            created_at TEXT DEFAULT (datetime('now'))
-
-        );
-
         """)
 
 
@@ -339,25 +321,6 @@ def init_db():
 
         _fix_scientific_notation_phones(conn)
 
-        # New API key fields for tenant_configs (LLM, Speech, WhatsApp)
-        for col_sql in [
-            "ALTER TABLE tenant_configs ADD COLUMN llm_provider TEXT DEFAULT 'groq'",
-            "ALTER TABLE tenant_configs ADD COLUMN llm_model TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN openai_api_key TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN anthropic_api_key TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN gemini_api_key TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN speech_provider TEXT DEFAULT 'sarvam'",
-            "ALTER TABLE tenant_configs ADD COLUMN elevenlabs_api_key TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN elevenlabs_voice_id TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_api_key TEXT",
-            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_number TEXT",
-        ]:
-            try:
-                conn.execute(col_sql)
-                conn.commit()
-            except Exception:
-                pass  # column already exists
-
 
     print(f"[DB] Initialized at {DB_PATH}")
 
@@ -455,42 +418,6 @@ def set_config(key: str, value: str):
 
 # ─────────────────────────────────────────
 
-def save_session(token: str, user: dict):
-    """Persist a login session token to the database."""
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT OR REPLACE INTO sessions (token, user_id, username, name, role, tenant_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (token, user["user_id"], user["username"], user.get("name", ""),
-              user["role"], user.get("tenant_id", 1)))
-        conn.commit()
-
-
-def get_session(token: str) -> Optional[dict]:
-    """Look up a session token from the database. Returns user dict or None."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT user_id, username, name, role, tenant_id FROM sessions WHERE token=?",
-            (token,)
-        ).fetchone()
-        if not row:
-            return None
-        return {
-            "user_id":   row["user_id"],
-            "username":  row["username"],
-            "name":      row["name"],
-            "role":      row["role"],
-            "tenant_id": row["tenant_id"],
-        }
-
-
-def delete_session(token: str):
-    """Remove a session (logout)."""
-    with get_conn() as conn:
-        conn.execute("DELETE FROM sessions WHERE token=?", (token,))
-        conn.commit()
-
-
 def verify_user(username: str, password: str) -> Optional[dict]:
 
     with get_conn() as conn:
@@ -517,35 +444,27 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
 
 
 
-def get_all_users(tenant_id: int = None) -> list:
-
-    query = "SELECT id, username, role, name, email, created_at FROM users WHERE 1=1"
-
-    params = []
-
-    if tenant_id is not None:
-
-        query += " AND tenant_id=?"; params.append(tenant_id)
-
-    query += " ORDER BY id"
+def get_all_users() -> list:
 
     with get_conn() as conn:
 
-        return [dict(r) for r in conn.execute(query, params).fetchall()]
+        return [dict(r) for r in conn.execute(
+
+            "SELECT id, username, role, name, email, created_at FROM users ORDER BY id"
+
+        ).fetchall()]
 
 
 
-def add_user(username: str, password: str, role: str, name: str, email: str,
-
-             tenant_id: int = None) -> int:
+def add_user(username: str, password: str, role: str, name: str, email: str) -> int:
 
     with get_conn() as conn:
 
         cur = conn.execute(
 
-            "INSERT INTO users (username, password_hash, role, name, email, tenant_id) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO users (username, password_hash, role, name, email) VALUES (?,?,?,?,?)",
 
-            (username, _hash(password), role, name, email, tenant_id)
+            (username, _hash(password), role, name, email)
 
         )
 
@@ -621,15 +540,11 @@ def _normalize_phone(phone: str) -> str:
 
 def get_leads(status: str = None, campaign_id: int = None,
 
-              limit: int = 100, offset: int = 0, tenant_id: int = None) -> list:
+              limit: int = 100, offset: int = 0) -> list:
 
     query = "SELECT * FROM leads WHERE 1=1"
 
     params = []
-
-    if tenant_id is not None:
-
-        query += " AND tenant_id=?"; params.append(tenant_id)
 
     if status:
 
@@ -677,19 +592,17 @@ def get_lead_by_phone(phone: str) -> Optional[dict]:
 
 def create_lead(name: str, phone: str, company: str = None, designation: str = None,
 
-                city: str = None, language: str = 'hi', campaign_id: int = None,
-
-                tenant_id: int = None) -> int:
+                city: str = None, language: str = 'hi', campaign_id: int = None) -> int:
 
     with get_conn() as conn:
 
         cur = conn.execute(
 
-            """INSERT INTO leads (name, phone, company, designation, city, language, campaign_id, tenant_id)
+            """INSERT INTO leads (name, phone, company, designation, city, language, campaign_id)
 
-               VALUES (?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?)""",
 
-            (name, phone, company, designation, city, language, campaign_id, tenant_id)
+            (name, phone, company, designation, city, language, campaign_id)
 
         )
 
@@ -781,7 +694,7 @@ def delete_lead(lead_id: int):
 
 
 
-def bulk_insert_leads(leads: list, campaign_id: int = None, tenant_id: int = None) -> int:
+def bulk_insert_leads(leads: list, campaign_id: int = None) -> int:
 
     """
 
@@ -819,15 +732,11 @@ def bulk_insert_leads(leads: list, campaign_id: int = None, tenant_id: int = Non
                 continue
 
 
-            dup_query = "SELECT id FROM leads WHERE phone=?"
+            exists = conn.execute(
 
-            dup_params = [phone]
+                "SELECT id FROM leads WHERE phone=?", (phone,)
 
-            if tenant_id is not None:
-
-                dup_query += " AND tenant_id=?"; dup_params.append(tenant_id)
-
-            exists = conn.execute(dup_query, dup_params).fetchone()
+            ).fetchone()
 
             if exists:
 
@@ -838,9 +747,9 @@ def bulk_insert_leads(leads: list, campaign_id: int = None, tenant_id: int = Non
 
                 """INSERT INTO leads
 
-                   (name, phone, company, designation, language, campaign_id, tenant_id)
+                   (name, phone, company, designation, language, campaign_id)
 
-                   VALUES (?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?)""",
 
                 (name, phone,
 
@@ -850,7 +759,7 @@ def bulk_insert_leads(leads: list, campaign_id: int = None, tenant_id: int = Non
 
                  str(row.get('language',    'hi') or 'hi').strip(),
 
-                 campaign_id, tenant_id)
+                 campaign_id)
 
             )
 
@@ -915,7 +824,7 @@ def reset_campaign_leads(campaign_id: int) -> int:
 
 
 
-def assign_leads_to_campaign(campaign_id: int, group: str, tenant_id: int = None) -> int:
+def assign_leads_to_campaign(campaign_id: int, group: str) -> int:
 
     """
 
@@ -935,47 +844,44 @@ def assign_leads_to_campaign(campaign_id: int, group: str, tenant_id: int = None
 
     ))"""
 
-    tid = " AND tenant_id=?" if tenant_id is not None else ""
-
-    def p(*base): return list(base) + ([tenant_id] if tenant_id is not None else [])
 
     with get_conn() as conn:
 
         if group == 'new':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='new' AND {safe_camp}{tid}"
+            query  = f"UPDATE leads SET campaign_id=? WHERE status='new' AND {safe_camp}"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         elif group == 'unassigned':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE campaign_id IS NULL{tid}"
+            query  = "UPDATE leads SET campaign_id=? WHERE campaign_id IS NULL"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         elif group == 'called':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='called' AND {safe_camp}{tid}"
+            query  = f"UPDATE leads SET campaign_id=? WHERE status='called' AND {safe_camp}"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         elif group == 'interested':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE status IN ('interested','demo_booked') AND {safe_camp}{tid}"
+            query  = f"UPDATE leads SET campaign_id=? WHERE status IN ('interested','demo_booked') AND {safe_camp}"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         elif group == 'not_interested':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE status='not_interested' AND {safe_camp}{tid}"
+            query  = f"UPDATE leads SET campaign_id=? WHERE status='not_interested' AND {safe_camp}"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         elif group == 'all':
 
-            query  = f"UPDATE leads SET campaign_id=? WHERE {safe_camp}{tid}"
+            query  = f"UPDATE leads SET campaign_id=? WHERE {safe_camp}"
 
-            params = p(campaign_id)
+            params = [campaign_id]
 
         else:
 
@@ -1005,23 +911,19 @@ def assign_leads_to_campaign(campaign_id: int, group: str, tenant_id: int = None
 
 
 
-def count_leads(status: str = None, tenant_id: int = None) -> int:
-
-    query = "SELECT COUNT(*) FROM leads WHERE 1=1"
-
-    params = []
-
-    if tenant_id is not None:
-
-        query += " AND tenant_id=?"; params.append(tenant_id)
-
-    if status:
-
-        query += " AND status=?"; params.append(status)
+def count_leads(status: str = None) -> int:
 
     with get_conn() as conn:
 
-        return conn.execute(query, params).fetchone()[0]
+        if status:
+
+            return conn.execute(
+
+                "SELECT COUNT(*) FROM leads WHERE status=?", (status,)
+
+            ).fetchone()[0]
+
+        return conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
 
 
 
@@ -1031,15 +933,11 @@ def count_leads(status: str = None, tenant_id: int = None) -> int:
 
 # ─────────────────────────────────────────
 
-def get_campaigns(status: str = None, tenant_id: int = None) -> list:
+def get_campaigns(status: str = None) -> list:
 
     query = "SELECT * FROM campaigns WHERE 1=1"
 
     params = []
-
-    if tenant_id is not None:
-
-        query += " AND tenant_id=?"; params.append(tenant_id)
 
     if status:
 
@@ -1067,15 +965,15 @@ def get_campaign(campaign_id: int) -> Optional[dict]:
 
 
 
-def create_campaign(name: str, description: str = None, tenant_id: int = None) -> int:
+def create_campaign(name: str, description: str = None) -> int:
 
     with get_conn() as conn:
 
         cur = conn.execute(
 
-            "INSERT INTO campaigns (name, description, tenant_id) VALUES (?,?,?)",
+            "INSERT INTO campaigns (name, description) VALUES (?,?)",
 
-            (name, description, tenant_id)
+            (name, description)
 
         )
 
@@ -1295,17 +1193,11 @@ def complete_call(call_id: int, duration_sec: int, outcome: str,
 
 
 
-def get_calls(limit: int = 50, offset: int = 0, campaign_id: int = None,
-
-              tenant_id: int = None) -> list:
+def get_calls(limit: int = 50, offset: int = 0, campaign_id: int = None) -> list:
 
     query = "SELECT * FROM calls WHERE 1=1"
 
     params = []
-
-    if tenant_id is not None:
-
-        query += " AND tenant_id=?"; params.append(tenant_id)
 
     if campaign_id:
 
@@ -1321,23 +1213,15 @@ def get_calls(limit: int = 50, offset: int = 0, campaign_id: int = None,
 
 
 
-def get_recent_calls(limit: int = 10, tenant_id: int = None) -> list:
-
-    query = "SELECT * FROM calls"
-
-    params = []
-
-    if tenant_id is not None:
-
-        query += " WHERE tenant_id=?"; params.append(tenant_id)
-
-    query += " ORDER BY started_at DESC LIMIT ?"
-
-    params.append(limit)
+def get_recent_calls(limit: int = 10) -> list:
 
     with get_conn() as conn:
 
-        return [dict(r) for r in conn.execute(query, params).fetchall()]
+        return [dict(r) for r in conn.execute(
+
+            "SELECT * FROM calls ORDER BY started_at DESC LIMIT ?", (limit,)
+
+        ).fetchall()]
 
 
 
@@ -1373,19 +1257,11 @@ def get_call(call_id: int) -> Optional[dict]:
 
 
 
-def count_calls(tenant_id: int = None) -> int:
-
-    query = "SELECT COUNT(*) FROM calls"
-
-    params = []
-
-    if tenant_id is not None:
-
-        query += " WHERE tenant_id=?"; params.append(tenant_id)
+def count_calls() -> int:
 
     with get_conn() as conn:
 
-        return conn.execute(query, params).fetchone()[0]
+        return conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0]
 
 
 
@@ -1401,15 +1277,11 @@ def get_calls_today() -> int:
 
 
 
-def get_daily_call_stats(days: int = 14, tenant_id: int = None) -> list:
-
-    tid = " AND tenant_id=?" if tenant_id is not None else ""
-
-    params = [f"-{days} days"] + ([tenant_id] if tenant_id is not None else [])
+def get_daily_call_stats(days: int = 14) -> list:
 
     with get_conn() as conn:
 
-        return [dict(r) for r in conn.execute(f"""
+        return [dict(r) for r in conn.execute("""
 
             SELECT
 
@@ -1425,27 +1297,23 @@ def get_daily_call_stats(days: int = 14, tenant_id: int = None) -> list:
 
             FROM calls
 
-            WHERE started_at >= date('now', ?){tid}
+            WHERE started_at >= date('now', ?)
 
             GROUP BY date(started_at)
 
             ORDER BY date ASC
 
-        """, params).fetchall()]
+        """, (f"-{days} days",)).fetchall()]
 
 
 
-def get_hourly_call_stats(days: int = 30, tenant_id: int = None) -> list:
+def get_hourly_call_stats(days: int = 30) -> list:
 
     """Returns call counts by hour-of-day (0–23) for the heatmap widget."""
 
-    tid = " AND tenant_id=?" if tenant_id is not None else ""
-
-    params = [f"-{days} days"] + ([tenant_id] if tenant_id is not None else [])
-
     with get_conn() as conn:
 
-        return [dict(r) for r in conn.execute(f"""
+        return [dict(r) for r in conn.execute("""
 
             SELECT
 
@@ -1457,13 +1325,13 @@ def get_hourly_call_stats(days: int = 30, tenant_id: int = None) -> list:
 
             FROM calls
 
-            WHERE started_at >= date('now', ?){tid}
+            WHERE started_at >= date('now', ?)
 
             GROUP BY hour
 
             ORDER BY hour ASC
 
-        """, params).fetchall()]
+        """, (f"-{days} days",)).fetchall()]
 
 
 
@@ -1507,56 +1375,48 @@ def get_logs(limit: int = 50) -> list:
 
 # ─────────────────────────────────────────
 
-def get_dashboard_stats(tenant_id: int = None) -> dict:
-
-    t  = " AND tenant_id=?" if tenant_id is not None else ""
-
-    p  = [tenant_id] if tenant_id is not None else []
-
-    tw = " WHERE tenant_id=?" if tenant_id is not None else ""
+def get_dashboard_stats() -> dict:
 
     with get_conn() as conn:
 
-        def q(sql, *args): return conn.execute(sql, list(args) + p).fetchone()[0]
+        total_calls  = conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0]
 
-        total_calls    = q(f"SELECT COUNT(*) FROM calls{tw}")
+        calls_today  = conn.execute(
 
-        calls_today    = q(f"SELECT COUNT(*) FROM calls WHERE date(started_at)=date('now'){t}")
+            "SELECT COUNT(*) FROM calls WHERE date(started_at)=date('now')"
 
-        answered_today = q(f"SELECT COUNT(*) FROM calls WHERE date(started_at)=date('now') AND outcome='answered'{t}")
+        ).fetchone()[0]
 
-        demos_today    = q(f"SELECT COUNT(*) FROM calls WHERE date(started_at)=date('now') AND sentiment='demo_booked'{t}")
+        answered     = conn.execute(
 
-        month_calls    = q(f"SELECT COUNT(*) FROM calls WHERE strftime('%Y-%m',started_at)=strftime('%Y-%m','now'){t}")
+            "SELECT COUNT(*) FROM calls WHERE outcome='answered'"
 
-        month_answered = q(f"SELECT COUNT(*) FROM calls WHERE strftime('%Y-%m',started_at)=strftime('%Y-%m','now') AND outcome='answered'{t}")
+        ).fetchone()[0]
 
-        month_demos    = q(f"SELECT COUNT(*) FROM calls WHERE strftime('%Y-%m',started_at)=strftime('%Y-%m','now') AND sentiment='demo_booked'{t}")
+        demos        = conn.execute(
 
-        answered_all   = q(f"SELECT COUNT(*) FROM calls WHERE outcome='answered'{t}")
+            "SELECT COUNT(*) FROM calls WHERE sentiment='demo_booked'"
 
-        demos_all      = q(f"SELECT COUNT(*) FROM calls WHERE sentiment='demo_booked'{t}")
+        ).fetchone()[0]
 
-        total_leads    = q(f"SELECT COUNT(*) FROM leads{tw}")
+        total_leads  = conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
 
-        new_leads      = q(f"SELECT COUNT(*) FROM leads WHERE status='new'{t}")
+        new_leads    = conn.execute(
 
-        leads_today    = q(f"SELECT COUNT(*) FROM leads WHERE date(created_at)=date('now'){t}")
+            "SELECT COUNT(*) FROM leads WHERE status='new'"
 
-        active_camps   = q(f"SELECT COUNT(*) FROM campaigns WHERE status='running'{t}")
+        ).fetchone()[0]
+
+        active_camps = conn.execute(
+
+            "SELECT COUNT(*) FROM campaigns WHERE status='running'"
+
+        ).fetchone()[0]
 
 
-        today_connect_rate = round((answered_today / calls_today * 100), 1) if calls_today > 0 else 0
+        connect_rate = round((answered / total_calls * 100), 1) if total_calls > 0 else 0
 
-        today_demo_rate = round((demos_today / answered_today * 100), 1) if answered_today > 0 else 0
-
-        month_connect_rate = round((month_answered / month_calls * 100), 1) if month_calls > 0 else 0
-
-        month_demo_rate = round((month_demos / month_answered * 100), 1) if month_answered > 0 else 0
-
-        connect_rate = round((answered_all / total_calls * 100), 1) if total_calls > 0 else 0
-
-        demo_rate    = round((demos_all / answered_all * 100), 1) if answered_all > 0 else 0
+        demo_rate    = round((demos / answered * 100), 1) if answered > 0 else 0
 
 
         return {
@@ -1565,9 +1425,9 @@ def get_dashboard_stats(tenant_id: int = None) -> dict:
 
             "calls_today":      calls_today,
 
-            "answered":         answered_today,
+            "answered":         answered,
 
-            "demos_booked":     demos_today,
+            "demos_booked":     demos,
 
             "total_leads":      total_leads,
 
@@ -1578,31 +1438,6 @@ def get_dashboard_stats(tenant_id: int = None) -> dict:
             "connect_rate":     connect_rate,
 
             "demo_rate":        demo_rate,
-
-            "today": {
-                "calls":        calls_today,
-                "connected":    answered_today,
-                "demos":        demos_today,
-                "connect_rate": today_connect_rate,
-                "demo_rate":    today_demo_rate,
-                "new_leads":    leads_today,
-            },
-
-            "month": {
-                "calls":        month_calls,
-                "connected":    month_answered,
-                "demos":        month_demos,
-                "connect_rate": month_connect_rate,
-                "demo_rate":    month_demo_rate,
-            },
-
-            "all_time": {
-                "calls":        total_calls,
-                "connected":    answered_all,
-                "demos":        demos_all,
-                "connect_rate": connect_rate,
-                "demo_rate":    demo_rate,
-            },
 
         }
 

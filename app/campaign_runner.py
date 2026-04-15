@@ -17,6 +17,7 @@ Telephony: uses whichever provider is currently active (PIOPIY or Exotel).
 import asyncio
 
 import os
+import uuid
 
 from loguru import logger
 
@@ -27,6 +28,13 @@ from app import database as db
 
 
 load_dotenv()
+
+
+def _calls_dry_run_enabled() -> bool:
+
+    return os.getenv("AI_CALLER_DRY_RUN", "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
 
 
 
@@ -100,6 +108,23 @@ async def make_single_call(phone: str, lead_id: str = None, metadata: dict = Non
 
 
     logger.info(f"[{provider.upper()}] Outbound call → +{normalized}")
+
+
+    if _calls_dry_run_enabled():
+
+        call_id = f"dryrun-{provider}-{uuid.uuid4().hex[:10]}"
+
+        logger.warning(
+            f"[DRY RUN] Skipping real {provider.upper()} dial → +{normalized} | ID: {call_id}"
+        )
+
+        return {
+            "phone": normalized,
+            "call_id": call_id,
+            "provider": "dryrun",
+            "target_provider": provider,
+            "dry_run": True,
+        }
 
 
     try:

@@ -14,7 +14,16 @@ celery
 redis
 python-dotenv
 requests
+httpx
+aiohttp
+groq
+PyJWT
+python-multipart
 
 # Utilities
 loguru
 websockets
+
+# Follow-up automation
+yagmail  # Email sending
+pytz     # Timezone handling

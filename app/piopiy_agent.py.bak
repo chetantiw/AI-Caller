@@ -30,15 +30,6 @@ import sys
 sys.path.insert(0, '/root/ai-caller-env/ai-caller')
 from app import database as db
 
-from app.telegram_notify import (
-    notify_demo_booked,
-    notify_interested,
-    notify_call_completed,
-    notify_service_started,
-    notify_error,
-)
-
-
 # ── Logging — must be configured AFTER any piopiy imports
 #    (Agent.__init__ wipes loguru handlers when debug=False)
 #    We pass debug=True to Agent so handlers are preserved.
@@ -97,12 +88,11 @@ async def create_session(
     if not customer_name and lead_obj:
         customer_name = lead_obj.get("name", "")
 
-    company    = lead_obj.get("company", "") if lead_obj else ""
     call_start = time.time()
     call_db_id = db.create_call(
         phone       = customer_phone,
         lead_name   = customer_name,
-        company     = company,
+        company     = lead_obj.get("company", "") if lead_obj else "",
         lead_id     = lead_id_db,
         campaign_id = lead_obj.get("campaign_id") if lead_obj else None,
         call_sid    = str(call_id or ""),
@@ -166,7 +156,6 @@ async def create_session(
 
     except Exception as e:
         logger.error(f"VoiceAgent error | call_id={call_id} | {e}")
-        await notify_error(f"VoiceAgent error on call {call_id}: {e}")
 
     finally:
         # ── Post-call: save to DB ─────────────────────────────
@@ -175,50 +164,21 @@ async def create_session(
             logger.info(f"Call ended — duration={duration_sec}s | analyzing...")
             from app.exotel_pipeline import analyze_call
             conversation = voice_agent.messages if hasattr(voice_agent, "messages") else []
-
-            # Format full transcript for storage
-            transcript_lines = []
-            for m in conversation:
-                role = m.get('role', '').lower()
-                content = m.get('content', '').strip()
-                if content:
-                    if role == 'assistant':
-                        transcript_lines.append(f"Aira: {content}")
-                    elif role == 'user':
-                        transcript_lines.append(f"Customer: {content}")
-            full_transcript = "\n".join(transcript_lines)
-
             analysis = await analyze_call(conversation)
-            outcome  = analysis.get("outcome", "answered")
-            sentiment = analysis.get("sentiment", "neutral")
-            summary  = analysis.get("summary", "")
             db.complete_call(
                 call_id      = call_db_id,
                 duration_sec = duration_sec,
-                outcome      = outcome,
-                sentiment    = sentiment,
-                summary      = summary,
-                transcript   = full_transcript,
+                outcome      = analysis.get("outcome", "answered"),
+                sentiment    = analysis.get("sentiment", "neutral"),
+                summary      = analysis.get("summary", ""),
             )
-
-            # Schedule follow-up if enabled for this campaign
-            from app.follow_up_service import schedule_call_follow_up
-            await schedule_call_follow_up(call_db_id)
-
             if lead_id_db:
                 db.update_lead(lead_id_db, status=analysis.get("lead_status", "called"))
             db.add_log(
                 f"✅ Call done — {customer_phone} | {duration_sec}s | "
-                f"{sentiment} | {summary[:80]}"
+                f"{analysis.get('sentiment','neutral')} | {analysis.get('summary','')[:80]}"
             )
             logger.info(f"DB updated: call_db_id={call_db_id} | {analysis}")
-            if outcome == "answered":
-                if sentiment == "demo_booked":
-                    await notify_demo_booked(lead_name=customer_name, company=company, phone=customer_phone, summary=summary)
-                elif sentiment == "interested":
-                    await notify_interested(lead_name=customer_name, company=company, phone=customer_phone, summary=summary)
-                else:
-                    await notify_call_completed(lead_name=customer_name, phone=customer_phone, duration_sec=duration_sec, sentiment=sentiment, summary=summary)
         except Exception as e:
             logger.error(f"Post-call DB error: {e}")
 
@@ -234,7 +194,6 @@ async def main():
     logger.info("   Handles: inbound + outbound automatically")
     logger.info(f"   Own number: {_OWN_NUMBER_DIGITS or '(not set)'}")
     logger.info("📡 Connecting to PIOPIY signaling server…")
-    await notify_service_started()
 
     agent = Agent(
         agent_id=agent_id,

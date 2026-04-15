@@ -2,7 +2,7 @@
 
 app/main.py
 
-FastAPI server — MuTech AI Caller (Priya)
+FastAPI server — MuTech AI Caller (Aira)
 
 
 Telephony: PIOPIY (primary) + Exotel (secondary)
@@ -51,6 +51,7 @@ from dotenv import load_dotenv
 from app.exotel_pipeline import run_exotel_pipeline
 
 from app.api_routes import router as api_router
+from app import super_routes
 
 from app import database as db
 
@@ -60,7 +61,7 @@ load_dotenv()
 
 app = FastAPI(
 
-    title="MuTech AI Caller — Priya",
+    title="MuTech AI Caller — Aira",
 
     description="PIOPIY + Exotel | Sarvam AI + Groq | Hindi voice sales agent",
 
@@ -84,11 +85,28 @@ async def startup_event():
 
     logger.info(f"Server started | Telephony: {provider}")
 
+    
+
+    # Start campaign schedulers
+
+    from app.campaign_scheduler import start_scheduler
+
+    await start_scheduler()
+
+    from app.scheduler import start_scheduler as start_new_scheduler
+
+    start_new_scheduler()
+
+    logger.info("Campaign scheduler started")
+
+    db.add_log("📅 Campaign scheduler initialized")
+
 
 
 # ── Mount API routes ───────────────────────────────────────────
 
 app.include_router(api_router)
+app.include_router(super_routes.router, prefix="/super")
 
 
 
@@ -200,6 +218,23 @@ async def dashboard():
 
 
 
+@app.get("/super")
+async def super_admin_dashboard():
+    from fastapi.responses import FileResponse
+    return FileResponse("static/super_dashboard.html")
+
+
+@app.get("/settings")
+async def tenant_settings_page():
+    return FileResponse("static/tenant_settings.html")
+
+
+@app.get("/signup")
+async def signup_page():
+    return FileResponse("static/signup.html")
+
+
+
 @app.get("/health")
 
 async def health():
@@ -214,7 +249,7 @@ async def health():
 
         "version":     "3.0.0",
 
-        "agent":       "Priya",
+        "agent":       "Aira",
 
         "telephony":   provider.upper(),
 

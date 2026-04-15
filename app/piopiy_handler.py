@@ -102,16 +102,20 @@ def make_outbound_call(
 
       2. Customer answers → PIOPIY routes to piopiy_agent.py via signaling
 
-      3. Priya speaks using Sarvam STT + Groq LLM + Sarvam TTS
+      3. Aira speaks using Sarvam STT + Groq LLM + Sarvam TTS
 
 
     Returns call_id string on success, raises Exception on failure.
 
     """
 
-    agent_id  = os.getenv("PIOPIY_AGENT_ID")
+    agent_id  = os.getenv("PIOPIY_AGENT_ID") or os.getenv("AGENT_ID")
 
-    api_token = os.getenv("PIOPIY_AGENT_TOKEN")
+    api_token = (
+        os.getenv("PIOPIY_AGENT_TOKEN")
+        or os.getenv("PIOPIY_TOKEN")
+        or os.getenv("AGENT_TOKEN")
+    )
 
     caller_id = os.getenv("PIOPIY_NUMBER", "").strip()
 
@@ -195,9 +199,10 @@ def make_outbound_call(
 
                 call_id = (
 
+                    data.get("request") or
                     data.get("call_id") or
 
-                    data.get("request") or data.get("request") or data.get("request_id") or
+                    data.get("request_id") or
 
                     data.get("id") or
 
@@ -323,7 +328,7 @@ def _pcmo_fallback(to_digits: str, caller_digits: str, api_token: str, agent_id:
 
             data = resp.json()
 
-            return str(data.get("request") or data.get("request") or data.get("request_id") or data.get("call_id") or data)
+            return str(data.get("request") or data.get("request_id") or data.get("call_id") or data)
 
         except Exception:
 

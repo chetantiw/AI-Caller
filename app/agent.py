@@ -1,7 +1,7 @@
 
 """
 
-MuTech Automation AI Cold Calling Agent — Priya
+MuTech Automation AI Cold Calling Agent — Aira
 
 Uses piopiy-ai SDK with Sarvam STT/TTS + OpenRouter LLM
 
@@ -37,7 +37,7 @@ load_dotenv()
 
 
 
-SALES_PROMPT = """You are Priya, a professional sales agent for MuTech Automation, 
+SALES_PROMPT = """You are Aira, a professional sales agent for MuTech Automation, 
 
 an IoT-based industrial automation company serving India and UAE markets.
 
@@ -109,7 +109,7 @@ async def create_session(
 
     customer_name = metadata.get("name", "") if metadata else ""
 
-    greeting = f"Hello{', ' + customer_name if customer_name else ''}! This is Priya calling from MuTech Automation. Am I speaking with the right person regarding industrial automation solutions?"
+    greeting = f"Hello{', ' + customer_name if customer_name else ''}! This is Aira calling from MuTech Automation. Am I speaking with the right person regarding industrial automation solutions?"
 
 
 
@@ -205,7 +205,7 @@ async def main():
 
 
 
-    logger.info(f"Starting MuTech AI Agent (Priya) | Agent ID: {agent_id}")
+    logger.info(f"Starting MuTech AI Agent (Aira) | Agent ID: {agent_id}")
 
 
 

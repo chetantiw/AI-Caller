@@ -27,7 +27,6 @@
   --success: #00d296;
   --danger: #ff4560;
   --warning: #ffb020;
-  --orange: #ff8c42;
   --font: 'Outfit', sans-serif;
   --mono: 'JetBrains Mono', monospace;
   --r: 10px;
@@ -364,15 +363,7 @@ body::before {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 16px;
-}
-.stats-section-title {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted2);
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  margin: 20px 0 10px;
+  margin-bottom: 24px;
 }
 .stat-card {
   background: var(--card);
@@ -1020,7 +1011,6 @@ tr:hover td { background: var(--teal-dim); }
 .config-badge { font-size: 9px; font-family: var(--mono); padding: 2px 8px; border-radius: 20px; }
 .config-badge.ok  { background: rgba(0,210,150,0.1); color: var(--teal); border: 1px solid rgba(0,210,150,0.2); }
 .config-badge.err { background: rgba(255,69,96,0.1);  color: var(--red);  border: 1px solid rgba(255,69,96,0.2); }
-.key-badge { font-size:11px; font-family:var(--mono); padding:3px 10px; border-radius:20px; white-space:nowrap; background:rgba(90,122,138,0.2); color:var(--muted); flex-shrink:0; }
 
 /* ══════════════════════════════════════════
    LEADS & CALL LOGS PAGES
@@ -1273,9 +1263,6 @@ tr:hover td { background: var(--teal-dim); }
     <button class="btn-login" onclick="doLogin()">Sign In →</button>
     <div class="login-error" id="login-error">Invalid credentials. Please try again.</div>
     <div class="login-hint">Demo: <span>admin / mutech123</span> · <span>agent / agent123</span></div>
-    <div style="text-align:center;margin-top:16px;font-size:.875rem;color:#718096">
-      Don't have an account? <a href="/signup" style="color:var(--teal);font-weight:600;text-decoration:none">Start free trial →</a>
-    </div>
   </div>
 </div>
 
@@ -1327,9 +1314,6 @@ tr:hover td { background: var(--teal-dim); }
       </div>
       <div class="nav-item" onclick="showPage('settings', this)">
         <span class="icon">◧</span> Agent Settings
-      </div>
-      <div class="nav-item" onclick="showPage('account', this)">
-        <span class="icon">⚙</span> Account Settings
       </div>
     </div>
 
@@ -1399,59 +1383,30 @@ tr:hover td { background: var(--teal-dim); }
           </div>
         </div>
 
-        <div class="stats-section-title">Today</div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">📞</div>
-            <div class="stat-label">Calls Today</div>
-            <div class="stat-value" id="stat-today-calls">—</div>
-            <div class="stat-trend" id="stat-today-calls-trend">Loading…</div>
+            <div class="stat-label">Total Calls Today</div>
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-trend" id="stat-total-trend">Loading…</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">✅</div>
-            <div class="stat-label">Connected Today</div>
-            <div class="stat-value" id="stat-today-connected">—</div>
-            <div class="stat-trend" id="stat-today-connect-rate">connect rate</div>
+            <div class="stat-label">Connected</div>
+            <div class="stat-value" id="stat-connected">—</div>
+            <div class="stat-trend" id="stat-rate-trend">connect rate</div>
           </div>
           <div class="stat-card amber">
             <div class="stat-icon">🎯</div>
-            <div class="stat-label">Demos Today</div>
-            <div class="stat-value" id="stat-today-demos" style="color:var(--teal)">—</div>
-            <div class="stat-trend" id="stat-today-demo-rate">demo rate</div>
+            <div class="stat-label">Demos Booked</div>
+            <div class="stat-value" id="stat-demos" style="color:var(--teal)">—</div>
+            <div class="stat-trend" id="stat-demo-rate">demo rate</div>
           </div>
           <div class="stat-card blue">
             <div class="stat-icon">📋</div>
-            <div class="stat-label">New Leads Today</div>
-            <div class="stat-value" id="stat-today-leads">—</div>
-            <div class="stat-trend" id="stat-total-leads-trend">total leads</div>
-          </div>
-        </div>
-
-        <div class="stats-section-title">This Month</div>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon">📞</div>
-            <div class="stat-label">Calls This Month</div>
-            <div class="stat-value" id="stat-month-calls">—</div>
-            <div class="stat-trend" id="stat-month-calls-trend">month to date</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">✅</div>
-            <div class="stat-label">Connected This Month</div>
-            <div class="stat-value" id="stat-month-connected">—</div>
-            <div class="stat-trend" id="stat-month-connect-rate">connect rate</div>
-          </div>
-          <div class="stat-card amber">
-            <div class="stat-icon">🎯</div>
-            <div class="stat-label">Demos This Month</div>
-            <div class="stat-value" id="stat-month-demos" style="color:var(--teal)">—</div>
-            <div class="stat-trend" id="stat-month-demo-rate">demo rate</div>
-          </div>
-          <div class="stat-card blue">
-            <div class="stat-icon">◉</div>
-            <div class="stat-label">Monthly Connect Rate</div>
-            <div class="stat-value" id="stat-month-rate">—</div>
-            <div class="stat-trend" id="stat-month-rate-trend">connected / calls</div>
+            <div class="stat-label">Total Leads</div>
+            <div class="stat-value" id="stat-leads">—</div>
+            <div class="stat-trend" id="stat-new-leads">new leads</div>
           </div>
         </div>
 
@@ -1680,12 +1635,12 @@ tr:hover td { background: var(--teal-dim); }
             <!-- System Prompt Editor -->
             <div class="card" style="margin-bottom:20px;">
               <div class="card-header">
-                <div class="card-title"><span class="dot"></span> <span id="settings-agent-name">AI</span>'s System Prompt</div>
+                <div class="card-title"><span class="dot"></span> Aira's System Prompt</div>
                 <button class="btn btn-primary btn-sm" onclick="savePrompt()">💾 Save & Apply</button>
               </div>
               <div class="card-body">
                 <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:8px;">
-                  Customize how your AI agent responds on calls. Saved instantly — active on the next call.
+                  Live prompt from exotel_pipeline.py — changes take effect after service restart
                 </div>
                 <textarea class="prompt-editor" id="prompt-editor" placeholder="Loading prompt…"></textarea>
                 <div style="margin-top:8px;font-size:11px;font-family:var(--mono);color:var(--muted)" id="prompt-status"></div>
@@ -1700,15 +1655,15 @@ tr:hover td { background: var(--teal-dim); }
               <div class="card-body">
                 <div class="form-row">
                   <label>Company Name</label>
-                  <input type="text" id="company-name-input" value=""/>
+                  <input type="text" id="company-name-input" value="MuTech Automation"/>
                 </div>
                 <div class="form-row">
                   <label>Agent Name</label>
-                  <input type="text" id="agent-name-input" value=""/>
+                  <input type="text" id="agent-name-input" value="Aira"/>
                 </div>
                 <div class="form-row">
-                  <label>Target Audience / Products</label>
-                  <textarea id="target-audience-input"></textarea>
+                  <label>Target Audience</label>
+                  <textarea id="target-audience-input">Plant managers, maintenance engineers, and automation heads at manufacturing facilities in India and UAE.</textarea>
                 </div>
                 <button class="btn btn-outline btn-sm" onclick="saveCompanyProfile()">Save Profile</button>
               </div>
@@ -1760,7 +1715,7 @@ tr:hover td { background: var(--teal-dim); }
 
                     <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">TeleCMI · AI Agent</div>
 
-                    <div id="tel-piopiy-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
+                    <div id="tel-piopiy-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">+911203134158</div>
 
                   </div>
 
@@ -1778,7 +1733,7 @@ tr:hover td { background: var(--teal-dim); }
 
                     <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">Exotel · WebSocket</div>
 
-                    <div id="tel-exotel-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
+                    <div id="tel-exotel-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">07314854688</div>
 
                   </div>
 
@@ -1921,233 +1876,6 @@ tr:hover td { background: var(--teal-dim); }
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- ── ACCOUNT SETTINGS ── -->
-      <div class="page" id="page-account">
-        <div style="max-width:760px">
-
-          <!-- Tabs -->
-          <div style="display:flex;gap:4px;margin-bottom:24px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:6px;">
-            <button id="acct-tab-profile" onclick="switchAcctTab('profile')"
-              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:var(--orange);color:#000;transition:all .2s">
-              🏢 Company Profile
-            </button>
-            <button id="acct-tab-call" onclick="switchAcctTab('call')"
-              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
-              📞 Call Config
-            </button>
-            <button id="acct-tab-keys" onclick="switchAcctTab('keys')"
-              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
-              🔑 API Keys
-            </button>
-          </div>
-
-          <div id="acct-alert" style="display:none;padding:10px 14px;border-radius:var(--r2);font-size:13px;margin-bottom:16px;"></div>
-
-          <!-- COMPANY PROFILE TAB -->
-          <div id="acct-panel-profile">
-            <div class="card">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> Company Information</div></div>
-              <div class="card-body">
-                <p style="font-size:12px;color:var(--muted);margin-bottom:20px">This trains your AI agent — what company it represents, what it sells, and how to handle calls.</p>
-                <div class="form-grid">
-                  <div class="form-row"><label>Company Name *</label><input id="ac-company-name" placeholder="e.g. Acme Corp"/></div>
-                  <div class="form-row"><label>Industry</label><input id="ac-industry" placeholder="e.g. Industrial IoT, SaaS"/></div>
-                  <div class="form-row"><label>Website</label><input id="ac-website" placeholder="https://yoursite.com"/></div>
-                  <div class="form-row"><label>Call Language</label>
-                    <select id="ac-language">
-                      <option value="hindi">Hindi</option>
-                      <option value="english">English</option>
-                      <option value="hinglish">Hinglish (Hindi + English)</option>
-                    </select>
-                  </div>
-                  <div class="form-row" style="grid-column:1/-1"><label>Products / Services *</label>
-                    <textarea id="ac-products" rows="3" placeholder="- Smart Energy Metering&#10;- Predictive Maintenance&#10;- Industrial IoT Sensors"></textarea>
-                  </div>
-                  <div class="form-row" style="grid-column:1/-1"><label>Call Guidelines</label>
-                    <textarea id="ac-guidelines" rows="4" placeholder="- Keep answers to 2-3 sentences&#10;- Always try to schedule a demo&#10;- Politely close if no interest after 3 exchanges"></textarea>
-                  </div>
-                </div>
-                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
-                  <button class="btn btn-outline" onclick="previewAcctPrompt()">👁 Preview AI Prompt</button>
-                  <button class="btn btn-primary" onclick="saveAcctProfile()">Save Profile</button>
-                </div>
-                <div id="acct-prompt-preview" style="display:none;margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;font-size:12px;font-family:var(--mono);white-space:pre-wrap;line-height:1.7;color:var(--muted)"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- CALL CONFIG TAB -->
-          <div id="acct-panel-call" style="display:none">
-            <div class="card">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> Agent Configuration</div></div>
-              <div class="card-body">
-                <p style="font-size:12px;color:var(--muted);margin-bottom:20px">Customize how your AI agent sounds and introduces itself on calls.</p>
-                <div class="form-grid">
-                  <div class="form-row"><label>Agent Name</label><input id="ac-agent-name" placeholder="e.g. Aira"/></div>
-                  <div class="form-row"><label>Voice</label>
-                    <select id="ac-voice">
-                      <option value="anushka">Anushka (Female, Hindi)</option>
-                      <option value="meera">Meera (Female, Hindi)</option>
-                      <option value="arvind">Arvind (Male, Hindi)</option>
-                      <option value="amol">Amol (Male, Hindi)</option>
-                    </select>
-                  </div>
-                  <div class="form-row" style="grid-column:1/-1"><label>Custom Greeting <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-                    <textarea id="ac-greeting" rows="3" placeholder="नमस्ते {name} जी! मैं {agent} बोल रही हूँ {company} से। Use {name} for customer, {agent} for agent name, {company} for company."></textarea>
-                  </div>
-                </div>
-                <div style="display:flex;justify-content:flex-end;margin-top:20px">
-                  <button class="btn btn-primary" onclick="saveAcctCallConfig()">Save Call Config</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- API KEYS TAB -->
-          <div id="acct-panel-keys" style="display:none">
-            <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Bring your own API keys. Keys are masked after saving. Leave a key field blank to keep the existing saved value.</p>
-
-            <!-- ── LLM ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 🧠 Language Model (LLM)</div></div>
-              <div class="card-body">
-                <div class="form-grid">
-                  <div class="form-row">
-                    <label>Provider</label>
-                    <select id="ac-llm-provider" onchange="onLlmProviderChange()">
-                      <option value="groq">Groq — Llama 3.3 (fast, free tier)</option>
-                      <option value="openai">OpenAI — GPT-4o / GPT-4o mini</option>
-                      <option value="anthropic">Anthropic — Claude Haiku / Sonnet</option>
-                      <option value="gemini">Google — Gemini 1.5 Flash / 2.0</option>
-                    </select>
-                  </div>
-                  <div class="form-row">
-                    <label>Model <span style="color:var(--muted);font-weight:400">(optional override)</span></label>
-                    <input id="ac-llm-model" placeholder="e.g. llama-3.3-70b-versatile"/>
-                  </div>
-                </div>
-                <div id="llm-key-groq" class="llm-key-section" style="margin-top:12px">
-                  <div class="form-row"><label>Groq API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-groq" placeholder="gsk_••••••••" style="flex:1"/>
-                      <span id="ac-groq-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-openai" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>OpenAI API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-openai" placeholder="sk-••••••••" style="flex:1"/>
-                      <span id="ac-openai-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-anthropic" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>Anthropic API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-anthropic" placeholder="sk-ant-••••••••" style="flex:1"/>
-                      <span id="ac-anthropic-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-gemini" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>Google Gemini API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-gemini" placeholder="AIza••••••••" style="flex:1"/>
-                      <span id="ac-gemini-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Speech ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 🎙 Speech Engine (STT & TTS)</div></div>
-              <div class="card-body">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-                  <div id="sp-card-sarvam" onclick="selectSpeechProvider('sarvam')"
-                    style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;cursor:pointer;transition:all .2s;background:rgba(0,210,150,0.05)">
-                    <div style="font-weight:600;margin-bottom:4px">Sarvam AI</div>
-                    <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Indian languages · saarika v2.5 STT · bulbul v2 TTS</div>
-                  </div>
-                  <div id="sp-card-elevenlabs" onclick="selectSpeechProvider('elevenlabs')"
-                    style="border-radius:var(--r);border:1px solid var(--border);padding:14px;cursor:pointer;transition:all .2s;background:var(--bg2)">
-                    <div style="font-weight:600;margin-bottom:4px">ElevenLabs</div>
-                    <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Multilingual · ultra-realistic voices · low latency</div>
-                  </div>
-                </div>
-                <input type="hidden" id="ac-speech-provider" value="sarvam"/>
-                <div id="sp-panel-sarvam">
-                  <div class="form-row"><label>Sarvam API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-sarvam" placeholder="sk-••••••••" style="flex:1"/>
-                      <span id="ac-sarvam-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="sp-panel-elevenlabs" style="display:none">
-                  <div class="form-grid">
-                    <div class="form-row"><label>ElevenLabs API Key</label>
-                      <div style="display:flex;gap:8px;align-items:center">
-                        <input type="password" id="ac-elevenlabs" placeholder="xi-api-key-••••" style="flex:1"/>
-                        <span id="ac-elevenlabs-badge" class="key-badge">Not Set</span>
-                      </div>
-                    </div>
-                    <div class="form-row"><label>Voice ID</label>
-                      <input id="ac-elevenlabs-voice" placeholder="21m00Tcm4TlvDq8ikWAM"/>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Telephony ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 📞 Telephony — PIOPIY</div></div>
-              <div class="card-body">
-                <div class="form-grid">
-                  <div class="form-row"><label>Agent ID</label><input id="ac-piopiy-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/></div>
-                  <div class="form-row"><label>Phone Number <span style="color:var(--muted);font-weight:400">(with country code)</span></label><input id="ac-piopiy-num" placeholder="917943446727"/></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Messaging ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 💬 Messaging & Notifications</div></div>
-              <div class="card-body">
-                <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">📱 Telegram</div>
-                <div class="form-grid" style="margin-bottom:20px">
-                  <div class="form-row"><label>Bot Token</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-tg-token" placeholder="8471256641:AAF••••" style="flex:1"/>
-                      <span id="ac-tg-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row"><label>Chat ID</label><input id="ac-tg-chat" placeholder="-1001234567890"/></div>
-                </div>
-                <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">💚 WhatsApp (Meta Cloud API)</div>
-                <div class="form-grid">
-                  <div class="form-row"><label>Access Token</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-wa-token" placeholder="EAAxxxxxx••••" style="flex:1"/>
-                      <span id="ac-wa-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row"><label>Phone Number ID</label><input id="ac-wa-number" placeholder="107765489012345"/></div>
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex;justify-content:flex-end">
-              <button class="btn btn-primary" onclick="saveAcctKeys()">💾 Save All Settings</button>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -2648,28 +2376,15 @@ function doLogout() {
 async function loadDashboardStats() {
   try {
     const s = await apiFetch('/api/dashboard/stats');
-    const today = s.today || {};
-    const month = s.month || {};
+    document.getElementById('stat-total').textContent     = s.calls_today;
+    document.getElementById('stat-connected').textContent = s.answered;
+    document.getElementById('stat-demos').textContent     = s.demos_booked;
+    document.getElementById('stat-leads').textContent     = s.total_leads;
 
-    document.getElementById('stat-today-calls').textContent     = today.calls ?? s.calls_today ?? 0;
-    document.getElementById('stat-today-connected').textContent = today.connected ?? s.answered ?? 0;
-    document.getElementById('stat-today-demos').textContent     = today.demos ?? s.demos_booked ?? 0;
-    document.getElementById('stat-today-leads').textContent     = today.new_leads ?? 0;
-
-    document.getElementById('stat-today-calls-trend').textContent  = 'calls made today';
-    document.getElementById('stat-today-connect-rate').textContent = (today.connect_rate ?? 0) + '% connect rate';
-    document.getElementById('stat-today-demo-rate').textContent    = (today.demo_rate ?? 0) + '% demo rate';
-    document.getElementById('stat-total-leads-trend').textContent  = (s.total_leads ?? 0) + ' total leads';
-
-    document.getElementById('stat-month-calls').textContent     = month.calls ?? 0;
-    document.getElementById('stat-month-connected').textContent = month.connected ?? 0;
-    document.getElementById('stat-month-demos').textContent     = month.demos ?? 0;
-    document.getElementById('stat-month-rate').textContent      = (month.connect_rate ?? 0) + '%';
-
-    document.getElementById('stat-month-calls-trend').textContent   = 'month to date';
-    document.getElementById('stat-month-connect-rate').textContent  = (month.connect_rate ?? 0) + '% connect rate';
-    document.getElementById('stat-month-demo-rate').textContent     = (month.demo_rate ?? 0) + '% demo rate';
-    document.getElementById('stat-month-rate-trend').textContent    = `${month.connected ?? 0} connected / ${month.calls ?? 0} calls`;
+    document.getElementById('stat-rate-trend').textContent  = s.connect_rate + '% connect rate';
+    document.getElementById('stat-demo-rate').textContent   = s.demo_rate + '% demo rate';
+    document.getElementById('stat-new-leads').textContent   = s.new_leads + ' new leads';
+    document.getElementById('stat-total-trend').textContent = 'calls made today';
 
     const campEl = document.getElementById('stat-live');
     if (campEl) campEl.textContent = s.active_campaigns;
@@ -2679,8 +2394,8 @@ async function loadDashboardStats() {
     const sd = document.getElementById('summary-demo');
     const sc = document.getElementById('summary-camps');
     const st = document.getElementById('summary-total');
-    if (sr) sr.textContent = (month.connect_rate ?? s.connect_rate ?? 0) + '%';
-    if (sd) sd.textContent = (month.demo_rate ?? s.demo_rate ?? 0) + '%';
+    if (sr) sr.textContent = s.connect_rate + '%';
+    if (sd) sd.textContent = s.demo_rate + '%';
     if (sc) sc.textContent = s.active_campaigns + ' running';
     if (st) st.textContent = s.total_calls;
 
@@ -2841,7 +2556,7 @@ function renderCampaigns(campaigns) {
         ${c.status === 'running' ? '● ' : ''}${c.status}
       </div>
       <div class="campaign-actions">
-        <button class="btn btn-ghost btn-sm" onclick="openSchedule(${c.id}, '${c.name.replace(/'/g,'')}')" title="Schedule">🕐 Schedule</button>
+        <button class="btn btn-success btn-sm btn-icon" onclick="openScheduleModal(${c.id},'${c.name.replace(/'/g,'')}',${c.leads_count})" title="Schedule">📅</button>
         ${actions}
         <button class="btn btn-danger btn-sm btn-icon" onclick="deleteCampaign(${c.id})" title="Delete">✕</button>
       </div>
@@ -3524,7 +3239,6 @@ const PAGE_META = {
   analytics:  { title: 'Analytics',        breadcrumb: 'Funnel · daily trends · best time to call' },
   users:      { title: 'User Management',  breadcrumb: 'Team access & roles' },
   settings:   { title: 'Agent Settings',   breadcrumb: 'Prompt editor · model config · API keys' },
-  account:    { title: 'Account Settings', breadcrumb: 'Company profile · call config · API keys' },
 };
 
 function toggleSidebar() {
@@ -3549,7 +3263,6 @@ function showPage(name, el) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'users')     loadUsers();
   if (name === 'settings')  loadSettings();
-  if (name === 'account')   loadAccountSettings();
   if (name === 'monitor')   renderLiveCalls();
   if (name === 'campaigns') loadCampaigns();
   closeSidebar(); // close on mobile after navigation
@@ -3907,12 +3620,12 @@ async function saveLead() {
 async function callLead(phone, name) {
   if (!confirm(`Trigger outbound call to ${name} (${phone})?`)) return;
   try {
-    const res = await apiFetch('/api/calls/test', {
+    await apiFetch('/call/trigger', {
       method: 'POST',
       body: JSON.stringify({ phone }),
     });
-    toast(`Call initiated to ${name} ✓ (${res.provider || 'piopiy'})`, 'success');
-  } catch(e) { toast('Call failed: ' + e.message, 'error'); }
+    toast(`Call initiated to ${name}`, 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 // ════════════════════════════════════════
@@ -4099,42 +3812,37 @@ async function regenerateSummary() {
 // ════════════════════════════════════════
 async function loadSettings() {
   loadTelephony();
-
+  // Load prompt
   try {
-    const data = await apiFetch('/api/tenant/profile');
-    const c = data.config || {};
-
-    // Update agent name in card title
-    const agentNameEl = document.getElementById('settings-agent-name');
-    if (agentNameEl) agentNameEl.textContent = c.agent_name || 'AI';
-
-    // System Prompt
-    const promptEl = document.getElementById('prompt-editor');
-    if (promptEl) promptEl.value = c.system_prompt || '';
-    const statusEl = document.getElementById('prompt-status');
-    if (statusEl) statusEl.textContent = c.system_prompt ? '' : '⚠ No prompt yet — fill Company Profile in Account Settings first.';
-
-    // Company Profile
-    const companyInput   = document.getElementById('company-name-input');
-    const agentInput     = document.getElementById('agent-name-input');
-    const audienceInput  = document.getElementById('target-audience-input');
-    if (companyInput)  companyInput.value  = c.company_name     || '';
-    if (agentInput)    agentInput.value    = c.agent_name       || '';
-    if (audienceInput) audienceInput.value = c.company_products || '';
+    const res = await apiFetch('/api/system/prompt');
+    const el = document.getElementById('prompt-editor');
+    if (el) {
+      el.value = res.prompt || '';
+      document.getElementById('prompt-status').textContent = res.warning || '';
+    }
   } catch(e) {
-    const statusEl = document.getElementById('prompt-status');
-    if (statusEl) statusEl.textContent = 'Could not load settings: ' + e.message;
+    const el = document.getElementById('prompt-status');
+    if (el) el.textContent = 'Could not load prompt: ' + e.message;
   }
 
-  // API Key Status panel — use tenant keys
+  // Load config + API key status + ExoPhone
   try {
-    const keys = await apiFetch('/api/tenant/api-keys');
+    const cfg = await apiFetch('/api/system/config');
+
+    const companyInput = document.getElementById('company-name-input');
+    const agentInput = document.getElementById('agent-name-input');
+    const audienceInput = document.getElementById('target-audience-input');
+    if (companyInput) companyInput.value = cfg.company_name || '';
+    if (agentInput) agentInput.value = cfg.agent_name || '';
+    if (audienceInput) audienceInput.value = cfg.target_audience || '';
+
+    // API Key Status panel
     const kPanel = document.getElementById('apikey-panel');
     if (kPanel) {
       kPanel.innerHTML = [
-        ['Sarvam API Key',  keys.sarvam_set,   'STT (saarika:v2.5) + TTS (bulbul:v2)'],
-        ['Groq API Key',    keys.groq_set,     'LLM (llama-3.3-70b-versatile)'],
-        ['Telegram Alerts', keys.telegram_set, 'Call completion notifications'],
+        ['Exotel API Key',  cfg.exotel_key_set, 'Telephony — outbound/inbound calls'],
+        ['Sarvam API Key',  cfg.sarvam_key_set, 'STT (saarika:v2.5) + TTS (bulbul:v2)'],
+        ['Groq API Key',    cfg.groq_key_set,   'LLM (llama-3.3-70b-versatile)'],
       ].map(([k, v, desc]) => `
         <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
@@ -4143,13 +3851,25 @@ async function loadSettings() {
           </div>
           <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${desc}</span>
         </div>`).join('') + `
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;color:var(--muted)">
-          Manage keys in <a href="#" onclick="showPage('account',null);switchAcctTab('keys');return false;" style="color:var(--teal)">Account Settings → API Keys</a>
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ExoPhone (Caller ID)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input id="exo-number-input" type="text" value="${cfg.number || ''}"
+              style="font-family:var(--mono);font-size:12px;padding:5px 10px;
+                     background:var(--bg2);border:1px solid var(--border);
+                     border-radius:4px;color:var(--fg);width:150px;"
+              placeholder="07314854688"/>
+            <button class="btn btn-primary btn-sm" onclick="saveExoPhone()">Save</button>
+            <span id="exo-save-status" style="font-size:11px;color:var(--teal);"></span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)">
+            Current: ${cfg.number || 'not set'} · Changes apply immediately, no restart needed
+          </div>
         </div>`;
     }
   } catch(e) {
     const kPanel = document.getElementById('apikey-panel');
-    if (kPanel) kPanel.innerHTML = `<div style="color:var(--red);font-size:12px">Could not load API key status: ${e.message}</div>`;
+    if (kPanel) kPanel.innerHTML = `<div style="color:var(--red);font-size:12px">Could not load config: ${e.message}</div>`;
   }
 }
 
@@ -4157,38 +3877,35 @@ async function savePrompt() {
   const prompt = document.getElementById('prompt-editor')?.value?.trim();
   if (!prompt) { toast('Prompt cannot be empty', 'error'); return; }
   try {
-    await apiFetch('/api/tenant/system-prompt', {
-      method: 'PUT',
+    const res = await apiFetch('/api/system/prompt', {
+      method: 'POST',
       body: JSON.stringify({ prompt }),
     });
-    document.getElementById('prompt-status').textContent = '✓ Saved';
-    toast('System prompt saved ✓', 'success');
+    document.getElementById('prompt-status').textContent = '✓ ' + res.message;
+    toast('Prompt saved! Restart the service to apply.', 'success');
   } catch(e) { toast('Save failed: ' + e.message, 'error'); }
 }
 
 async function saveCompanyProfile() {
-  const companyName    = document.getElementById('company-name-input')?.value.trim();
-  const agentName      = document.getElementById('agent-name-input')?.value.trim();
-  const companyProducts = document.getElementById('target-audience-input')?.value.trim();
+  const companyName = document.getElementById('company-name-input')?.value.trim();
+  const agentName = document.getElementById('agent-name-input')?.value.trim();
+  const targetAudience = document.getElementById('target-audience-input')?.value.trim();
 
-  if (!companyName || !agentName) {
-    toast('Company name and agent name are required', 'error');
+  if (!companyName || !agentName || !targetAudience) {
+    toast('Company profile fields are required', 'error');
     return;
   }
 
   try {
-    await apiFetch('/api/tenant/profile', {
-      method: 'PUT',
+    await apiFetch('/api/system/config', {
+      method: 'POST',
       body: JSON.stringify({
-        company_name:     companyName,
-        agent_name:       agentName,
-        company_products: companyProducts,
+        company_name: companyName,
+        agent_name: agentName,
+        target_audience: targetAudience,
       }),
     });
-    // Refresh the agent name label
-    const agentNameEl = document.getElementById('settings-agent-name');
-    if (agentNameEl) agentNameEl.textContent = agentName || 'AI';
-    toast('Company profile saved ✓', 'success');
+    toast('Company profile saved', 'success');
   } catch(e) {
     toast('Profile save failed: ' + e.message, 'error');
   }
@@ -4216,6 +3933,35 @@ function toggleFollowUp() {
 // ════════════════════════════════════════
 // MISC
 // ════════════════════════════════════════
+async function saveExoPhone() {
+  const input  = document.getElementById('exo-number-input');
+  const status = document.getElementById('exo-save-status');
+  if (!input) return;
+
+  const raw    = input.value.trim();
+  // Accept any format — strip to digits, remove leading 91/0
+  const digits = raw.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
+
+  if (digits.length !== 10) {
+    toast('Enter a valid 10-digit mobile/landline number (e.g. 7314854688)', 'error');
+    return;
+  }
+
+  try {
+    const res = await apiFetch('/api/system/config', {
+      method: 'POST',
+      body: JSON.stringify({ virtual_number: digits }),
+    });
+    if (status) status.textContent = '✓ Saved';
+    input.value = '0' + digits;
+    toast(`ExoPhone updated to 0${digits} — live immediately 📞`, 'success');
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  } catch(e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+function saveSettings() { toast('Agent settings saved successfully ✓', 'success'); }
 function downloadCSV(path) {
   window.location.href = API + path;
 }
@@ -4241,19 +3987,21 @@ function toast(msg, type = 'success') {
 
 
 async function loadTelephony() {
+
   try {
+
     const res = await apiFetch('/api/system/telephony');
+
     renderTelephony(res);
+
   } catch(e) {
+
     const lbl = document.getElementById('tel-status-label');
+
     if (lbl) lbl.textContent = 'Error';
+
   }
-  // Overlay the tenant's own PIOPIY number (from their config)
-  try {
-    const keys = await apiFetch('/api/tenant/api-keys');
-    const piopiyNum = document.getElementById('tel-piopiy-num');
-    if (piopiyNum && keys.piopiy_number) piopiyNum.textContent = '+' + keys.piopiy_number.replace(/^\+/, '');
-  } catch(e) { /* silently skip */ }
+
 }
 
 function renderTelephony(data) {
@@ -4339,302 +4087,6 @@ async function switchTelephony(provider) {
 }
 
 
-
-function openSchedule(id, name) {
-  document.getElementById('sch-campaign-id').value = id;
-  document.getElementById('modal-schedule').style.display = 'flex';
-  // Set today as default date
-  document.getElementById('sch-date').value = new Date().toISOString().split('T')[0];
-  // Load existing schedule
-  fetch(`/api/campaigns/${id}/schedule`, {headers:{'Authorization':`Bearer ${token}`}})
-    .then(r=>r.json()).then(s=>{
-      if (s.is_scheduled) {
-        document.getElementById('sch-type').value  = s.schedule_type || 'once';
-        document.getElementById('sch-time').value  = s.schedule_time || '09:00';
-        document.getElementById('sch-delay').value = s.schedule_delay || 60;
-        if (s.next_run_at) document.getElementById('sch-date').value = s.next_run_at.slice(0,10);
-      }
-      toggleScheduleFields();
-    }).catch(()=>{});
-}
-function toggleScheduleFields() {
-  const t = document.getElementById('sch-type').value;
-  document.getElementById('sch-date-field').style.display = t === 'once' ? 'block' : 'none';
-}
-async function saveSchedule() {
-  const id    = document.getElementById('sch-campaign-id').value;
-  const stype = document.getElementById('sch-type').value;
-  const body  = {
-    schedule_type:  stype,
-    schedule_time:  document.getElementById('sch-time').value,
-    schedule_date:  stype==='once' ? document.getElementById('sch-date').value : '',
-    delay_seconds:  parseInt(document.getElementById('sch-delay').value)||60,
-  };
-  const res = await fetch(`/api/campaigns/${id}/schedule`, {
-    method:'POST', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (res.ok) { document.getElementById('modal-schedule').style.display='none'; showToast('✅ ' + data.message, 'success'); loadCampaigns && loadCampaigns(); }
-  else showToast('Error: ' + (data.detail||'Failed'), 'error');
-}
-async function cancelSchedule() {
-  const id = document.getElementById('sch-campaign-id').value;
-  if (!confirm('Cancel this campaign schedule?')) return;
-  const res = await fetch(`/api/campaigns/${id}/schedule`, {
-    method:'DELETE', headers:{'Authorization':`Bearer ${token}`}
-  });
-  if (res.ok) { document.getElementById('modal-schedule').style.display='none'; showToast('Schedule cancelled', 'success'); loadCampaigns && loadCampaigns(); }
-}
-
-// ══════════════════════════════════════
-// ACCOUNT SETTINGS
-// ══════════════════════════════════════
-function switchAcctTab(name) {
-  ['profile','call','keys'].forEach(t => {
-    const btn   = document.getElementById('acct-tab-' + t);
-    const panel = document.getElementById('acct-panel-' + t);
-    const active = t === name;
-    btn.style.background = active ? 'var(--orange)' : 'transparent';
-    btn.style.color      = active ? '#000' : 'var(--muted)';
-    panel.style.display  = active ? 'block' : 'none';
-  });
-}
-
-function showAcctAlert(msg, type = 'success') {
-  const el = document.getElementById('acct-alert');
-  el.style.display    = 'block';
-  el.style.background = type === 'success' ? 'rgba(0,210,150,0.1)' : 'rgba(255,69,96,0.1)';
-  el.style.border     = type === 'success' ? '1px solid rgba(0,210,150,0.3)' : '1px solid rgba(255,69,96,0.3)';
-  el.style.color      = type === 'success' ? 'var(--teal)' : 'var(--red)';
-  el.textContent      = msg;
-  setTimeout(() => el.style.display = 'none', 4000);
-}
-
-async function loadAccountSettings() {
-  try {
-    const res = await fetch('/api/tenant/profile', { headers: { 'Authorization': `Bearer ${token}` } });
-    if (!res.ok) return;
-    const data = await res.json();
-    const c = data.config || {};
-    document.getElementById('ac-company-name').value = c.company_name     || '';
-    document.getElementById('ac-industry').value     = c.company_industry || '';
-    document.getElementById('ac-website').value      = c.company_website  || '';
-    document.getElementById('ac-language').value     = c.call_language    || 'hindi';
-    document.getElementById('ac-products').value     = c.company_products || '';
-    document.getElementById('ac-guidelines').value   = c.call_guidelines  || '';
-    document.getElementById('ac-agent-name').value   = c.agent_name       || 'Aira';
-    document.getElementById('ac-voice').value        = c.agent_voice      || 'anushka';
-    document.getElementById('ac-greeting').value     = c.greeting_template|| '';
-  } catch(e) { console.error('loadAccountSettings', e); }
-
-  try {
-    const res = await fetch('/api/tenant/api-keys', { headers: { 'Authorization': `Bearer ${token}` } });
-    if (!res.ok) return;
-    const d = await res.json();
-
-    // LLM
-    const prov = d.llm_provider || 'groq';
-    document.getElementById('ac-llm-provider').value = prov;
-    document.getElementById('ac-llm-model').value    = d.llm_model || '';
-    onLlmProviderChange();
-    setKeyBadge('ac-groq-badge',      d.groq_set);
-    setKeyBadge('ac-openai-badge',    d.openai_set);
-    setKeyBadge('ac-anthropic-badge', d.anthropic_set);
-    setKeyBadge('ac-gemini-badge',    d.gemini_set);
-
-    // Speech
-    selectSpeechProvider(d.speech_provider || 'sarvam');
-    setKeyBadge('ac-sarvam-badge',      d.sarvam_set);
-    setKeyBadge('ac-elevenlabs-badge',  d.elevenlabs_set);
-    document.getElementById('ac-elevenlabs-voice').value = d.elevenlabs_voice_id || '';
-
-    // Telephony
-    document.getElementById('ac-piopiy-id').value  = d.piopiy_agent_id || '';
-    document.getElementById('ac-piopiy-num').value = d.piopiy_number    || '';
-
-    // Messaging
-    document.getElementById('ac-tg-chat').value  = d.telegram_chat_id || '';
-    document.getElementById('ac-wa-number').value = d.whatsapp_number  || '';
-    setKeyBadge('ac-tg-badge',  d.telegram_set);
-    setKeyBadge('ac-wa-badge',  d.whatsapp_set);
-  } catch(e) { console.error('loadAccountSettings keys', e); }
-}
-
-function setKeyBadge(id, isSet) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent      = isSet ? '✓ Set' : 'Not Set';
-  el.style.background = isSet ? 'rgba(0,210,150,0.15)' : 'rgba(90,122,138,0.2)';
-  el.style.color      = isSet ? 'var(--teal)' : 'var(--muted)';
-}
-// keep old name as alias for other callers
-function setAcctBadge(id, isSet) { setKeyBadge(id, isSet); }
-
-function onLlmProviderChange() {
-  const prov = document.getElementById('ac-llm-provider').value;
-  document.querySelectorAll('.llm-key-section').forEach(el => el.style.display = 'none');
-  const target = document.getElementById('llm-key-' + prov);
-  if (target) target.style.display = 'block';
-}
-
-function selectSpeechProvider(prov) {
-  document.getElementById('ac-speech-provider').value = prov;
-  const isSarvam = prov === 'sarvam';
-  // Panel visibility
-  document.getElementById('sp-panel-sarvam').style.display      = isSarvam ? 'block' : 'none';
-  document.getElementById('sp-panel-elevenlabs').style.display  = isSarvam ? 'none'  : 'block';
-  // Card highlight
-  const sCard = document.getElementById('sp-card-sarvam');
-  const eCard = document.getElementById('sp-card-elevenlabs');
-  sCard.style.borderColor = isSarvam ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-  sCard.style.background  = isSarvam ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
-  eCard.style.borderColor = !isSarvam ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-  eCard.style.background  = !isSarvam ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
-}
-
-async function saveAcctProfile() {
-  const body = {
-    company_name:     document.getElementById('ac-company-name').value.trim(),
-    company_industry: document.getElementById('ac-industry').value.trim(),
-    company_website:  document.getElementById('ac-website').value.trim(),
-    call_language:    document.getElementById('ac-language').value,
-    company_products: document.getElementById('ac-products').value.trim(),
-    call_guidelines:  document.getElementById('ac-guidelines').value.trim(),
-    agent_name:       document.getElementById('ac-agent-name').value.trim() || 'Aira',
-    agent_voice:      document.getElementById('ac-voice').value,
-    greeting_template:document.getElementById('ac-greeting').value.trim(),
-  };
-  if (!body.company_name) { showAcctAlert('Company name is required.', 'error'); return; }
-  const res = await fetch('/api/tenant/profile', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) showAcctAlert('✅ Company profile saved. AI agent updated.');
-  else showAcctAlert(data.detail || 'Error saving profile', 'error');
-}
-
-async function saveAcctCallConfig() {
-  const body = {
-    agent_name:        document.getElementById('ac-agent-name').value.trim() || 'Aira',
-    agent_voice:       document.getElementById('ac-voice').value,
-    greeting_template: document.getElementById('ac-greeting').value.trim(),
-    company_name:      document.getElementById('ac-company-name').value.trim(),
-    company_industry:  document.getElementById('ac-industry').value.trim(),
-    company_products:  document.getElementById('ac-products').value.trim(),
-    company_website:   document.getElementById('ac-website').value.trim(),
-    call_language:     document.getElementById('ac-language').value,
-    call_guidelines:   document.getElementById('ac-guidelines').value.trim(),
-  };
-  const res = await fetch('/api/tenant/profile', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) showAcctAlert('✅ Call configuration saved.');
-  else showAcctAlert(data.detail || 'Error saving', 'error');
-}
-
-async function saveAcctKeys() {
-  const body = {
-    // LLM — always send provider + model selections
-    llm_provider: document.getElementById('ac-llm-provider').value,
-    llm_model:    document.getElementById('ac-llm-model').value.trim(),
-    speech_provider: document.getElementById('ac-speech-provider').value,
-    // PIOPIY (non-secret, always send current values)
-    piopiy_agent_id: document.getElementById('ac-piopiy-id').value.trim(),
-    piopiy_number:   document.getElementById('ac-piopiy-num').value.trim(),
-    // Telegram chat id (non-secret)
-    telegram_chat_id: document.getElementById('ac-tg-chat').value.trim(),
-    // WhatsApp number (non-secret)
-    whatsapp_number: document.getElementById('ac-wa-number').value.trim(),
-  };
-
-  // Only send secret keys if the user typed something (blank = keep existing)
-  const secrets = [
-    ['ac-groq',      'groq_api_key'],
-    ['ac-openai',    'openai_api_key'],
-    ['ac-anthropic', 'anthropic_api_key'],
-    ['ac-gemini',    'gemini_api_key'],
-    ['ac-sarvam',    'sarvam_api_key'],
-    ['ac-elevenlabs','elevenlabs_api_key'],
-    ['ac-tg-token',  'telegram_bot_token'],
-    ['ac-wa-token',  'whatsapp_api_key'],
-  ];
-  secrets.forEach(([elId, field]) => {
-    const v = document.getElementById(elId)?.value?.trim();
-    if (v) body[field] = v;
-  });
-
-  // ElevenLabs voice ID (non-secret)
-  const evid = document.getElementById('ac-elevenlabs-voice').value.trim();
-  if (evid) body.elevenlabs_voice_id = evid;
-
-  const res = await fetch('/api/tenant/api-keys', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) { showAcctAlert('✅ Settings saved successfully.'); loadAccountSettings(); }
-  else showAcctAlert(data.detail || 'Error saving', 'error');
-}
-
-function previewAcctPrompt() {
-  const name     = document.getElementById('ac-company-name').value.trim() || '[Company Name]';
-  const industry = document.getElementById('ac-industry').value.trim()     || '[Industry]';
-  const products = document.getElementById('ac-products').value.trim()     || '[Products/Services]';
-  const website  = document.getElementById('ac-website').value.trim()      || '[Website]';
-  const lang     = document.getElementById('ac-language').value;
-  const guide    = document.getElementById('ac-guidelines').value.trim()   || '- Keep answers brief\n- Schedule a demo at the end';
-  const agent    = document.getElementById('ac-agent-name').value.trim()   || 'Aira';
-  const langMap  = { hindi:'हमेशा हिंदी में बोलें।', english:'Always speak in English.', hinglish:'Hinglish में बोलें — Hindi और English mix करें।' };
-  const preview  = document.getElementById('acct-prompt-preview');
-  preview.textContent = `आप ${agent} हैं, ${name} की professional sales agent हैं।\n\nकंपनी: ${name}\nIndustry: ${industry}\nProducts/Services: ${products}\nWebsite: ${website}\n\n${langMap[lang]||langMap.hindi}\n\nCall Guidelines:\n${guide}\n\nहर जवाब में: पहले information दें, फिर customer से एक question पूछें।`;
-  preview.style.display = 'block';
-}
 </script>
-
-<div class="modal-overlay" id="modal-schedule" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
-  <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;width:460px;padding:0">
-    <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600">🕐 Schedule Campaign</div>
-      <button onclick="document.getElementById('modal-schedule').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
-    </div>
-    <div style="padding:24px">
-      <input type="hidden" id="sch-campaign-id"/>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Schedule Type</label>
-        <select id="sch-type" onchange="toggleScheduleFields()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none">
-          <option value="once">Run Once (specific date &amp; time)</option>
-          <option value="daily">Run Daily (same time every day)</option>
-          <option value="weekdays">Run on Weekdays</option>
-        </select>
-      </div>
-      <div id="sch-date-field" style="margin-bottom:16px">
-        <label style="display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Date</label>
-        <input type="date" id="sch-date" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none"/>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Time (IST)</label>
-        <input type="time" id="sch-time" value="09:00" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none"/>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Delay Between Calls (seconds)</label>
-        <input type="number" id="sch-delay" value="60" min="30" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none"/>
-      </div>
-    </div>
-    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
-      <button onclick="cancelSchedule()" style="background:rgba(255,69,96,0.1);color:var(--red);border:1px solid rgba(255,69,96,0.2);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px">Cancel Schedule</button>
-      <div style="display:flex;gap:10px">
-        <button onclick="document.getElementById('modal-schedule').style.display='none'" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px">Close</button>
-        <button onclick="saveSchedule()" style="background:var(--teal);color:#000;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">Save Schedule</button>
-      </div>
-    </div>
-  </div>
-</div>
 </body>
 </html>

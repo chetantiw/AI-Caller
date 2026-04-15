@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up — MuTech AI Caller</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);width:100%;max-width:480px;overflow:hidden}
+.header{background:linear-gradient(135deg,#6c63ff,#5a52d5);padding:32px 36px 28px;color:#fff;text-align:center}
+.header .logo{font-size:2rem;margin-bottom:8px}
+.header h1{font-size:1.4rem;font-weight:700;margin-bottom:4px}
+.header p{font-size:.9rem;opacity:.85}
+.body{padding:32px 36px}
+.steps{display:flex;gap:0;margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.step{flex:1;padding:10px 8px;text-align:center;font-size:.78rem;font-weight:600;color:#a0aec0;background:#f8f9fa;border-right:1px solid #e2e8f0;transition:all .3s}
+.step:last-child{border-right:none}
+.step.active{background:#6c63ff;color:#fff}
+.step.done{background:#d4edda;color:#155724}
+.form-page{display:none}
+.form-page.active{display:block}
+.form-group{margin-bottom:18px}
+label{display:block;font-size:.85rem;font-weight:600;color:#4a5568;margin-bottom:6px}
+input,select{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem;color:#2d3748;transition:border-color .2s;background:#fff}
+input:focus,select:focus{outline:none;border-color:#6c63ff;box-shadow:0 0 0 3px rgba(108,99,255,.1)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.row{grid-template-columns:1fr}}
+.plan-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px}
+.plan-card{border:1.5px solid #e2e8f0;border-radius:8px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .2s}
+.plan-card:hover{border-color:#6c63ff}
+.plan-card.selected{border-color:#6c63ff;background:#f5f3ff}
+.plan-card .plan-name{font-weight:700;font-size:.9rem;color:#2d3748;margin-bottom:4px}
+.plan-card .plan-calls{font-size:.75rem;color:#718096}
+.plan-card .plan-price{font-size:.82rem;font-weight:600;color:#6c63ff;margin-top:6px}
+.btn{width:100%;padding:13px;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
+.btn-primary{background:#6c63ff;color:#fff}
+.btn-primary:hover{background:#5a52d5;transform:translateY(-1px);box-shadow:0 4px 12px rgba(108,99,255,.3)}
+.btn-primary:disabled{background:#b794f4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{background:#f8f9fa;color:#4a5568;border:1.5px solid #e2e8f0;margin-top:10px}
+.btn-secondary:hover{background:#edf2f7}
+.alert{padding:12px 14px;border-radius:8px;font-size:.875rem;margin-bottom:16px;display:none}
+.alert.error{background:#fed7d7;color:#742a2a;border:1px solid #feb2b2}
+.alert.success{background:#c6f6d5;color:#22543d;border:1px solid #9ae6b4}
+.footer-text{text-align:center;font-size:.85rem;color:#718096;margin-top:20px}
+.footer-text a{color:#6c63ff;text-decoration:none;font-weight:600}
+.footer-text a:hover{text-decoration:underline}
+.success-page{display:none;text-align:center;padding:40px 36px}
+.success-page.show{display:block}
+.success-page .icon{font-size:3.5rem;margin-bottom:16px}
+.success-page h2{font-size:1.4rem;font-weight:700;color:#2d3748;margin-bottom:8px}
+.success-page p{color:#718096;font-size:.9rem;margin-bottom:24px;line-height:1.6}
+.cred-box{background:#f8f9fa;border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:left;margin-bottom:20px}
+.cred-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #edf2f7;font-size:.875rem}
+.cred-row:last-child{border-bottom:none}
+.cred-label{color:#718096;font-weight:500}
+.cred-value{color:#2d3748;font-weight:600;font-family:monospace}
+.password-wrap{position:relative}
+.password-wrap input{padding-right:44px}
+.eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#a0aec0;font-size:1.1rem;padding:0}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="logo">🤖</div>
+    <h1>Start Your Free Trial</h1>
+    <p>AI-powered outbound calling for your business</p>
+  </div>
+
+  <div class="body" id="formBody">
+    <div class="steps">
+      <div class="step active" id="step1ind">1. Account</div>
+      <div class="step" id="step2ind">2. Company</div>
+      <div class="step" id="step3ind">3. Plan</div>
+    </div>
+
+    <div id="alertBox" class="alert error"></div>
+
+    <!-- PAGE 1: Account credentials -->
+    <div class="form-page active" id="page1">
+      <div class="form-group">
+        <label>Your Full Name *</label>
+        <input type="text" id="contact_name" placeholder="Chetan Sharma" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label>Work Email *</label>
+        <input type="email" id="email" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <div class="password-wrap">
+          <input type="password" id="password" placeholder="Minimum 8 characters" autocomplete="new-password">
+          <button class="eye-btn" type="button" onclick="togglePwd('password',this)">👁</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Confirm Password *</label>
+        <div class="password-wrap">
+          <input type="password" id="confirm_password" placeholder="Re-enter password">
+          <button class="eye-btn" type="button" onclick="togglePwd('confirm_password',this)">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="goPage2()">Continue →</button>
+    </div>
+
+    <!-- PAGE 2: Company details -->
+    <div class="form-page" id="page2">
+      <div class="form-group">
+        <label>Company Name *</label>
+        <input type="text" id="company_name" placeholder="e.g. MuTech Automation">
+      </div>
+      <div class="form-group">
+        <label>Industry</label>
+        <select id="company_industry">
+          <option value="">Select industry</option>
+          <option>Industrial IoT / Factory Automation</option>
+          <option>Real Estate</option>
+          <option>Financial Services / Insurance</option>
+          <option>Healthcare / Pharma</option>
+          <option>Education / EdTech</option>
+          <option>E-commerce / Retail</option>
+          <option>IT / Software Services</option>
+          <option>Logistics / Supply Chain</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Products / Services</label>
+        <input type="text" id="company_products" placeholder="Brief description of what you sell">
+      </div>
+      <div class="form-group">
+        <label>Call Language</label>
+        <select id="call_language">
+          <option value="hindi">Hindi</option>
+          <option value="english">English</option>
+          <option value="hinglish">Hinglish (Hindi + English)</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="goPage3()">Continue →</button>
+      <button class="btn btn-secondary" onclick="goPage(1)">← Back</button>
+    </div>
+
+    <!-- PAGE 3: Plan selection -->
+    <div class="form-page" id="page3">
+      <div class="form-group">
+        <label>Choose Your Plan</label>
+        <div class="plan-grid">
+          <div class="plan-card" id="plan-free" onclick="selectPlan('free')">
+            <div class="plan-name">Free</div>
+            <div class="plan-calls">100 calls/mo</div>
+            <div class="plan-price">₹0</div>
+          </div>
+          <div class="plan-card selected" id="plan-starter" onclick="selectPlan('starter')">
+            <div class="plan-name">Starter ⭐</div>
+            <div class="plan-calls">500 calls/mo</div>
+            <div class="plan-price">₹2,999/mo</div>
+          </div>
+          <div class="plan-card" id="plan-enterprise" onclick="selectPlan('enterprise')">
+            <div class="plan-name">Enterprise</div>
+            <div class="plan-calls">Unlimited</div>
+            <div class="plan-price">Custom</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#f0f4f8;border-radius:8px;padding:14px;font-size:.82rem;color:#4a5568;margin-bottom:16px;line-height:1.6">
+        ✅ All plans include: AI voice agent, Hindi/English/Hinglish support, call transcripts, campaign scheduler, Telegram alerts.<br>
+        🔑 Bring your own API keys (Sarvam, Groq) or use platform defaults.
+      </div>
+      <button class="btn btn-primary" id="submitBtn" onclick="submitSignup()">Create My Account 🚀</button>
+      <button class="btn btn-secondary" onclick="goPage(2)">← Back</button>
+    </div>
+
+    <div class="footer-text">Already have an account? <a href="/">Log in</a></div>
+  </div>
+
+  <!-- Success screen -->
+  <div class="success-page" id="successPage">
+    <div class="icon">🎉</div>
+    <h2>Account Created!</h2>
+    <p>Your AI calling account is ready. Save your login details below, then log in to complete your setup.</p>
+    <div class="cred-box">
+      <div class="cred-row">
+        <span class="cred-label">Login URL</span>
+        <span class="cred-value" id="s-url"></span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Email</span>
+        <span class="cred-value" id="s-email"></span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Password</span>
+        <span class="cred-value" id="s-pass"></span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="window.location.href='/'">Go to Login →</button>
+  </div>
+</div>
+
+<script>
+let selectedPlan = 'starter';
+
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function showAlert(msg) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg;
+  el.className = 'alert error';
+  el.style.display = 'block';
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function hideAlert() { document.getElementById('alertBox').style.display = 'none'; }
+
+function goPage(n) {
+  document.querySelectorAll('.form-page').forEach((p,i) => p.classList.toggle('active', i===n-1));
+  ['step1ind','step2ind','step3ind'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className = 'step' + (i<n-1?' done':i===n-1?' active':'');
+  });
+  hideAlert();
+}
+
+function goPage2() {
+  const name  = document.getElementById('contact_name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const pwd   = document.getElementById('password').value;
+  const cpwd  = document.getElementById('confirm_password').value;
+  if (!name)  return showAlert('Please enter your full name.');
+  if (!email || !email.includes('@')) return showAlert('Please enter a valid email.');
+  if (pwd.length < 8) return showAlert('Password must be at least 8 characters.');
+  if (pwd !== cpwd) return showAlert('Passwords do not match.');
+  goPage(2);
+}
+
+function goPage3() {
+  const company = document.getElementById('company_name').value.trim();
+  if (!company) return showAlert('Please enter your company name.');
+  goPage(3);
+}
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('plan-' + plan).classList.add('selected');
+}
+
+async function submitSignup() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating account…';
+  hideAlert();
+
+  const body = {
+    contact_name:     document.getElementById('contact_name').value.trim(),
+    email:            document.getElementById('email').value.trim().toLowerCase(),
+    password:         document.getElementById('password').value,
+    company_name:     document.getElementById('company_name').value.trim(),
+    company_industry: document.getElementById('company_industry').value,
+    company_products: document.getElementById('company_products').value.trim(),
+    call_language:    document.getElementById('call_language').value,
+    plan:             selectedPlan,
+  };
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showAlert(data.detail || 'Signup failed. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Create My Account 🚀';
+      return;
+    }
+    // Show success
+    document.getElementById('formBody').style.display = 'none';
+    document.getElementById('s-url').textContent = window.location.origin;
+    document.getElementById('s-email').textContent = body.email;
+    document.getElementById('s-pass').textContent = body.password;
+    document.getElementById('successPage').classList.add('show');
+  } catch(e) {
+    showAlert('Network error. Please check your connection and try again.');
+    btn.disabled = false;
+    btn.textContent = 'Create My Account 🚀';
+  }
+}
+</script>
+</body>
+</html>

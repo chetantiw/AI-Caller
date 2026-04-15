@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MuTech AI — Super Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #080c0f; --bg2: #0d1318; --bg3: #111920;
+  --card: #0f1923; --card2: #142030;
+  --border: rgba(255,140,0,0.12); --border2: rgba(255,140,0,0.3);
+  --orange: #ff8c00; --orange2: #ffaa33;
+  --orange-dim: rgba(255,140,0,0.08);
+  --teal: #00d296; --red: #ff4560; --amber: #ffb020; --blue: #3d9ef5;
+  --text: #e2eff8; --muted: #5a7a8a; --muted2: #3a5060;
+  --font: 'Outfit', sans-serif; --mono: 'JetBrains Mono', monospace;
+  --r: 10px; --r2: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; min-height: 100vh; overflow-x: hidden; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(255,140,0,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,140,0,0.02) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none; z-index: 0;
+}
+ 
+/* LOGIN */
+#login-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; background: var(--bg); }
+.login-box { background: var(--card); border: 1px solid var(--border2); border-radius: 16px; padding: 48px; width: 420px; box-shadow: 0 0 40px rgba(255,140,0,0.1); }
+.login-logo { text-align: center; margin-bottom: 32px; }
+.login-logo .brand { font-family: var(--mono); font-size: 10px; letter-spacing: 0.3em; color: var(--orange); text-transform: uppercase; margin-bottom: 8px; }
+.login-logo h1 { font-size: 24px; font-weight: 700; }
+.login-logo h1 span { color: var(--orange); }
+.login-logo .sub { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: var(--mono); }
+.field-group { margin-bottom: 16px; }
+.field-group label { display: block; font-size: 11px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.field-group input { width: 100%; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 10px 14px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; transition: border-color 0.2s; }
+.field-group input:focus { border-color: var(--orange); }
+.btn-login { width: 100%; background: var(--orange); color: #000; border: none; border-radius: var(--r2); padding: 12px; font-family: var(--font); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: all 0.2s; }
+.btn-login:hover { background: var(--orange2); transform: translateY(-1px); }
+.login-error { background: rgba(255,69,96,0.1); border: 1px solid rgba(255,69,96,0.3); border-radius: var(--r2); padding: 8px 12px; font-size: 12px; color: var(--red); margin-top: 12px; display: none; text-align: center; }
+ 
+/* APP SHELL */
+#app { display: none; min-height: 100vh; position: relative; z-index: 1; }
+.sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
+.sidebar-brand { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-brand .mark { font-family: var(--mono); font-size: 9px; letter-spacing: 0.3em; color: var(--orange); text-transform: uppercase; }
+.sidebar-brand h2 { font-size: 16px; font-weight: 700; margin-top: 4px; }
+.sidebar-brand h2 span { color: var(--orange); }
+.sidebar-brand .version { font-family: var(--mono); font-size: 10px; color: var(--muted2); margin-top: 4px; }
+.nav-section { padding: 16px 12px 8px; }
+.nav-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--muted2); text-transform: uppercase; padding: 0 8px; margin-bottom: 6px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--r2); cursor: pointer; transition: all 0.15s; color: var(--muted); font-size: 13px; font-weight: 500; }
+.nav-item:hover { background: var(--orange-dim); color: var(--text); }
+.nav-item.active { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--border); }
+.nav-item .icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+.sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--border); }
+.user-pill { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r2); background: var(--orange-dim); border: 1px solid var(--border); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--orange); color: #000; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-size: 12px; font-weight: 600; }
+.user-role { font-size: 10px; font-family: var(--mono); color: var(--orange); text-transform: uppercase; }
+.btn-logout { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 4px; transition: color 0.2s; }
+.btn-logout:hover { color: var(--red); }
+ 
+/* MAIN */
+.main { margin-left: 240px; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar { padding: 16px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: rgba(13,19,24,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 50; }
+.topbar-left h3 { font-size: 17px; font-weight: 600; }
+.topbar-left .breadcrumb { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-top: 1px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 8px var(--orange); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.status-text { font-family: var(--mono); font-size: 11px; color: var(--orange); }
+.content { padding: 28px; flex: 1; }
+.page { display: none; }
+.page.active { display: block; }
+ 
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; }
+.stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--orange); opacity: 0.6; }
+.stat-card.teal::before { background: var(--teal); }
+.stat-card.red::before { background: var(--red); }
+.stat-card.blue::before { background: var(--blue); }
+.stat-label { font-size: 10px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+.stat-value { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.stat-icon { position: absolute; top: 16px; right: 16px; font-size: 28px; opacity: 0.15; }
+ 
+/* CARDS */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 20px; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.card-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
+.card-body { padding: 20px; }
+ 
+/* TABLE */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+td { padding: 12px 14px; border-bottom: 1px solid rgba(255,140,0,0.05); font-size: 13px; vertical-align: middle; }
+tr:hover td { background: var(--orange-dim); }
+tr:last-child td { border-bottom: none; }
+ 
+/* BADGES */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 10px; font-family: var(--mono); font-weight: 600; text-transform: uppercase; }
+.badge.active { background: rgba(0,210,150,0.1); color: var(--teal); border: 1px solid rgba(0,210,150,0.2); }
+.badge.suspended { background: rgba(255,69,96,0.1); color: var(--red); border: 1px solid rgba(255,69,96,0.2); }
+.badge.expired { background: rgba(90,122,138,0.1); color: var(--muted); border: 1px solid var(--border); }
+.badge.starter { background: rgba(61,158,245,0.1); color: var(--blue); border: 1px solid rgba(61,158,245,0.2); }
+.badge.growth { background: rgba(255,176,32,0.1); color: var(--amber); border: 1px solid rgba(255,176,32,0.2); }
+.badge.enterprise { background: rgba(255,140,0,0.1); color: var(--orange); border: 1px solid var(--border2); }
+ 
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--r2); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+.btn-primary { background: var(--orange); color: #000; }
+.btn-primary:hover { background: var(--orange2); }
+.btn-ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+.btn-danger { background: rgba(255,69,96,0.1); color: var(--red); border-color: rgba(255,69,96,0.2); }
+.btn-danger:hover { background: rgba(255,69,96,0.2); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+ 
+/* PROGRESS BAR */
+.progress-bar { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s; }
+.progress-fill.danger { background: var(--red); }
+.progress-fill.ok { background: var(--teal); }
+ 
+/* DEBUG RESULTS */
+.debug-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.debug-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 16px; }
+.debug-card .service-name { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+.debug-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.debug-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+.debug-status .dot.ok { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+.debug-status .dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.debug-status .dot.warn { background: var(--amber); }
+.debug-status .dot.na { background: var(--muted2); }
+ 
+/* FORM */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 11px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 10px 14px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; transition: border-color 0.2s; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--orange); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group select { appearance: none; cursor: pointer; }
+ 
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 500; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--card); border: 1px solid var(--border2); border-radius: 16px; width: 560px; max-height: 85vh; overflow-y: auto; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-header h3 { font-size: 16px; font-weight: 600; }
+.modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; transition: color 0.2s; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+ 
+/* USAGE CHART */
+.usage-bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; margin-top: 12px; }
+.usage-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.usage-bar { width: 100%; background: var(--orange); border-radius: 2px 2px 0 0; opacity: 0.7; min-height: 2px; }
+.usage-bar-label { font-family: var(--mono); font-size: 8px; color: var(--muted2); }
+ 
+/* EMPTY STATE */
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+.empty p { font-size: 14px; }
+ 
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .debug-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+ 
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="brand">MuTech AI Platform</div>
+      <h1>Super <span>Admin</span></h1>
+      <div class="sub">Platform Management Console</div>
+    </div>
+    <div class="field-group">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="superadmin" autocomplete="off"/>
+    </div>
+    <div class="field-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="••••••••"/>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Access Console</button>
+    <div class="login-error" id="login-err">Invalid credentials</div>
+  </div>
+</div>
+ 
+<!-- APP -->
+<div id="app">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="mark">MuTech AI</div>
+      <h2>Super <span>Admin</span></h2>
+      <div class="version">Platform Console v2.0</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Platform</div>
+      <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+        <span class="icon">📊</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showPage('tenants')" id="nav-tenants">
+        <span class="icon">🏢</span> Tenants
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Tools</div>
+      <div class="nav-item" onclick="showPage('debug')" id="nav-debug">
+        <span class="icon">🔧</span> Debug Console
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="avatar">S</div>
+        <div class="user-info">
+          <div class="user-name" id="admin-name">Super Admin</div>
+          <div class="user-role">Platform Owner</div>
+        </div>
+        <button class="btn-logout" onclick="logout()" title="Logout">⏻</button>
+      </div>
+    </div>
+  </div>
+ 
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h3 id="page-title">Platform Dashboard</h3>
+        <div class="breadcrumb" id="page-breadcrumb">Super Admin → Overview</div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-dot"></div>
+        <span class="status-text">PLATFORM ONLINE</span>
+        <button class="btn btn-ghost btn-sm" onclick="refreshPage()">↻ Refresh</button>
+      </div>
+    </div>
+ 
+    <div class="content">
+ 
+      <!-- DASHBOARD PAGE -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-grid" id="platform-stats">
+          <div class="stat-card"><div class="stat-label">Total Tenants</div><div class="stat-value" id="s-tenants">—</div><div class="stat-icon">🏢</div></div>
+          <div class="stat-card teal"><div class="stat-label">Active Tenants</div><div class="stat-value" id="s-active">—</div><div class="stat-icon">✅</div></div>
+          <div class="stat-card red"><div class="stat-label">Suspended / Expired</div><div class="stat-value" id="s-suspended">—</div><div class="stat-icon">⛔</div></div>
+          <div class="stat-card blue"><div class="stat-label">Total Users</div><div class="stat-value" id="s-users">—</div><div class="stat-icon">👤</div></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card blue"><div class="stat-label">Total Calls</div><div class="stat-value" id="s-calls">—</div><div class="stat-icon">📞</div></div>
+          <div class="stat-card"><div class="stat-label">Calls Today</div><div class="stat-value" id="s-today">—</div><div class="stat-icon">📅</div></div>
+          <div class="stat-card"><div class="stat-label">Calls This Month</div><div class="stat-value" id="s-month">—</div><div class="stat-icon">📆</div></div>
+          <div class="stat-card teal"><div class="stat-label">Total Minutes</div><div class="stat-value" id="s-minutes">—</div><div class="stat-icon">⏱</div></div>
+        </div>
+ 
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="dot"></span> Tenant Usage Today</div>
+            <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Tenant</th><th>Plan</th><th>Status</th>
+                  <th>Calls Today</th><th>Min Today</th><th>Errors</th>
+                  <th>Usage</th><th>Actions</th>
+                </tr></thead>
+                <tbody id="tenant-usage-body">
+                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+ 
+      <!-- TENANTS PAGE -->
+      <div class="page" id="page-tenants">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div></div>
+          <button class="btn btn-primary" onclick="openCreateTenant()">+ New Tenant</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="dot"></span> All Tenants</div>
+            <span id="tenant-count" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Tenant</th><th>Slug</th><th>Plan</th><th>Status</th>
+                  <th>Calls (Total)</th><th>Calls (30d)</th><th>Users</th><th>Created</th><th>Actions</th>
+                </tr></thead>
+                <tbody id="tenants-body">
+                  <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+ 
+      <!-- DEBUG PAGE -->
+      <div class="page" id="page-debug">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="dot"></span> API Debug Console</div>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;gap:12px;margin-bottom:20px">
+              <select id="debug-tenant-select" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none">
+                <option value="">Select a tenant to debug...</option>
+              </select>
+              <button class="btn btn-primary" onclick="runDebug()">▶ Run Debug</button>
+            </div>
+            <div id="debug-results" style="display:none">
+              <div class="debug-grid" id="debug-grid"></div>
+            </div>
+            <div id="debug-empty" style="text-align:center;padding:40px;color:var(--muted)">
+              Select a tenant and run debug to check API connectivity
+            </div>
+          </div>
+        </div>
+      </div>
+ 
+    </div>
+  </div>
+</div>
+ 
+<!-- CREATE TENANT MODAL -->
+<div class="modal-overlay" id="modal-create-tenant">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Create New Tenant</h3>
+      <button class="modal-close" onclick="closeModal('modal-create-tenant')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Company Name *</label>
+          <input type="text" id="ct-name" placeholder="Acme Corp" oninput="autoSlug()"/>
+        </div>
+        <div class="form-group">
+          <label>Tenant ID / Slug <span style="font-size:10px;color:var(--muted)">(auto)</span></label>
+          <input type="text" id="ct-slug" readonly style="opacity:0.6;cursor:not-allowed;font-family:var(--mono)" placeholder="generated from name"/>
+        </div>
+        <div class="form-group">
+          <label>Plan</label>
+          <select id="ct-plan">
+            <option value="starter">Starter</option>
+            <option value="growth">Growth</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Calls Limit</label>
+          <input type="number" id="ct-limit" value="1000"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Name</label>
+          <input type="text" id="ct-contact-name" placeholder="John Doe"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Email</label>
+          <input type="email" id="ct-email" placeholder="john@acme.com"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Contact Phone</label>
+        <input type="text" id="ct-phone" placeholder="+91XXXXXXXXXX"/>
+      </div>
+      <div style="font-size:12px;font-family:var(--mono);color:var(--orange);text-transform:uppercase;letter-spacing:0.1em;margin:16px 0 12px;border-top:1px solid var(--border);padding-top:16px">
+        🔐 Admin Login Credentials
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Admin Username</label>
+          <input type="text" id="ct-admin-user" placeholder="auto-generated from email"/>
+        </div>
+        <div class="form-group">
+          <label>Admin Password</label>
+          <input type="text" id="ct-admin-pass" placeholder="auto-generated if blank"/>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:-8px">
+        Leave blank to auto-generate credentials. Full credentials will be sent to Telegram.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create-tenant')">Cancel</button>
+      <button class="btn btn-primary" onclick="createTenant()">Create Tenant</button>
+    </div>
+  </div>
+</div>
+ 
+<!-- EDIT TENANT MODAL -->
+<div class="modal-overlay" id="modal-edit-tenant">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Edit Tenant</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-tenant')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="et-id"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Company Name *</label>
+          <input type="text" id="et-name" placeholder="Acme Corp"/>
+        </div>
+        <div class="form-group">
+          <label>Slug (read-only)</label>
+          <input type="text" id="et-slug" disabled style="opacity:0.5;cursor:not-allowed"/>
+        </div>
+        <div class="form-group">
+          <label>Plan</label>
+          <select id="et-plan">
+            <option value="starter">Starter</option>
+            <option value="growth">Growth</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="et-status">
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="expired">Expired</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Calls Limit</label>
+          <input type="number" id="et-limit" min="0"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Name</label>
+          <input type="text" id="et-contact-name" placeholder="John Doe"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Email</label>
+          <input type="email" id="et-email" placeholder="john@acme.com"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Phone</label>
+          <input type="text" id="et-phone" placeholder="+91XXXXXXXXXX"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-tenant')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTenantEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- TENANT DETAIL MODAL -->
+<div class="modal-overlay" id="modal-tenant-detail">
+  <div class="modal" style="width:680px">
+    <div class="modal-header">
+      <h3 id="detail-title">Tenant Details</h3>
+      <button class="modal-close" onclick="closeModal('modal-tenant-detail')">✕</button>
+    </div>
+    <div class="modal-body" id="detail-body">Loading...</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tenant-detail')">Close</button>
+      <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
+    </div>
+  </div>
+</div>
+ 
+<script>
+const API = '/super/api';
+let token = localStorage.getItem('super_token');
+let currentTenants = [];
+let editingTenantId = null;
+ 
+// ── AUTH ──────────────────────────────────────────────────────
+async function doLogin() {
+  const u = document.getElementById('login-user').value;
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username:u, password:p})
+    });
+    const data = await res.json();
+    if (!res.ok) { err.style.display='block'; err.textContent=data.detail||'Login failed'; return; }
+    token = data.token;
+    localStorage.setItem('super_token', token);
+    document.getElementById('admin-name').textContent = data.name || 'Super Admin';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadDashboard();
+    loadTenants();
+  } catch(e) { err.style.display='block'; err.textContent='Connection error'; }
+}
+ 
+function logout() {
+  localStorage.removeItem('super_token');
+  location.reload();
+}
+ 
+function authHeaders() {
+  return {'Content-Type':'application/json','Authorization':`Bearer ${token}`};
+}
+ 
+// ── INIT ──────────────────────────────────────────────────────
+window.onload = () => {
+  document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  if (token) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadDashboard();
+    loadTenants();
+  }
+};
+ 
+// ── NAVIGATION ────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+  const titles = {
+    dashboard: ['Platform Dashboard', 'Super Admin → Overview'],
+    tenants:   ['Tenant Management', 'Super Admin → Tenants'],
+    debug:     ['Debug Console', 'Super Admin → Debug'],
+  };
+  document.getElementById('page-title').textContent = titles[name][0];
+  document.getElementById('page-breadcrumb').textContent = titles[name][1];
+}
+ 
+function refreshPage() { loadDashboard(); loadTenants(); }
+ 
+// ── DASHBOARD ─────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const res = await fetch(`${API}/dashboard`, {headers: authHeaders()});
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json();
+    const s = data.stats;
+    document.getElementById('s-tenants').textContent   = s.total_tenants;
+    document.getElementById('s-active').textContent    = s.active_tenants;
+    document.getElementById('s-suspended').textContent = s.suspended_tenants;
+    document.getElementById('s-users').textContent     = s.total_users;
+    document.getElementById('s-calls').textContent     = s.total_calls;
+    document.getElementById('s-today').textContent     = s.calls_today;
+    document.getElementById('s-month').textContent     = s.calls_this_month;
+    document.getElementById('s-minutes').textContent   = s.total_minutes;
+ 
+    const tbody = document.getElementById('tenant-usage-body');
+    if (!data.tenants.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No tenants yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.tenants.map(t => {
+      const pct = t.calls_limit > 0 ? Math.min(100, Math.round(t.calls_used / t.calls_limit * 100)) : 0;
+      const fillClass = pct > 90 ? 'danger' : pct > 70 ? '' : 'ok';
+      return `<tr>
+        <td><strong>${t.name}</strong></td>
+        <td><span class="badge ${t.plan}">${t.plan}</span></td>
+        <td><span class="badge ${t.status}">${t.status}</span></td>
+        <td style="font-family:var(--mono)">${t.calls_today}</td>
+        <td style="font-family:var(--mono)">${(+t.minutes_today).toFixed(1)}m</td>
+        <td style="font-family:var(--mono);color:${t.errors_today>0?'var(--red)':'var(--muted)'}">${t.errors_today}</td>
+        <td style="min-width:100px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:4px">${t.calls_used}/${t.calls_limit} (${pct}%)</div>
+          <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+        </td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openTenantDetail(${t.id})">Detail</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+ 
+// ── TENANTS ───────────────────────────────────────────────────
+async function loadTenants() {
+  try {
+    const res = await fetch(`${API}/tenants`, {headers: authHeaders()});
+    const data = await res.json();
+    currentTenants = data.tenants;
+ 
+    // Populate debug select
+    const sel = document.getElementById('debug-tenant-select');
+    sel.innerHTML = '<option value="">Select a tenant to debug...</option>' +
+      currentTenants.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+ 
+    document.getElementById('tenant-count').textContent = `${currentTenants.length} tenants`;
+    const tbody = document.getElementById('tenants-body');
+    if (!currentTenants.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:40px">No tenants yet. Create your first tenant.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = currentTenants.map(t => `<tr>
+      <td>
+        <strong>${t.name}</strong>
+        ${t.contact_name ? `<br><span style="font-size:11px;color:var(--muted)">${t.contact_name}</span>` : ''}
+        ${t.contact_email ? `<br><span style="font-size:11px;color:var(--muted)">${t.contact_email}</span>` : ''}
+      </td>
+      <td style="font-family:var(--mono);font-size:12px">${t.slug}</td>
+      <td><span class="badge ${t.plan}">${t.plan}</span></td>
+      <td><span class="badge ${t.status}">${t.status}</span></td>
+      <td style="font-family:var(--mono)">${t.total_calls||0}</td>
+      <td style="font-family:var(--mono)">${t.calls_30d||0}</td>
+      <td style="font-family:var(--mono)">${t.total_users||0}</td>
+      <td style="font-size:11px;color:var(--muted);font-family:var(--mono)">${(t.created_at||'').slice(0,10)}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="openEditTenant(${t.id})">✏ Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openTenantDetail(${t.id})">⚙ Config</button>
+        ${t.status==='active'
+          ? `<button class="btn btn-sm" style="background:rgba(255,176,32,0.1);color:var(--amber);border:1px solid rgba(255,176,32,0.2)" onclick="setStatus(${t.id},'suspended')">Suspend</button>`
+          : `<button class="btn btn-sm" style="background:rgba(0,210,150,0.1);color:var(--teal);border:1px solid rgba(0,210,150,0.2)" onclick="setStatus(${t.id},'active')">Activate</button>`}
+        ${t.id!==1 ? `<button class="btn btn-danger btn-sm" onclick="deleteTenant(${t.id},'${t.name}')">✕</button>` : ''}
+      </td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+ 
+async function setStatus(id, status) {
+  await fetch(`${API}/tenants/${id}/status`, {
+    method: 'PUT', headers: authHeaders(),
+    body: JSON.stringify({status})
+  });
+  loadTenants(); loadDashboard();
+}
+ 
+async function deleteTenant(id, name) {
+  if (!confirm(`Delete tenant "${name}"? This cannot be undone.`)) return;
+  await fetch(`${API}/tenants/${id}`, {method:'DELETE', headers: authHeaders()});
+  loadTenants(); loadDashboard();
+}
+ 
+// ── CREATE TENANT ─────────────────────────────────────────────
+function autoSlug() {
+  const name = document.getElementById('ct-name').value;
+  const slug = name.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  document.getElementById('ct-slug').value = slug;
+}
+
+function openCreateTenant() {
+  ['ct-name','ct-slug','ct-contact-name','ct-email','ct-phone','ct-admin-user','ct-admin-pass'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('ct-plan').value = 'starter';
+  document.getElementById('ct-limit').value = '1000';
+  document.getElementById('modal-create-tenant').classList.add('open');
+}
+ 
+async function createTenant() {
+  const body = {
+    name:           document.getElementById('ct-name').value.trim(),
+    slug:           document.getElementById('ct-slug').value.trim(),
+    plan:           document.getElementById('ct-plan').value,
+    calls_limit:    parseInt(document.getElementById('ct-limit').value)||1000,
+    contact_name:   document.getElementById('ct-contact-name').value||null,
+    contact_email:  document.getElementById('ct-email').value||null,
+    contact_phone:  document.getElementById('ct-phone').value||null,
+    admin_username: document.getElementById('ct-admin-user').value||null,
+    admin_password: document.getElementById('ct-admin-pass').value||null,
+  };
+  if (!body.name) { alert('Company name is required'); return; }
+  if (!body.slug) { alert('Could not generate slug — please re-enter the company name'); return; }
+  const res = await fetch(`${API}/tenants`, {
+    method:'POST', headers: authHeaders(), body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || 'Error creating tenant'); return; }
+  closeModal('modal-create-tenant');
+  // Clear credential fields for next use
+  document.getElementById('ct-admin-user').value = '';
+  document.getElementById('ct-admin-pass').value = '';
+  // Show credentials to super admin
+  const msg = `✅ Tenant "${body.name}" created!\n\n` +
+    `🔐 Admin Login Credentials:\n` +
+    `   Username: ${data.admin_username}\n` +
+    `   Password: ${data.temp_password}\n` +
+    `   Dashboard: ${data.dashboard_url}\n\n` +
+    `Credentials have also been sent to Telegram.\n` +
+    `Share these with the tenant. They should change password on first login.`;
+  alert(msg);
+  loadTenants(); loadDashboard();
+}
+ 
+// ── EDIT TENANT ───────────────────────────────────────────────
+function openEditTenant(id) {
+  const t = currentTenants.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('et-id').value           = t.id;
+  document.getElementById('et-name').value         = t.name || '';
+  document.getElementById('et-slug').value         = t.slug || '';
+  document.getElementById('et-plan').value         = t.plan || 'starter';
+  document.getElementById('et-status').value       = t.status || 'active';
+  document.getElementById('et-limit').value        = t.calls_limit || 1000;
+  document.getElementById('et-contact-name').value = t.contact_name || '';
+  document.getElementById('et-email').value        = t.contact_email || '';
+  document.getElementById('et-phone').value        = t.contact_phone || '';
+  document.getElementById('modal-edit-tenant').classList.add('open');
+}
+
+async function saveTenantEdit() {
+  const id = document.getElementById('et-id').value;
+  if (!id) return;
+  const name = document.getElementById('et-name').value.trim();
+  if (!name) { alert('Company name is required'); return; }
+  const body = {
+    name:          name,
+    plan:          document.getElementById('et-plan').value,
+    status:        document.getElementById('et-status').value,
+    calls_limit:   parseInt(document.getElementById('et-limit').value) || 1000,
+    contact_name:  document.getElementById('et-contact-name').value || null,
+    contact_email: document.getElementById('et-email').value || null,
+    contact_phone: document.getElementById('et-phone').value || null,
+  };
+  const res = await fetch(`${API}/tenants/${id}`, {
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || 'Error updating tenant'); return; }
+  closeModal('modal-edit-tenant');
+  loadTenants(); loadDashboard();
+}
+
+// ── TENANT DETAIL & CONFIG ────────────────────────────────────
+async function openTenantDetail(id) {
+  editingTenantId = id;
+  document.getElementById('modal-tenant-detail').classList.add('open');
+  document.getElementById('detail-body').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/tenants/${id}`, {headers: authHeaders()});
+    const data = await res.json();
+    const t = data.tenant; const c = data.config || {};
+    document.getElementById('detail-title').textContent = t.name;
+    document.getElementById('detail-body').innerHTML = `
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <span class="badge ${t.status}">${t.status}</span>
+        <span class="badge ${t.plan}">${t.plan}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Calls: ${t.calls_used}/${t.calls_limit}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--orange)">🤖 Agent Configuration</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Agent Name</label><input id="cfg-agent-name" value="${c.agent_name||'Aira'}"/></div>
+        <div class="form-group"><label>Voice</label>
+          <select id="cfg-voice">
+            ${['anushka','meera','pavithra','maitreyi'].map(v=>`<option value="${v}" ${c.agent_voice===v?'selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>System Prompt</label><textarea id="cfg-prompt">${c.system_prompt||''}</textarea></div>
+      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">🔌 API Keys</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Sarvam API Key</label><input id="cfg-sarvam" placeholder="sk_..." value="${c.sarvam_api_key||''}"/></div>
+        <div class="form-group"><label>Groq API Key</label><input id="cfg-groq" placeholder="gsk_..." value="${c.groq_api_key||''}"/></div>
+        <div class="form-group"><label>PIOPIY Agent ID</label><input id="cfg-piopiy-id" value="${c.piopiy_agent_id||''}"/></div>
+        <div class="form-group"><label>PIOPIY Number</label><input id="cfg-piopiy-num" value="${c.piopiy_number||''}"/></div>
+        <div class="form-group"><label>Telegram Bot Token</label><input id="cfg-tg-token" value="${c.telegram_bot_token||''}"/></div>
+        <div class="form-group"><label>Telegram Chat ID</label><input id="cfg-tg-chat" value="${c.telegram_chat_id||''}"/></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">📋 30-Day Usage</div>
+      <div class="usage-bars" id="usage-bars-${id}">
+        ${(data.usage||[]).slice(-14).map(u=>`
+          <div class="usage-bar-wrap">
+            <div class="usage-bar" style="height:${Math.max(2, Math.round((u.calls_made/Math.max(...(data.usage||[{calls_made:1}]).map(x=>x.calls_made)))*50))}px"></div>
+            <div class="usage-bar-label">${(u.date||'').slice(5)}</div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) { document.getElementById('detail-body').innerHTML = '<div style="color:var(--red);padding:20px">Error loading tenant details</div>'; }
+}
+ 
+async function saveConfig() {
+  if (!editingTenantId) return;
+  const updates = {
+    agent_name:         document.getElementById('cfg-agent-name')?.value || undefined,
+    agent_voice:        document.getElementById('cfg-voice')?.value || undefined,
+    system_prompt:      document.getElementById('cfg-prompt')?.value || undefined,
+    sarvam_api_key:     document.getElementById('cfg-sarvam')?.value || undefined,
+    groq_api_key:       document.getElementById('cfg-groq')?.value || undefined,
+    piopiy_agent_id:    document.getElementById('cfg-piopiy-id')?.value || undefined,
+    piopiy_number:      document.getElementById('cfg-piopiy-num')?.value || undefined,
+    telegram_bot_token: document.getElementById('cfg-tg-token')?.value || undefined,
+    telegram_chat_id:   document.getElementById('cfg-tg-chat')?.value || undefined,
+  };
+  const res = await fetch(`${API}/tenants/${editingTenantId}/config`, {
+    method:'PUT', headers: authHeaders(), body: JSON.stringify(updates)
+  });
+  if (res.ok) { closeModal('modal-tenant-detail'); alert('Config saved!'); }
+  else { alert('Error saving config'); }
+}
+ 
+// ── DEBUG ─────────────────────────────────────────────────────
+async function runDebug() {
+  const id = document.getElementById('debug-tenant-select').value;
+  if (!id) { alert('Select a tenant first'); return; }
+  document.getElementById('debug-results').style.display = 'none';
+  document.getElementById('debug-empty').textContent = 'Running tests...';
+  try {
+    const res = await fetch(`${API}/tenants/${id}/debug`, {headers: authHeaders()});
+    const data = await res.json();
+    const d = data.debug;
+    document.getElementById('debug-empty').style.display = 'none';
+    document.getElementById('debug-results').style.display = 'block';
+    document.getElementById('debug-grid').innerHTML = Object.entries(d).map(([svc, r]) => `
+      <div class="debug-card">
+        <div class="service-name">${svc.toUpperCase()}</div>
+        <div class="debug-status">
+          <div class="dot ${r.status==='ok'||r.status==='configured'?'ok':r.status==='not_configured'?'na':'error'}"></div>
+          <span>${r.status==='ok'?'Connected':r.status==='configured'?'Configured':r.status==='not_configured'?'Not Configured':'Error'}</span>
+        </div>
+        ${r.message ? `<div style="font-size:11px;color:var(--red);margin-top:6px;font-family:var(--mono)">${r.message}</div>` : ''}
+        ${r.bot_name ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">@${r.bot_name}</div>` : ''}
+        ${r.number ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">${r.number}</div>` : ''}
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('debug-empty').style.display = 'block';
+    document.getElementById('debug-empty').textContent = 'Error running debug: ' + e.message;
+  }
+}
+ 
+// ── UTILS ─────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
+});
+ 
+// Auto-refresh every 30 seconds on dashboard
+setInterval(() => {
+  if (document.getElementById('page-dashboard').classList.contains('active')) loadDashboard();
+}, 30000);
+</script>
+</body>
+</html>

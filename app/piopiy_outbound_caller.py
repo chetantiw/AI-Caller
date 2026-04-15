@@ -51,8 +51,12 @@ def trigger_outbound_call(
         return {"status": "error", "message": "PIOPIY SDK not installed"}
     
     # Validate required environment variables
-    token = os.getenv("PIOPIY_TOKEN")
-    agent_id = os.getenv("AGENT_ID")
+    token = (
+        os.getenv("PIOPIY_TOKEN")
+        or os.getenv("PIOPIY_AGENT_TOKEN")
+        or os.getenv("AGENT_TOKEN")
+    )
+    agent_id = os.getenv("AGENT_ID") or os.getenv("PIOPIY_AGENT_ID")
     caller_id = os.getenv("PIOPIY_NUMBER")
     
     if not all([token, agent_id, caller_id]):
@@ -87,7 +91,7 @@ def trigger_outbound_call(
         to_number = "+91" + digits[2:]
     else:
         logger.warning(f"⚠️  Phone number {digits} may not be valid (length: {len(digits)})")
-        to_number = "+" + digits if not digits.startswith("0") else digit
+        to_number = "+" + digits if not digits.startswith("0") else digits
     
     # Ensure caller_id is also in E.164 format
     if not caller_id.startswith("+"):

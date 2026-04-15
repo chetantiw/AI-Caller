@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — MuTech AI Caller</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;min-height:100vh;color:#1a202c}
+.topbar{background:#1a1a2e;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px}
+.topbar h1{font-size:1.1rem;font-weight:600}
+.topbar a{color:#a0aec0;text-decoration:none;font-size:.9rem}
+.topbar a:hover{color:#fff}
+.topbar .spacer{flex:1}
+.topbar .user{font-size:.85rem;color:#a0aec0}
+.container{max-width:860px;margin:32px auto;padding:0 16px}
+.setup-banner{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:14px 18px;margin-bottom:24px;display:none;align-items:center;gap:12px}
+.setup-banner.show{display:flex}
+.setup-banner span{flex:1;font-size:.9rem;color:#856404}
+.setup-banner strong{color:#533f03}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:24px}
+.tabs{display:flex;border-bottom:1px solid #e2e8f0}
+.tab{padding:14px 24px;font-size:.9rem;font-weight:500;cursor:pointer;color:#718096;border-bottom:2px solid transparent;transition:all .2s}
+.tab.active{color:#6c63ff;border-bottom-color:#6c63ff}
+.tab:hover:not(.active){color:#4a5568}
+.tab-content{display:none;padding:28px}
+.tab-content.active{display:block}
+.section-title{font-size:1rem;font-weight:600;color:#2d3748;margin-bottom:6px}
+.section-desc{font-size:.85rem;color:#718096;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:.85rem;font-weight:500;color:#4a5568}
+input,select,textarea{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:.9rem;color:#2d3748;transition:border-color .2s;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#6c63ff}
+textarea{resize:vertical;min-height:100px}
+.btn{background:#6c63ff;color:#fff;border:none;border-radius:8px;padding:11px 24px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s}
+.btn:hover{background:#5a52d5}
+.btn-outline{background:transparent;color:#6c63ff;border:1px solid #6c63ff}
+.btn-outline:hover{background:#f5f3ff}
+.btn-row{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #f0f4f8}
+.key-row{display:flex;align-items:center;gap:8px}
+.key-row input{flex:1}
+.key-badge{font-size:.75rem;font-weight:600;padding:3px 8px;border-radius:20px;white-space:nowrap}
+.key-badge.set{background:#d4edda;color:#155724}
+.key-badge.unset{background:#f8d7da;color:#721c24}
+.alert{padding:12px 16px;border-radius:8px;font-size:.875rem;margin-bottom:16px;display:none}
+.alert.success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}
+.alert.error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+.preview-box{background:#f8f9fa;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-top:16px;font-size:.82rem;color:#4a5568;white-space:pre-wrap;line-height:1.6;display:none}
+.preview-box.show{display:block}
+.preview-label{font-size:.8rem;font-weight:600;color:#718096;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/dashboard">← Dashboard</a>
+  <h1>⚙️ Account Settings</h1>
+  <div class="spacer"></div>
+  <span class="user" id="userName">Loading...</span>
+</div>
+
+<div class="container">
+  <div class="setup-banner" id="setupBanner">
+    <span>👋 <strong>Welcome!</strong> Complete your company profile so Aira knows how to represent your business on calls.</span>
+    <button class="btn" onclick="document.getElementById('setupBanner').classList.remove('show')">Got it</button>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('profile')">🏢 Company Profile</div>
+      <div class="tab" onclick="switchTab('call')">📞 Call Configuration</div>
+      <div class="tab" onclick="switchTab('keys')">🔑 API Keys</div>
+    </div>
+
+    <!-- COMPANY PROFILE TAB -->
+    <div class="tab-content active" id="tab-profile">
+      <div class="section-title">Company Information</div>
+      <div class="section-desc">This information trains your AI agent — what company it represents, what it sells, and how to answer questions.</div>
+      <div id="profileAlert" class="alert"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Company Name *</label>
+          <input type="text" id="company_name" placeholder="e.g. MuTech Automation">
+        </div>
+        <div class="form-group">
+          <label>Industry</label>
+          <input type="text" id="company_industry" placeholder="e.g. Industrial IoT, Factory Automation">
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input type="text" id="company_website" placeholder="https://yoursite.com">
+        </div>
+        <div class="form-group">
+          <label>Call Language</label>
+          <select id="call_language">
+            <option value="hindi">Hindi</option>
+            <option value="english">English</option>
+            <option value="hinglish">Hinglish (Hindi + English mix)</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Products / Services *</label>
+          <textarea id="company_products" rows="3" placeholder="List your main products or services. Example:&#10;- Smart Energy Metering&#10;- Predictive Maintenance&#10;- Building Automation&#10;- Industrial IoT Sensors"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>Call Guidelines</label>
+          <textarea id="call_guidelines" rows="4" placeholder="Write plain-language rules for how Aira should handle calls. Example:&#10;- Keep answers brief (2-3 sentences)&#10;- Always try to schedule a demo at the end&#10;- If no interest after 3 exchanges, politely close the call&#10;- Mention that we operate in India and UAE"></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="previewPrompt()">👁 Preview AI Prompt</button>
+        <button class="btn" onclick="saveProfile()">Save Company Profile</button>
+      </div>
+      <div id="promptPreview" class="preview-box">
+        <div class="preview-label">Generated System Prompt (what the AI sees)</div>
+        <div id="promptText"></div>
+      </div>
+    </div>
+
+    <!-- CALL CONFIGURATION TAB -->
+    <div class="tab-content" id="tab-call">
+      <div class="section-title">Agent Configuration</div>
+      <div class="section-desc">Customize how your AI agent sounds and introduces itself on calls.</div>
+      <div id="callAlert" class="alert"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Agent Name</label>
+          <input type="text" id="agent_name" placeholder="e.g. Aira">
+        </div>
+        <div class="form-group">
+          <label>Voice</label>
+          <select id="agent_voice">
+            <option value="anushka">Anushka (Female, Hindi)</option>
+            <option value="meera">Meera (Female, Hindi)</option>
+            <option value="arvind">Arvind (Male, Hindi)</option>
+            <option value="amol">Amol (Male, Hindi)</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Custom Greeting <span style="color:#a0aec0;font-weight:400">(optional — leave blank for auto-generated)</span></label>
+          <textarea id="greeting_template" rows="3" placeholder="Example: नमस्ते {name} जी! मैं {agent} बोल रही हूँ MuTech Automation से। क्या आपके पास 2 मिनट हैं?&#10;&#10;Use {name} for customer name, {agent} for agent name."></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="saveCallConfig()">Save Call Configuration</button>
+      </div>
+    </div>
+
+    <!-- API KEYS TAB -->
+    <div class="tab-content" id="tab-keys">
+      <div class="section-title">API Keys (BYOK)</div>
+      <div class="section-desc">Bring your own API keys. Leave blank to use platform defaults. Keys are stored securely and never shown in full after saving.</div>
+      <div id="keysAlert" class="alert"></div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:.85rem;font-weight:600;color:#4a5568;display:block;margin-bottom:12px">🎙 Sarvam AI (Speech)</label>
+        <div class="key-row">
+          <input type="password" id="sarvam_api_key" placeholder="sk-••••••••••••••••••••••">
+          <span class="key-badge unset" id="sarvam_badge">Not Set</span>
+        </div>
+        <div style="font-size:.8rem;color:#a0aec0;margin-top:4px">Used for speech-to-text and text-to-speech.</div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:.85rem;font-weight:600;color:#4a5568;display:block;margin-bottom:12px">🧠 Groq (LLM)</label>
+        <div class="key-row">
+          <input type="password" id="groq_api_key" placeholder="gsk_••••••••••••••••••••••">
+          <span class="key-badge unset" id="groq_badge">Not Set</span>
+        </div>
+        <div style="font-size:.8rem;color:#a0aec0;margin-top:4px">Powers the AI conversation.</div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:.85rem;font-weight:600;color:#4a5568;display:block;margin-bottom:12px">📞 PIOPIY Configuration</label>
+        <div class="form-grid" style="margin-bottom:8px">
+          <div class="form-group">
+            <label>Agent ID</label>
+            <input type="text" id="piopiy_agent_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          </div>
+          <div class="form-group">
+            <label>Phone Number (with country code)</label>
+            <input type="text" id="piopiy_number" placeholder="917943446727">
+          </div>
+        </div>
+        <div style="font-size:.8rem;color:#a0aec0">Your PIOPIY agent ID and the number linked to it from your PIOPIY dashboard.</div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:.85rem;font-weight:600;color:#4a5568;display:block;margin-bottom:12px">📱 Telegram Notifications</label>
+        <div class="form-grid" style="margin-bottom:8px">
+          <div class="form-group">
+            <label>Bot Token</label>
+            <input type="password" id="telegram_bot_token" placeholder="8471256641:AAF••••">
+            <span class="key-badge unset" id="telegram_badge" style="margin-top:4px;display:inline-block">Not Set</span>
+          </div>
+          <div class="form-group">
+            <label>Chat ID</label>
+            <input type="text" id="telegram_chat_id" placeholder="8788653322">
+          </div>
+        </div>
+        <div style="font-size:.8rem;color:#a0aec0">Get your bot token from @BotFather. Get Chat ID by sending /start to your bot then calling getUpdates.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="saveKeys()">Save API Keys</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('token');
+
+if (!token) { window.location.href = '/'; }
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { window.location.href = '/'; }
+  return res.json();
+}
+
+function showAlert(id, msg, type = 'success') {
+  const el = document.getElementById(id);
+  el.className = 'alert ' + type;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function switchTab(name) {
+  const names = ['profile', 'call', 'keys'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+async function loadProfile() {
+  const data = await api('GET', '/api/tenant/profile');
+  const c = data.config || {};
+  document.getElementById('userName').textContent = data.tenant?.name || '';
+  document.getElementById('company_name').value     = c.company_name || '';
+  document.getElementById('company_industry').value = c.company_industry || '';
+  document.getElementById('company_website').value  = c.company_website || '';
+  document.getElementById('call_language').value    = c.call_language || 'hindi';
+  document.getElementById('company_products').value = c.company_products || '';
+  document.getElementById('call_guidelines').value  = c.call_guidelines || '';
+  document.getElementById('agent_name').value       = c.agent_name || 'Aira';
+  document.getElementById('agent_voice').value      = c.agent_voice || 'anushka';
+  document.getElementById('greeting_template').value= c.greeting_template || '';
+  if (!c.setup_complete) document.getElementById('setupBanner').classList.add('show');
+}
+
+async function loadKeys() {
+  const data = await api('GET', '/api/tenant/api-keys');
+  document.getElementById('sarvam_api_key').placeholder    = data.sarvam_api_key || 'Not set';
+  document.getElementById('groq_api_key').placeholder      = data.groq_api_key   || 'Not set';
+  document.getElementById('piopiy_agent_id').value         = data.piopiy_agent_id || '';
+  document.getElementById('piopiy_number').value           = data.piopiy_number   || '';
+  document.getElementById('telegram_chat_id').value        = data.telegram_chat_id || '';
+  setBadge('sarvam_badge',   data.sarvam_set);
+  setBadge('groq_badge',     data.groq_set);
+  setBadge('telegram_badge', data.telegram_set);
+}
+
+function setBadge(id, isSet) {
+  const el = document.getElementById(id);
+  el.className = 'key-badge ' + (isSet ? 'set' : 'unset');
+  el.textContent = isSet ? '✓ Set' : 'Not Set';
+}
+
+async function saveProfile() {
+  const body = {
+    company_name:     document.getElementById('company_name').value.trim(),
+    company_industry: document.getElementById('company_industry').value.trim(),
+    company_website:  document.getElementById('company_website').value.trim(),
+    call_language:    document.getElementById('call_language').value,
+    company_products: document.getElementById('company_products').value.trim(),
+    call_guidelines:  document.getElementById('call_guidelines').value.trim(),
+    agent_name:       document.getElementById('agent_name').value.trim() || 'Aira',
+    agent_voice:      document.getElementById('agent_voice').value,
+    greeting_template:document.getElementById('greeting_template').value.trim(),
+  };
+  if (!body.company_name) { showAlert('profileAlert', 'Company name is required.', 'error'); return; }
+  const res = await api('PUT', '/api/tenant/profile', body);
+  if (res.ok) {
+    showAlert('profileAlert', '✅ Company profile saved. AI agent updated.');
+    document.getElementById('setupBanner').classList.remove('show');
+  } else {
+    showAlert('profileAlert', res.detail || 'Error saving profile', 'error');
+  }
+}
+
+async function saveCallConfig() {
+  const body = {
+    agent_name:        document.getElementById('agent_name').value.trim() || 'Aira',
+    agent_voice:       document.getElementById('agent_voice').value,
+    greeting_template: document.getElementById('greeting_template').value.trim(),
+    company_name:      document.getElementById('company_name').value.trim(),
+    company_industry:  document.getElementById('company_industry').value.trim(),
+    company_products:  document.getElementById('company_products').value.trim(),
+    company_website:   document.getElementById('company_website').value.trim(),
+    call_language:     document.getElementById('call_language').value,
+    call_guidelines:   document.getElementById('call_guidelines').value.trim(),
+  };
+  const res = await api('PUT', '/api/tenant/profile', body);
+  if (res.ok) showAlert('callAlert', '✅ Call configuration saved.');
+  else showAlert('callAlert', res.detail || 'Error saving', 'error');
+}
+
+async function saveKeys() {
+  const body = {};
+  const s  = document.getElementById('sarvam_api_key').value.trim();
+  const g  = document.getElementById('groq_api_key').value.trim();
+  const tb = document.getElementById('telegram_bot_token').value.trim();
+  const tc = document.getElementById('telegram_chat_id').value.trim();
+  const pa = document.getElementById('piopiy_agent_id').value.trim();
+  const pn = document.getElementById('piopiy_number').value.trim();
+  if (s)  body.sarvam_api_key     = s;
+  if (g)  body.groq_api_key       = g;
+  if (tb) body.telegram_bot_token = tb;
+  if (tc) body.telegram_chat_id   = tc;
+  if (pa) body.piopiy_agent_id    = pa;
+  if (pn) body.piopiy_number      = pn;
+  if (!Object.keys(body).length) { showAlert('keysAlert', 'No changes to save.', 'error'); return; }
+  const res = await api('PUT', '/api/tenant/api-keys', body);
+  if (res.ok) { showAlert('keysAlert', '✅ API keys saved.'); loadKeys(); }
+  else showAlert('keysAlert', res.detail || 'Error saving keys', 'error');
+}
+
+function previewPrompt() {
+  const name     = document.getElementById('company_name').value.trim()     || '[Company Name]';
+  const industry = document.getElementById('company_industry').value.trim() || '[Industry]';
+  const products = document.getElementById('company_products').value.trim() || '[Products/Services]';
+  const website  = document.getElementById('company_website').value.trim()  || '[Website]';
+  const lang     = document.getElementById('call_language').value;
+  const guide    = document.getElementById('call_guidelines').value.trim()  || '- Keep answers brief\n- Schedule a demo at the end';
+  const agent    = document.getElementById('agent_name').value.trim()       || 'Aira';
+  const langText = {
+    hindi:    'हमेशा हिंदी में बोलें।',
+    english:  'Always speak in English.',
+    hinglish: 'Hinglish में बोलें — Hindi और English mix करें।',
+  }[lang] || 'हमेशा हिंदी में बोलें।';
+  document.getElementById('promptText').textContent =
+`आप ${agent} हैं, ${name} की professional sales agent हैं।
+
+कंपनी: ${name}
+Industry: ${industry}
+Products/Services: ${products}
+Website: ${website}
+
+${langText}
+
+Call Guidelines:
+${guide}
+
+हर जवाब में: पहले information दें, फिर customer से एक question पूछें।`;
+  document.getElementById('promptPreview').classList.add('show');
+}
+
+loadProfile();
+loadKeys();
+</script>
+</body>
+</html>

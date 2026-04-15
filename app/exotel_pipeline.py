@@ -38,7 +38,7 @@ from app import database as db
 
 load_dotenv()
 
-SYSTEM_PROMPT = """आप प्रिया हैं, म्यूटेक ऑटोमेशन की पेशेवर सेल्स एजेंट हैं।
+SYSTEM_PROMPT = """आप आइरा हैं, म्यूटेक ऑटोमेशन की पेशेवर सेल्स एजेंट हैं।
 
 म्यूटेक ऑटोमेशन के बारे में: हम इंडस्ट्रियल IoT और फैक्ट्री ऑटोमेशन कंपनी हैं। हमारे उत्पाद: स्मार्ट एनर्जी मीटर, IoT सेंसर, रिमोट मॉनिटरिंग, प्रेडिक्टिव मेंटेनेंस। हम भारत और UAE में काम करते हैं।
 
@@ -85,18 +85,20 @@ async def analyze_call(conversation: list) -> dict:
             "lead_status": "called",
         }
 
-    prompt = f"""You are analyzing a Hindi sales call between Priya (AI sales agent for MuTech Automation) and a customer.
+    prompt = f"""You are analyzing a Hindi sales call between Aira (AI sales agent for MuTech Automation) and a customer.
 
 CONVERSATION:
 {transcript_text}
 
 Analyze this conversation and respond ONLY with a JSON object (no markdown, no explanation):
 {{
-  "summary": "2-3 sentence English summary of what happened in the call",
+  "summary": "Point-wise summary as bullet points (max 3 bullets, one line each)",
   "outcome": "answered",
   "sentiment": "one of: interested | neutral | rejected | demo_booked",
   "lead_status": "one of: called | interested | demo_booked | not_interested"
 }}
+
+Summary format: "• Customer concern: [key issue] • Aira response: [solution offered] • Outcome: [result/sentiment]"
 
 Rules:
 - outcome is always "answered" if there was any conversation
@@ -218,7 +220,7 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
     # ── LLM context with greeting ───────────────────────────
     greeting = (
         f"नमस्ते{', ' + lead_name if lead_name else ''}! "
-        "मैं प्रिया बोल रही हूँ म्यूटेक ऑटोमेशन से। "
+        "मैं आइरा बोल रही हूँ म्यूटेक ऑटोमेशन से। "
         "हम इंडस्ट्रियल IoT सेंसर, फैक्ट्री ऑटोमेशन, और स्मार्ट एनर्जी मैनेजमेंट के समाधान देते हैं। "
         "आपकी फैक्ट्री में ऑटोमेशन या एनर्जी की कोई चुनौती है क्या?"
     )
@@ -297,7 +299,7 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
         role = m.get('role', '')
         content = m.get('content', '')
         if role in ('user', 'assistant') and content:
-            label = 'Priya' if role == 'assistant' else 'Customer'
+            label = 'Aira' if role == 'assistant' else 'Customer'
             transcript_lines.append(f"{label}: {content}")
     transcript_text = "\n".join(transcript_lines) if transcript_lines else None
 
@@ -312,6 +314,10 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
         summary      = analysis.get("summary", ""),
         transcript   = transcript_text,
     )
+
+    # Schedule follow-up if enabled for this campaign
+    from app.follow_up_service import schedule_call_follow_up
+    await schedule_call_follow_up(call_db_id)
 
     # Update lead status if we have a lead
     if lead_id:
