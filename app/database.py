@@ -1149,6 +1149,10 @@ def delete_campaign(campaign_id: int):
 
     with get_conn() as conn:
 
+        # Nullify FK references so the campaign row can be removed
+        conn.execute("UPDATE leads SET campaign_id=NULL WHERE campaign_id=?", (campaign_id,))
+        conn.execute("UPDATE calls SET campaign_id=NULL WHERE campaign_id=?", (campaign_id,))
+
         conn.execute("DELETE FROM campaigns WHERE id=?", (campaign_id,))
 
         conn.commit()

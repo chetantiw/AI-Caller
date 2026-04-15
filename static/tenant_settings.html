@@ -212,7 +212,7 @@ textarea{resize:vertical;min-height:100px}
 
 <script>
 const API = '';
-let token = localStorage.getItem('token');
+let token = localStorage.getItem('token') || localStorage.getItem('mutech_token');
 
 if (!token) { window.location.href = '/'; }
 
@@ -288,12 +288,17 @@ async function saveProfile() {
     greeting_template:document.getElementById('greeting_template').value.trim(),
   };
   if (!body.company_name) { showAlert('profileAlert', 'Company name is required.', 'error'); return; }
-  const res = await api('PUT', '/api/tenant/profile', body);
-  if (res.ok) {
-    showAlert('profileAlert', '✅ Company profile saved. AI agent updated.');
-    document.getElementById('setupBanner').classList.remove('show');
-  } else {
-    showAlert('profileAlert', res.detail || 'Error saving profile', 'error');
+
+  try {
+    const res = await api('PUT', '/api/tenant/profile', body);
+    if (res.ok) {
+      showAlert('profileAlert', '✅ Company profile saved. AI agent updated.');
+      document.getElementById('setupBanner').classList.remove('show');
+    } else {
+      showAlert('profileAlert', res.detail || res.message || 'Error saving profile', 'error');
+    }
+  } catch (err) {
+    showAlert('profileAlert', 'Error saving profile: ' + (err.message || 'Network error'), 'error');
   }
 }
 
@@ -309,9 +314,13 @@ async function saveCallConfig() {
     call_language:     document.getElementById('call_language').value,
     call_guidelines:   document.getElementById('call_guidelines').value.trim(),
   };
-  const res = await api('PUT', '/api/tenant/profile', body);
-  if (res.ok) showAlert('callAlert', '✅ Call configuration saved.');
-  else showAlert('callAlert', res.detail || 'Error saving', 'error');
+  try {
+    const res = await api('PUT', '/api/tenant/profile', body);
+    if (res.ok) showAlert('callAlert', '✅ Call configuration saved.');
+    else showAlert('callAlert', res.detail || res.message || 'Error saving', 'error');
+  } catch (err) {
+    showAlert('callAlert', 'Error saving settings: ' + (err.message || 'Network error'), 'error');
+  }
 }
 
 async function saveKeys() {
@@ -329,9 +338,13 @@ async function saveKeys() {
   if (pa) body.piopiy_agent_id    = pa;
   if (pn) body.piopiy_number      = pn;
   if (!Object.keys(body).length) { showAlert('keysAlert', 'No changes to save.', 'error'); return; }
-  const res = await api('PUT', '/api/tenant/api-keys', body);
-  if (res.ok) { showAlert('keysAlert', '✅ API keys saved.'); loadKeys(); }
-  else showAlert('keysAlert', res.detail || 'Error saving keys', 'error');
+  try {
+    const res = await api('PUT', '/api/tenant/api-keys', body);
+    if (res.ok) { showAlert('keysAlert', '✅ API keys saved.'); loadKeys(); }
+    else showAlert('keysAlert', res.detail || res.message || 'Error saving keys', 'error');
+  } catch (err) {
+    showAlert('keysAlert', 'Error saving keys: ' + (err.message || 'Network error'), 'error');
+  }
 }
 
 function previewPrompt() {

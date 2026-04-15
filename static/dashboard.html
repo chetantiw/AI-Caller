@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MuTech AI Caller — Command Center</title>
+<title>DialBot — Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -94,19 +94,19 @@ body::before {
   text-align: center;
   margin-bottom: 32px;
 }
-.login-logo .brand {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.3em;
-  color: var(--teal);
-  text-transform: uppercase;
-  margin-bottom: 8px;
+.login-logo-img {
+  height: 80px;
+  margin-bottom: 12px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }
 .login-logo h1 {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
   color: var(--text);
   line-height: 1.2;
+  letter-spacing: -0.5px;
 }
 .login-logo h1 span { color: var(--teal); }
 .login-logo .sub {
@@ -189,30 +189,47 @@ body::before {
   z-index: 100;
 }
 .sidebar-brand {
-  padding: 24px 20px 20px;
+  padding: 20px 20px 16px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.sidebar-brand .mark {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--teal);
-  text-transform: uppercase;
+.sidebar-brand-logo {
+  height: 38px;
+  width: 38px;
+  object-fit: contain;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 .sidebar-brand h2 {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text);
-  margin-top: 4px;
   line-height: 1.2;
+  letter-spacing: -0.3px;
 }
 .sidebar-brand h2 span { color: var(--teal); }
 .sidebar-brand .version {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--muted2);
-  margin-top: 4px;
+  margin-top: 2px;
 }
+.powered-by {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted2);
+  padding: 10px 16px 4px;
+  letter-spacing: 0.05em;
+}
+.powered-by a {
+  color: var(--teal);
+  text-decoration: none;
+  font-weight: 600;
+}
+.powered-by a:hover { text-decoration: underline; }
 
 .nav-section {
   padding: 16px 12px 8px;
@@ -1258,9 +1275,10 @@ tr:hover td { background: var(--teal-dim); }
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">
-      <div class="brand">MuTech Automation</div>
-      <h1>AI <span>Caller</span> Center</h1>
-      <div class="sub">Command & Control Dashboard</div>
+      <!-- Drop logo.png into /static/ to show the logo image -->
+      <img src="/static/logo.png" alt="DialBot" class="login-logo-img" onerror="this.style.display='none'"/>
+      <h1>Dial<span>Bot</span></h1>
+      <div class="sub">AI-Powered Calling Platform</div>
     </div>
     <div class="field-group">
       <label>Username</label>
@@ -1290,9 +1308,12 @@ tr:hover td { background: var(--teal-dim); }
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="mark">MuTech Automation</div>
-      <h2>AI <span>Caller</span></h2>
-      <div class="version">v3.0.0 · PIOPIY + Exotel</div>
+      <!-- Drop logo.png into /static/ to show the logo image -->
+      <img src="/static/logo.png" alt="DialBot" class="sidebar-brand-logo" onerror="this.style.display='none'"/>
+      <div>
+        <h2>Dial<span>Bot</span></h2>
+        <div class="version">AI Calling Platform</div>
+      </div>
     </div>
 
     <div class="nav-section">
@@ -1342,6 +1363,7 @@ tr:hover td { background: var(--teal-dim); }
         </div>
         <button class="btn-logout" onclick="doLogout()" title="Logout">⏻</button>
       </div>
+      <div class="powered-by">Powered by <a href="https://mutechautomation.com" target="_blank">MuTechAutomation</a></div>
     </div>
   </aside>
 
@@ -2111,7 +2133,11 @@ tr:hover td { background: var(--teal-dim); }
               <div class="card-body">
                 <div class="form-grid">
                   <div class="form-row"><label>Agent ID</label><input id="ac-piopiy-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/></div>
-                  <div class="form-row"><label>Phone Number <span style="color:var(--muted);font-weight:400">(with country code)</span></label><input id="ac-piopiy-num" placeholder="917943446727"/></div>
+                  <div class="form-row">
+                    <label>Agent Token <span id="ac-piopiy-token-badge" class="key-badge" style="display:none">Set</span></label>
+                    <input id="ac-piopiy-token" type="password" placeholder="Paste JWT token from PIOPIY dashboard" autocomplete="new-password"/>
+                  </div>
+                  <div class="form-row"><label>Phone Number <span style="color:var(--muted);font-weight:400">(with country code, e.g. 917943446866)</span></label><input id="ac-piopiy-num" placeholder="917943446727"/></div>
                 </div>
               </div>
             </div>
@@ -3349,7 +3375,7 @@ function renderCallHistory(calls) {
         ${c.outcome || '—'}
       </td>
       <td style="color:${sentimentColor[c.sentiment]||'var(--text)'}; font-family:var(--mono); font-size:11px">
-        ${c.sentiment || '—'} ${summary}
+        ${c.sentiment === 'demo_booked' ? 'Demo Booked' : c.sentiment === 'interested' ? 'Interested' : c.sentiment === 'rejected' ? 'Not Interested' : (c.sentiment || '—')} ${summary}
       </td>
       <td style="font-family:var(--mono); font-size:11px; color:var(--muted)">${time}</td>
     </tr>`;
@@ -3641,7 +3667,10 @@ function getFilteredCallLogs() {
       (c.phone || '').includes(search) ||
       (c.company || '').toLowerCase().includes(search);
     const matchOutcome   = !outcome   || c.outcome   === outcome;
-    const matchSentiment = !sentiment || c.sentiment === sentiment;
+    const matchSentiment = !sentiment ||
+      (sentiment === 'interested'
+        ? (c.sentiment === 'interested' || c.sentiment === 'demo_booked')
+        : c.sentiment === sentiment);
     return matchSearch && matchOutcome && matchSentiment;
   });
 }
@@ -3677,8 +3706,8 @@ function renderCallLogsTable() {
       <td style="color:var(--muted)">${c.company || '—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${c.phone || '—'}</td>
       <td style="font-family:var(--mono);font-size:11px">${dur}</td>
-      <td><span class="status-tag ${c.outcome||'unknown'}">${c.outcome||'unknown'}</span></td>
-      <td><span class="status-tag ${c.sentiment||'neutral'}">${c.sentiment||'neutral'}</span></td>
+      <td><span class="status-tag ${c.outcome||'unknown'}">${c.outcome === 'answered' ? 'connected' : (c.outcome||'unknown')}</span></td>
+      <td><span class="status-tag ${c.sentiment === 'demo_booked' ? 'interested' : (c.sentiment||'neutral')}">${c.sentiment === 'demo_booked' ? 'Demo Booked' : c.sentiment === 'interested' ? 'Interested' : c.sentiment === 'rejected' ? 'Not Interested' : (c.sentiment||'neutral')}</span></td>
       <td class="summary-cell" title="${safeSum}">${sum}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">${dt}</td>
       <td>
@@ -3774,7 +3803,7 @@ function renderLeadsTable() {
           <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
             onclick="openEditLead(${l.id})">✏️</button>
           <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
-            onclick="callLead('${l.phone}','${(l.name||'').replace(/'/g,'')}')">📞</button>
+            onclick="callLead('${l.phone}','${(l.name||'').replace(/'/g,'')}',${l.id})">📞</button>
           <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px"
             onclick="deleteLead(${l.id})">✕</button>
         </div>
@@ -3904,15 +3933,17 @@ async function saveLead() {
   }
 }
 
-async function callLead(phone, name) {
+async function callLead(phone, name, leadId) {
   if (!confirm(`Trigger outbound call to ${name} (${phone})?`)) return;
   try {
     const res = await apiFetch('/api/calls/test', {
       method: 'POST',
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, lead_id: leadId || null, customer_name: name || '' }),
     });
     toast(`Call initiated to ${name} ✓ (${res.provider || 'piopiy'})`, 'success');
-  } catch(e) { toast('Call failed: ' + e.message, 'error'); }
+  } catch(e) {
+    toast('Call failed: ' + e.message, 'error');
+  }
 }
 
 // ════════════════════════════════════════
@@ -4051,14 +4082,22 @@ async function openTranscript(callId, leadName, duration, outcome, sentiment, su
         '<div style="color:var(--muted);text-align:center;padding:20px">No transcript recorded for this call.</div>';
       return;
     }
+    // Auto-detect agent name from first non-"Customer:" speaker
+    let agentName = 'Agent';
+    for (const l of raw.split('\n')) {
+      const m = l.match(/^([^:]+):/);
+      if (m && m[1].trim() !== 'Customer') { agentName = m[1].trim(); break; }
+    }
     const lines = raw.split('\n').map(line => {
-      if (line.startsWith('Aira:')) {
-        return `<div class="transcript-line-aira"><span class="transcript-line-label">Aira</span>${line.slice(5).trim()}</div>`;
-      } else if (line.startsWith('Customer:')) {
+      if (line.startsWith('Customer:')) {
         return `<div class="transcript-line-customer"><span class="transcript-line-label" style="color:var(--muted)">Customer</span>${line.slice(9).trim()}</div>`;
+      } else if (line.startsWith(agentName + ':')) {
+        return `<div class="transcript-line-aira"><span class="transcript-line-label">${agentName}</span>${line.slice(agentName.length + 1).trim()}</div>`;
+      } else if (line.trim()) {
+        return `<div style="color:var(--muted2)">${line}</div>`;
       }
-      return `<div style="color:var(--muted2)">${line}</div>`;
-    });
+      return '';
+    }).filter(Boolean);
     document.getElementById('transcript-body').innerHTML = lines.join('');
   } catch(e) {
     document.getElementById('transcript-body').innerHTML =
@@ -4132,9 +4171,10 @@ async function loadSettings() {
     const kPanel = document.getElementById('apikey-panel');
     if (kPanel) {
       kPanel.innerHTML = [
-        ['Sarvam API Key',  keys.sarvam_set,   'STT (saarika:v2.5) + TTS (bulbul:v2)'],
-        ['Groq API Key',    keys.groq_set,     'LLM (llama-3.3-70b-versatile)'],
-        ['Telegram Alerts', keys.telegram_set, 'Call completion notifications'],
+        ['Sarvam API Key',     keys.sarvam_set,      'STT (saarika:v2.5) + TTS (bulbul:v2)'],
+        ['ElevenLabs API Key', keys.elevenlabs_set,  'TTS alternative — faster, more natural voice'],
+        ['Groq API Key',       keys.groq_set,        'LLM (llama-3.3-70b-versatile)'],
+        ['Telegram Alerts',    keys.telegram_set,    'Call completion notifications'],
       ].map(([k, v, desc]) => `
         <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
@@ -4346,7 +4386,7 @@ function openSchedule(id, name) {
   // Set today as default date
   document.getElementById('sch-date').value = new Date().toISOString().split('T')[0];
   // Load existing schedule
-  fetch(`/api/campaigns/${id}/schedule`, {headers:{'Authorization':`Bearer ${token}`}})
+  fetch(`/api/campaigns/${id}/schedule`, {headers:{'Authorization':`Bearer ${authToken}`}})
     .then(r=>r.json()).then(s=>{
       if (s.is_scheduled) {
         document.getElementById('sch-type').value  = s.schedule_type || 'once';
@@ -4371,7 +4411,7 @@ async function saveSchedule() {
     delay_seconds:  parseInt(document.getElementById('sch-delay').value)||60,
   };
   const res = await fetch(`/api/campaigns/${id}/schedule`, {
-    method:'POST', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+    method:'POST', headers:{'Authorization':`Bearer ${authToken}`,'Content-Type':'application/json'},
     body: JSON.stringify(body)
   });
   const data = await res.json();
@@ -4382,7 +4422,7 @@ async function cancelSchedule() {
   const id = document.getElementById('sch-campaign-id').value;
   if (!confirm('Cancel this campaign schedule?')) return;
   const res = await fetch(`/api/campaigns/${id}/schedule`, {
-    method:'DELETE', headers:{'Authorization':`Bearer ${token}`}
+    method:'DELETE', headers:{'Authorization':`Bearer ${authToken}`}
   });
   if (res.ok) { document.getElementById('modal-schedule').style.display='none'; showToast('Schedule cancelled', 'success'); loadCampaigns && loadCampaigns(); }
 }
@@ -4413,7 +4453,7 @@ function showAcctAlert(msg, type = 'success') {
 
 async function loadAccountSettings() {
   try {
-    const res = await fetch('/api/tenant/profile', { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch('/api/tenant/profile', { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) return;
     const data = await res.json();
     const c = data.config || {};
@@ -4429,7 +4469,7 @@ async function loadAccountSettings() {
   } catch(e) { console.error('loadAccountSettings', e); }
 
   try {
-    const res = await fetch('/api/tenant/api-keys', { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch('/api/tenant/api-keys', { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) return;
     const d = await res.json();
 
@@ -4450,8 +4490,13 @@ async function loadAccountSettings() {
     document.getElementById('ac-elevenlabs-voice').value = d.elevenlabs_voice_id || '';
 
     // Telephony
-    document.getElementById('ac-piopiy-id').value  = d.piopiy_agent_id || '';
-    document.getElementById('ac-piopiy-num').value = d.piopiy_number    || '';
+    document.getElementById('ac-piopiy-id').value     = d.piopiy_agent_id || '';
+    document.getElementById('ac-piopiy-num').value    = d.piopiy_number    || '';
+    // Token: show masked value if set, leave blank if not (user must re-enter to change)
+    if (d.piopiy_token_set) {
+      document.getElementById('ac-piopiy-token').placeholder = d.piopiy_agent_token || '••••••••••••••••••••';
+    }
+    setKeyBadge('ac-piopiy-token-badge', d.piopiy_token_set);
 
     // Messaging
     document.getElementById('ac-tg-chat').value  = d.telegram_chat_id || '';
@@ -4506,14 +4551,19 @@ async function saveAcctProfile() {
     greeting_template:document.getElementById('ac-greeting').value.trim(),
   };
   if (!body.company_name) { showAcctAlert('Company name is required.', 'error'); return; }
-  const res = await fetch('/api/tenant/profile', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) showAcctAlert('✅ Company profile saved. AI agent updated.');
-  else showAcctAlert(data.detail || 'Error saving profile', 'error');
+
+  try {
+    const res = await fetch('/api/tenant/profile', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) showAcctAlert('✅ Company profile saved. AI agent updated.');
+    else showAcctAlert(data.detail || data.message || 'Error saving profile', 'error');
+  } catch (err) {
+    showAcctAlert('Error saving profile: ' + (err.message || 'Network error'), 'error');
+  }
 }
 
 async function saveAcctCallConfig() {
@@ -4528,14 +4578,19 @@ async function saveAcctCallConfig() {
     call_language:     document.getElementById('ac-language').value,
     call_guidelines:   document.getElementById('ac-guidelines').value.trim(),
   };
-  const res = await fetch('/api/tenant/profile', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) showAcctAlert('✅ Call configuration saved.');
-  else showAcctAlert(data.detail || 'Error saving', 'error');
+
+  try {
+    const res = await fetch('/api/tenant/profile', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) showAcctAlert('✅ Call configuration saved.');
+    else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
+  } catch (err) {
+    showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
+  }
 }
 
 async function saveAcctKeys() {
@@ -4544,9 +4599,13 @@ async function saveAcctKeys() {
     llm_provider: document.getElementById('ac-llm-provider').value,
     llm_model:    document.getElementById('ac-llm-model').value.trim(),
     speech_provider: document.getElementById('ac-speech-provider').value,
-    // PIOPIY (non-secret, always send current values)
-    piopiy_agent_id: document.getElementById('ac-piopiy-id').value.trim(),
-    piopiy_number:   document.getElementById('ac-piopiy-num').value.trim(),
+    // PIOPIY Telephony
+    piopiy_agent_id:    document.getElementById('ac-piopiy-id').value.trim(),
+    piopiy_number:      document.getElementById('ac-piopiy-num').value.trim(),
+    // Token: only send if user typed a new value (blank = keep existing)
+    ...(document.getElementById('ac-piopiy-token').value.trim()
+      ? { piopiy_agent_token: document.getElementById('ac-piopiy-token').value.trim() }
+      : {}),
     // Telegram chat id (non-secret)
     telegram_chat_id: document.getElementById('ac-tg-chat').value.trim(),
     // WhatsApp number (non-secret)
@@ -4573,14 +4632,18 @@ async function saveAcctKeys() {
   const evid = document.getElementById('ac-elevenlabs-voice').value.trim();
   if (evid) body.elevenlabs_voice_id = evid;
 
-  const res = await fetch('/api/tenant/api-keys', {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) { showAcctAlert('✅ Settings saved successfully.'); loadAccountSettings(); }
-  else showAcctAlert(data.detail || 'Error saving', 'error');
+  try {
+    const res = await fetch('/api/tenant/api-keys', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { showAcctAlert('✅ Settings saved successfully.'); loadAccountSettings(); }
+    else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
+  } catch (err) {
+    showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
+  }
 }
 
 function previewAcctPrompt() {

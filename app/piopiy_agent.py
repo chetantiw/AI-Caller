@@ -90,6 +90,7 @@ async def create_session(
 
     # ── DB: record call start ─────────────────────────────────
     metadata      = metadata or {}
+    logger.info(f"   Received metadata: {metadata}")  # DEBUG
     lead_id_str   = metadata.get("lead_id", "")
     lead_id_db    = int(lead_id_str) if str(lead_id_str).isdigit() else None
     lead_obj      = db.get_lead(lead_id_db) if lead_id_db else None
@@ -98,6 +99,8 @@ async def create_session(
         customer_name = lead_obj.get("name", "")
 
     company    = lead_obj.get("company", "") if lead_obj else ""
+    tenant_id  = int(metadata.get("tenant_id", 1)) if str(metadata.get("tenant_id", 1)).isdigit() else 1
+    logger.info(f"   Extracted tenant_id={tenant_id} from metadata")  # DEBUG
     call_start = time.time()
     call_db_id = db.create_call(
         phone       = customer_phone,
@@ -110,14 +113,20 @@ async def create_session(
     db.add_log(f"📞 PIOPIY {'inbound' if is_inbound else 'outbound'} call started — {customer_phone} | call_db_id={call_db_id}")
     logger.info(f"DB call record created: call_db_id={call_db_id}")
 
-    # ── Greeting ──────────────────────────────────────────────
-    greeting = (
-        f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}! "
-        "मैं आइरा बोल रही हूँ म्यूटेक ऑटोमेशन से। "
-        "हम स्मार्ट एनर्जी मीटरिंग, स्मार्ट वॉटर मीटरिंग, प्रेडिक्टिव मेंटेनेंस, "
-        "बिल्डिंग ऑटोमेशन, और इंडस्ट्रियल IoT सेंसर के समाधान प्रदान करते हैं। "
-        "क्या आपकी फैक्ट्री या बिल्डिंग में एनर्जी, वॉटर, या ऑटोमेशन से जुड़ी कोई चुनौती है?"
-    )
+    # ── Fetch tenant-specific system prompt & config ────────
+    from app import tenant_db as tdb
+    tenant_config = tdb.get_tenant_config(tenant_id) or {}
+    system_prompt = tenant_config.get("system_prompt", "").strip() or SYSTEM_PROMPT
+    agent_name = tenant_config.get("agent_name", "Agent").strip()
+    company_name = tenant_config.get("company_name", "Company").strip()
+    call_language = tenant_config.get("call_language", "hindi").strip().lower()
+    logger.info(f"   Using tenant config: agent={agent_name}, company={company_name}, lang={call_language}, prompt_len={len(system_prompt)}")
+
+    # ── Greeting (tenant-specific) ─────────────────────────
+    if call_language == "english":
+        greeting = f"Hello{' ' + customer_name if customer_name else ''}! I'm {agent_name} from {company_name}."
+    else:  # hindi or default
+        greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}! मैं {agent_name} हूँ {company_name} से।"
 
     # ── Services ──────────────────────────────────────────────
     stt = SarvamSTTService(
@@ -140,13 +149,13 @@ async def create_session(
         voice_id="anushka",
         params=SarvamTTSService.InputParams(
             language=Language.HI,
-            pace=0.95,
+            pace=1.1,
         ),
     )
 
     # ── VoiceAgent ────────────────────────────────────────────
     voice_agent = VoiceAgent(
-        instructions=SYSTEM_PROMPT,
+        instructions=system_prompt,
         greeting=greeting,
         idle_timeout_secs=120,
     )
@@ -174,7 +183,7 @@ async def create_session(
             duration_sec = int(time.time() - call_start)
             logger.info(f"Call ended — duration={duration_sec}s | analyzing...")
             from app.exotel_pipeline import analyze_call
-            conversation = voice_agent.messages if hasattr(voice_agent, "messages") else []
+            conversation = voice_agent._messages if hasattr(voice_agent, "_messages") else []
 
             # Format full transcript for storage
             transcript_lines = []

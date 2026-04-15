@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import database as db
+from app import tenant_db as tdb
 
 router = APIRouter(prefix="/api")
 
@@ -168,8 +169,10 @@ async def register_tenant(request: Request):
 
     # ── Notify superadmin via Telegram ────────────────────────
     try:
-        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        tg_chat  = os.getenv("TELEGRAM_CHAT_ID", "")
+        # Use platform owner (tenant 1) Telegram credentials from DB
+        _platform_cfg = tdb.get_tenant_config(1) or {}
+        tg_token = _platform_cfg.get("telegram_bot_token") or ""
+        tg_chat  = _platform_cfg.get("telegram_chat_id")   or ""
         if tg_token and tg_chat:
             msg = (
                 f"🎉 <b>New Tenant Signup!</b>\n\n"
@@ -748,16 +751,25 @@ async def generate_summary(call_id: int):
         }
 
     try:
-        import os
         from groq import Groq
+
+        # Use call's tenant Groq key from DB; fall back to platform (tenant 1)
+        call_tenant_id = call.get("tenant_id") or 1
+        _cfg = tdb.get_tenant_config(call_tenant_id) or {}
+        groq_key = _cfg.get("groq_api_key") or ""
+        if not groq_key and call_tenant_id != 1:
+            _platform = tdb.get_tenant_config(1) or {}
+            groq_key = _platform.get("groq_api_key") or ""
+
+        agent_name = _cfg.get("agent_name") or "Aira"
 
         # Parse transcript into role-based conversation
         lines = transcript.split('\n')
         conversation = []
         for line in lines:
             line = line.strip()
-            if line.startswith('Aira:'):
-                conversation.append({'role': 'assistant', 'content': line[5:].strip()})
+            if line.startswith(f'{agent_name}:'):
+                conversation.append({'role': 'assistant', 'content': line[len(agent_name)+1:].strip()})
             elif line.startswith('Customer:'):
                 conversation.append({'role': 'user', 'content': line[9:].strip()})
 
@@ -774,20 +786,24 @@ async def generate_summary(call_id: int):
             for m in conversation
         )
 
-        prompt = f"""You are analyzing a Hindi sales call between Aira (AI sales agent for MuTech Automation) and a customer.
+        company_name = _cfg.get("company_name") or "the company"
+        prompt = f"""You are analyzing a sales call between {agent_name} (AI sales agent for {company_name}) and a customer.
 
 CONVERSATION:
 {conversation_text}
 
 Analyze this conversation and provide a SHORT point-wise summary (max 3-4 bullet points in English):
 - Customer's main interest/concern
-- Key value proposition shared by Aira
+- Key value proposition shared by {agent_name}
 - Customer's response/sentiment
 - Next steps (if any) or call outcome
 
 Keep each point to ONE LINE maximum. Be concise and factual."""
 
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        if not groq_key:
+            raise HTTPException(status_code=503, detail="Groq API key not configured. Set it in Account Settings → API Keys.")
+
+        client = Groq(api_key=groq_key)
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
@@ -824,15 +840,26 @@ Keep each point to ONE LINE maximum. Be concise and factual."""
 @router.post("/calls/test")
 async def test_call(request: Request):
     """Manually test an outbound call to a phone number."""
+    user = get_current_user(request)
     body = await request.json()
-    phone = body.get("phone", "").strip()
+    phone         = body.get("phone", "").strip()
+    lead_id       = body.get("lead_id")
+    customer_name = body.get("customer_name", "").strip()
 
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number required")
 
     from app.campaign_runner import make_single_call
 
-    result = await make_single_call(phone)
+    metadata = {
+        "tenant_id":     str(user["tenant_id"]),
+        "customer_name": customer_name,
+    }
+    if lead_id:
+        metadata["lead_id"] = str(lead_id)
+
+    db.add_log(f"🔍 test_call: user={user['username']} tenant_id={user['tenant_id']} phone={phone}")
+    result = await make_single_call(phone, lead_id=str(lead_id) if lead_id else None, metadata=metadata)
     if result:
         db.add_log(f"📞 Test call to {phone} — ID: {result['call_id']}")
         return {
@@ -966,8 +993,11 @@ async def system_health():
     except Exception as e:
         results["database"] = {"status": "error", "detail": str(e)}
 
+    # Use platform (tenant 1) keys from DB for system health check
+    _platform_cfg = tdb.get_tenant_config(1) or {}
+
     # ── Sarvam AI ─────────────────────────────────────
-    sarvam_key = os.getenv("SARVAM_API_KEY", "")
+    sarvam_key = _platform_cfg.get("sarvam_api_key") or ""
     if sarvam_key:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
@@ -984,7 +1014,7 @@ async def system_health():
         results["sarvam"] = {"status": "no_key"}
 
     # ── Groq ──────────────────────────────────────────
-    groq_key = os.getenv("GROQ_API_KEY", "")
+    groq_key = _platform_cfg.get("groq_api_key") or ""
     if groq_key:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
@@ -1070,18 +1100,19 @@ async def get_config_route():
     """Return current model/voice/telephony configuration (non-secret)."""
 
     provider = db.get_config("telephony_provider", "piopiy")
+    _platform = tdb.get_tenant_config(1) or {}
 
     return {
 
         "telephony":      provider,
 
-        "number":         os.getenv("EXOTEL_VIRTUAL_NUMBER", "07314854688") if provider == "exotel" else os.getenv("PIOPIY_NUMBER", "+911203134158"),
+        "number":         os.getenv("EXOTEL_VIRTUAL_NUMBER", "") if provider == "exotel" else (_platform.get("piopiy_number") or ""),
 
         "stt_model":      "saarika:v2.5",
 
         "tts_model":      "bulbul:v2",
 
-        "tts_voice":      "anushka",
+        "tts_voice":      _platform.get("agent_voice") or "anushka",
 
         "llm_model":      "llama-3.3-70b-versatile",
 
@@ -1089,20 +1120,17 @@ async def get_config_route():
 
         "language":       "Hindi (hi-IN)",
 
-        "sarvam_key_set": bool(os.getenv("SARVAM_API_KEY")),
+        "sarvam_key_set": bool(_platform.get("sarvam_api_key")),
 
-        "groq_key_set":   bool(os.getenv("GROQ_API_KEY")),
+        "groq_key_set":   bool(_platform.get("groq_api_key")),
 
         "exotel_key_set": bool(os.getenv("EXOTEL_API_KEY")),
 
-        "company_name":    db.get_config("company_name", "MuTech Automation"),
+        "company_name":    _platform.get("company_name") or "MuTech Automation",
 
-        "agent_name":      db.get_config("agent_name", "Aira"),
+        "agent_name":      _platform.get("agent_name") or "Aira",
 
-        "target_audience": db.get_config(
-            "target_audience",
-            "Plant managers, maintenance engineers, and automation heads at manufacturing facilities in India and UAE."
-        ),
+        "target_audience": db.get_config("target_audience", ""),
 
     }
 
@@ -1184,6 +1212,7 @@ async def get_telephony():
     """Return current active telephony provider."""
 
     provider = db.get_config("telephony_provider", "piopiy")
+    _platform = tdb.get_tenant_config(1) or {}
 
     return {
 
@@ -1199,7 +1228,7 @@ async def get_telephony():
 
                 "description": "AI Agent via signaling server — recommended",
 
-                "number":      os.getenv("PIOPIY_NUMBER", "+911203134158"),
+                "number":      _platform.get("piopiy_number") or "",
 
                 "status":      "active" if provider == "piopiy" else "standby",
 
@@ -1213,7 +1242,7 @@ async def get_telephony():
 
                 "description": "WebSocket voicebot via Exotel landline",
 
-                "number":      os.getenv("EXOTEL_VIRTUAL_NUMBER", "07314854688"),
+                "number":      os.getenv("EXOTEL_VIRTUAL_NUMBER", ""),
 
                 "status":      "active" if provider == "exotel" else "standby",
 
@@ -1311,9 +1340,8 @@ async def piopiy_inbound(request: Request):
 
     # We just need to tell PIOPIY to connect to our AI agent
 
-    import os
-
-    agent_id = os.getenv("PIOPIY_AGENT_ID")
+    _platform_cfg = tdb.get_tenant_config(1) or {}
+    agent_id = (_platform_cfg.get("piopiy_agent_id") or "").strip()
 
 
 
@@ -1347,8 +1375,6 @@ async def piopiy_inbound(request: Request):
 # ═══════════════════════════════════════════════════════
 # TENANT SETTINGS ENDPOINTS (admin role required)
 # ═══════════════════════════════════════════════════════
-
-from app import tenant_db as tdb
 
 
 def _require_admin(current_user: dict = Depends(get_current_user)):
@@ -1454,7 +1480,7 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
         "speech_provider", "sarvam_api_key",
         "elevenlabs_api_key", "elevenlabs_voice_id",
         # Telephony
-        "piopiy_agent_id", "piopiy_number",
+        "piopiy_agent_id", "piopiy_agent_token", "piopiy_number",
         # Messaging
         "telegram_bot_token", "telegram_chat_id",
         "whatsapp_api_key", "whatsapp_number",
@@ -1497,6 +1523,8 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "elevenlabs_set":      bool(config.get("elevenlabs_api_key")),
         # Telephony
         "piopiy_agent_id":     config.get("piopiy_agent_id", ""),
+        "piopiy_agent_token":  mask(config.get("piopiy_agent_token", "")),
+        "piopiy_token_set":    bool(config.get("piopiy_agent_token")),
         "piopiy_number":       config.get("piopiy_number", ""),
         # Messaging
         "telegram_bot_token":  mask(config.get("telegram_bot_token", "")),

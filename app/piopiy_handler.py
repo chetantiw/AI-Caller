@@ -91,6 +91,8 @@ def make_outbound_call(
 
 ) -> str:
 
+    print(f"DEBUG: make_outbound_call called with to_number={to_number}, metadata={metadata}")  # DEBUG
+
     """
 
     Trigger an outbound PIOPIY AI agent call.
@@ -100,37 +102,57 @@ def make_outbound_call(
 
       1. REST API dials to_number
 
-      2. Customer answers → PIOPIY routes to piopiy_agent.py via signaling
+      2. Customer answers → PIOPIY routes to tenant's agent via signaling
 
-      3. Aira speaks using Sarvam STT + Groq LLM + Sarvam TTS
+      3. Agent speaks using tenant's configured services
 
 
     Returns call_id string on success, raises Exception on failure.
 
     """
 
-    agent_id  = os.getenv("PIOPIY_AGENT_ID") or os.getenv("AGENT_ID")
+    # Extract tenant_id from metadata to load tenant-specific credentials
+    metadata = metadata or {}
+    tenant_id = int(metadata.get("tenant_id", 1)) if str(metadata.get("tenant_id", 1)).isdigit() else 1
+    
+    logger.info(f"🔍 DEBUG: make_outbound_call received metadata={metadata}, tenant_id={tenant_id}")
+    
+    # Load tenant-specific PIOPIY credentials from database
+    from app import tenant_db as tdb
+    tenant_config = tdb.get_tenant_config(tenant_id)
+    logger.info(f"🔍 DEBUG: tenant_config loaded for tenant_id={tenant_id}")
 
-    api_token = (
-        os.getenv("PIOPIY_AGENT_TOKEN")
-        or os.getenv("PIOPIY_TOKEN")
-        or os.getenv("AGENT_TOKEN")
-    )
+    if not tenant_config:
+        logger.error(f"❌ No tenant config found for tenant_id={tenant_id}")
+        raise Exception(f"Tenant {tenant_id} not configured")
 
-    caller_id = os.getenv("PIOPIY_NUMBER", "").strip()
+    agent_id  = (tenant_config.get("piopiy_agent_id")    or "").strip()
+    api_token = (tenant_config.get("piopiy_agent_token") or "").strip()
+    caller_id = (tenant_config.get("piopiy_number")       or "").strip()
 
+    # For tenants without their own PIOPIY agent credentials, fall back to
+    # the platform account (tenant 1). When using the platform's agent we MUST
+    # also use the platform's caller number — mixing tenant's number with
+    # platform's agent causes PIOPIY "app_map_not_valid" (number not registered
+    # under that account). Tenant's own piopiy_number is only valid when they
+    # have their own full PIOPIY account set up.
+    if (not agent_id or not api_token) and tenant_id != 1:
+        logger.info(f"[Tenant {tenant_id}] No own PIOPIY credentials — falling back to platform (tenant 1)")
+        platform_cfg = tdb.get_tenant_config(1) or {}
+        agent_id  = (platform_cfg.get("piopiy_agent_id")    or "").strip()
+        api_token = (platform_cfg.get("piopiy_agent_token") or "").strip()
+        caller_id = (platform_cfg.get("piopiy_number")       or "").strip()
+
+    logger.info(f"[Tenant {tenant_id}] agent_id={agent_id[:20] if agent_id else 'NONE'}… | caller_id={caller_id}")
 
     if not agent_id:
-
-        raise Exception("PIOPIY_AGENT_ID not set in .env")
+        raise Exception(f"Tenant {tenant_id}: PIOPIY Agent ID not configured. Set it in Account Settings → Telephony.")
 
     if not api_token:
-
-        raise Exception("PIOPIY_AGENT_TOKEN not set in .env")
+        raise Exception(f"Tenant {tenant_id}: PIOPIY Agent Token not configured. Set it in Account Settings → Telephony.")
 
     if not caller_id:
-
-        raise Exception("PIOPIY_NUMBER not set in .env")
+        raise Exception(f"Tenant {tenant_id}: PIOPIY caller number not configured. Set it in Account Settings → Telephony.")
 
 
     to_normalized   = _normalize(to_number)

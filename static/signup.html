@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign Up — MuTech AI Caller</title>
+<title>Sign Up — DialBot</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 .card{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);width:100%;max-width:480px;overflow:hidden}
 .header{background:linear-gradient(135deg,#6c63ff,#5a52d5);padding:32px 36px 28px;color:#fff;text-align:center}
-.header .logo{font-size:2rem;margin-bottom:8px}
+.header .logo{font-size:2rem;margin-bottom:8px}.header .logo img{height:56px;object-fit:contain}
 .header h1{font-size:1.4rem;font-weight:700;margin-bottom:4px}
 .header p{font-size:.9rem;opacity:.85}
 .body{padding:32px 36px}
@@ -63,8 +63,11 @@ input:focus,select:focus{outline:none;border-color:#6c63ff;box-shadow:0 0 0 3px 
 <body>
 <div class="card">
   <div class="header">
-    <div class="logo">🤖</div>
-    <h1>Start Your Free Trial</h1>
+    <div class="logo">
+      <!-- Drop logo.png into /static/ to show the logo image -->
+      <img src="/static/logo.png" alt="DialBot" onerror="this.outerHTML='🤖'"/>
+    </div>
+    <h1>DialBot — Start Free Trial</h1>
     <p>AI-powered outbound calling for your business</p>
   </div>
 

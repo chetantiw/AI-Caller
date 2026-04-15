@@ -153,7 +153,9 @@ async def make_single_call(phone: str, lead_id: str = None, metadata: dict = Non
 
     except Exception as e:
 
-        logger.error(f"❌ [{provider.upper()}] Call failed → +{normalized} | {e}")
+        db.add_log(f"❌ [{provider.upper()}] Call failed → +{normalized} | ERROR: {str(e)}")
+
+        logger.error(f"❌ [{provider.upper()}] Call failed → +{normalized} | {e}", exc_info=True)
 
         return None
 
@@ -242,6 +244,9 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
         db.add_log(f"📞 [{i+1}/{total}] Dialing {name} — {phone}")
 
+        # Add tenant_id from campaign so agent uses tenant's system prompt
+        campaign = db.get_campaign(campaign_id)
+        tenant_id = campaign.get("tenant_id", 1) if campaign else 1
 
         result = await make_single_call(
 
@@ -249,7 +254,7 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
             lead_id=str(lead_id) if lead_id else None,
 
-            metadata={"customer_name": name, "company": lead.get("company", "")},
+            metadata={"customer_name": name, "company": lead.get("company", ""), "tenant_id": str(tenant_id)},
 
         )
 
