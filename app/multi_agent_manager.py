@@ -246,6 +246,14 @@ def make_create_session(tenant_id: int, initial_config: dict):
         agent_name    = tenant_config.get("agent_name")         or "Aira"
         agent_voice   = _safe_voice(tenant_config.get("agent_voice") or "")
         system_prompt = tenant_config.get("system_prompt")      or ""
+        faq_content = (tenant_config.get("faq_content") or "").strip()
+        if faq_content:
+            system_prompt += (
+                "\n\n--- Frequently Asked Questions ---\n"
+                "Use the following Q&A to answer customer questions accurately. "
+                "If a customer asks something covered here, use this answer directly.\n\n"
+                + faq_content
+            )
         logger.info(f"[Tenant {tenant_id}] system_prompt length={len(system_prompt)}, starts with={system_prompt[:50] if system_prompt else 'EMPTY'}")
         tg_token      = tenant_config.get("telegram_bot_token") or ""
         tg_chat       = tenant_config.get("telegram_chat_id")   or ""
@@ -404,6 +412,14 @@ def make_platform_create_session():
         agent_name    = tenant_config.get("agent_name")         or "Aira"
         agent_voice   = _safe_voice(tenant_config.get("agent_voice") or "")
         system_prompt = tenant_config.get("system_prompt")      or ""
+        faq_content = (tenant_config.get("faq_content") or "").strip()
+        if faq_content:
+            system_prompt += (
+                "\n\n--- Frequently Asked Questions ---\n"
+                "Use the following Q&A to answer customer questions accurately. "
+                "If a customer asks something covered here, use this answer directly.\n\n"
+                + faq_content
+            )
         tg_token      = tenant_config.get("telegram_bot_token") or ""
         tg_chat       = tenant_config.get("telegram_chat_id")   or ""
         own_digits    = "".join(

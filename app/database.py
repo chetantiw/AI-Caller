@@ -358,6 +358,12 @@ def init_db():
             except Exception:
                 pass  # column already exists
 
+        try:
+            conn.execute("ALTER TABLE tenant_configs ADD COLUMN faq_content TEXT")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
 
     print(f"[DB] Initialized at {DB_PATH}")
 

@@ -156,6 +156,7 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'speech_provider', 'elevenlabs_api_key', 'elevenlabs_voice_id',
         # WhatsApp
         'whatsapp_api_key', 'whatsapp_number',
+        'faq_content',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:

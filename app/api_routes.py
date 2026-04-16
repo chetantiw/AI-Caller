@@ -376,6 +376,148 @@ async def upload_leads_csv(
     }
 
 
+@router.post("/leads/upload-excel")
+async def upload_leads_excel(
+    request:     Request,
+    file:        UploadFile = File(...),
+    campaign_id: int = None,
+    force:       bool = False,
+):
+    """
+    Upload contacts from an Excel file (.xlsx or .xls).
+
+    Required columns : name, phone
+    Optional columns : company, designation, language  (missing = ignored / defaults used)
+
+    Handles:
+      - Missing optional columns gracefully (they default to '' / 'hi')
+      - Scientific notation phone numbers written by Excel
+      - Duplicate phone dedup (skip unless force=True)
+      - Header row auto-detected (case-insensitive)
+    """
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".xlsx") or fname.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="File must be a .xlsx or .xls Excel file")
+
+    content = await file.read()
+
+    try:
+        import openpyxl, io as _io
+        wb = openpyxl.load_workbook(_io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+
+        rows_iter = ws.iter_rows(values_only=True)
+
+        # ── Detect header row ─────────────────────────────────
+        raw_header = next(rows_iter, None)
+        if not raw_header:
+            raise HTTPException(status_code=400, detail="Excel file is empty")
+
+        # Normalize header names: lower-case, strip whitespace
+        header = [str(h).strip().lower() if h is not None else "" for h in raw_header]
+
+        def col(name):
+            """Return index of column by name, or None if not present."""
+            return header.index(name) if name in header else None
+
+        i_name  = col("name")
+        i_phone = col("phone")
+
+        if i_name is None or i_phone is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Excel must have 'name' and 'phone' columns. Found: {header}"
+            )
+
+        i_company     = col("company")
+        i_designation = col("designation")
+        i_language    = col("language")
+
+        # ── Build rows list ───────────────────────────────────
+        leads_raw = []
+        for row in rows_iter:
+            def cell(idx):
+                if idx is None or idx >= len(row):
+                    return ""
+                v = row[idx]
+                return str(v).strip() if v is not None else ""
+
+            # Handle Excel numeric phone (e.g. 919876543210.0 or 9.18827E+11)
+            raw_phone = ""
+            if i_phone is not None and i_phone < len(row):
+                pv = row[i_phone]
+                if pv is not None:
+                    if isinstance(pv, float):
+                        raw_phone = str(int(pv))
+                    elif isinstance(pv, int):
+                        raw_phone = str(pv)
+                    else:
+                        raw_phone = str(pv).strip()
+
+            name = cell(i_name)
+            if not name or not raw_phone:
+                continue  # skip blank rows
+
+            leads_raw.append({
+                "name":        name,
+                "phone":       raw_phone,
+                "company":     cell(i_company),
+                "designation": cell(i_designation),
+                "language":    cell(i_language) or "hi",
+            })
+
+        wb.close()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse Excel file: {e}")
+
+    if not leads_raw:
+        raise HTTPException(status_code=400, detail="No valid rows found in Excel (need name + phone)")
+
+    # ── Force: delete existing records with same phones ───────
+    if force:
+        from app.database import _normalize_phone
+        deleted = 0
+        with db.get_conn() as conn:
+            for row in leads_raw:
+                phone = _normalize_phone(row["phone"])
+                if not phone:
+                    continue
+                result = conn.execute(
+                    "DELETE FROM leads WHERE phone=? AND tenant_id=?", (phone, tid)
+                )
+                deleted += result.rowcount
+            conn.commit()
+        if deleted:
+            db.add_log(f"🗑️ Excel force re-import: cleared {deleted} existing leads")
+
+    # ── Insert ────────────────────────────────────────────────
+    count   = db.bulk_insert_leads(leads_raw, campaign_id=campaign_id, tenant_id=tid)
+    skipped = len(leads_raw) - count
+
+    msg = f"Imported {count} contacts from Excel"
+    if skipped > 0 and not force:
+        msg += f" ({skipped} skipped — duplicates)"
+
+    db.add_log(
+        f"📊 Excel upload: {count} new contacts from {file.filename}"
+        + (f" ({skipped} skipped)" if skipped else "")
+    )
+
+    return {
+        "message":  msg,
+        "imported": count,
+        "skipped":  skipped,
+        "total":    len(leads_raw),
+        "force":    force,
+    }
+
+
 @router.get("/leads/{lead_id}")
 async def get_lead(lead_id: int):
     lead = db.get_lead(lead_id)
@@ -1546,3 +1688,53 @@ async def update_tenant_system_prompt(request: Request, current_user: dict = Dep
     tid = current_user.get("tenant_id", 1)
     tdb.update_tenant_config(tid, system_prompt=prompt, setup_complete=1)
     return {"ok": True, "message": "System prompt saved."}
+
+
+@router.get("/tenant/faq")
+async def get_tenant_faq(current_user: dict = Depends(get_current_user)):
+    """Return the current FAQ content for this tenant."""
+    tid    = current_user.get("tenant_id", 1)
+    config = tdb.get_tenant_config(tid) or {}
+    return {
+        "faq_content": config.get("faq_content", "") or "",
+        "preview":     _build_faq_prompt_section(config.get("faq_content", "") or ""),
+    }
+
+
+@router.put("/tenant/faq")
+async def update_tenant_faq(
+    request: Request,
+    current_user: dict = Depends(_require_admin),
+):
+    """
+    Save FAQ content. The FAQ is automatically injected into the agent's
+    system prompt at call time (appended as a 'Frequently Asked Questions'
+    section so the agent can answer product/company questions accurately).
+    """
+    data        = await request.json()
+    faq_content = (data.get("faq_content") or "").strip()
+    tid         = current_user.get("tenant_id", 1)
+
+    tdb.update_tenant_config(tid, faq_content=faq_content)
+    db.add_log(f"📚 FAQ updated by {current_user['username']} — {len(faq_content)} chars")
+
+    return {
+        "ok":      True,
+        "message": "FAQ saved. It will be active on the next call.",
+        "chars":   len(faq_content),
+    }
+
+
+def _build_faq_prompt_section(faq_content: str) -> str:
+    """
+    Convert raw FAQ text into a formatted prompt section.
+    Called by multi_agent_manager and piopiy_agent when building system prompt.
+    """
+    if not faq_content or not faq_content.strip():
+        return ""
+    return (
+        "\n\n--- Frequently Asked Questions ---\n"
+        "Use the following Q&A to answer customer questions accurately. "
+        "If a customer asks something covered here, use this answer directly.\n\n"
+        + faq_content.strip()
+    )

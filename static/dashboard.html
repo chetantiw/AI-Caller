@@ -1821,20 +1821,51 @@ tr:hover td { background: var(--teal-dim); }
                 <div class="card-title"><span class="dot"></span> Upload Contact List</div>
               </div>
               <div class="card-body">
-                <div class="upload-zone" onclick="document.getElementById('csv-upload').click()">
-                  <div class="upload-icon">📋</div>
-                  <div class="upload-title">Drop CSV file here</div>
-                  <div class="upload-sub">name, phone (91XXXXXXXXXX), company, designation, language</div>
-                  <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)"/>
+
+                <!-- Tabs: CSV vs Excel -->
+                <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;">
+                  <button id="tab-csv-btn"
+                    style="padding:6px 18px;font-size:12px;border:none;cursor:pointer;background:var(--teal);color:#fff;font-weight:600;"
+                    onclick="switchUploadTab('csv')">📋 CSV</button>
+                  <button id="tab-excel-btn"
+                    style="padding:6px 18px;font-size:12px;border:none;cursor:pointer;background:var(--card-bg);color:var(--muted);font-weight:500;"
+                    onclick="switchUploadTab('excel')">📊 Excel (.xlsx)</button>
                 </div>
+
+                <!-- CSV upload -->
+                <div id="upload-panel-csv">
+                  <div class="upload-zone" onclick="document.getElementById('csv-upload').click()">
+                    <div class="upload-icon">📋</div>
+                    <div class="upload-title">Drop CSV file here</div>
+                    <div class="upload-sub">Columns: name, phone — company, designation, language are optional</div>
+                    <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)"/>
+                  </div>
+                </div>
+
+                <!-- Excel upload -->
+                <div id="upload-panel-excel" style="display:none;">
+                  <div class="upload-zone" onclick="document.getElementById('excel-upload').click()">
+                    <div class="upload-icon">📊</div>
+                    <div class="upload-title">Drop Excel file here</div>
+                    <div class="upload-sub">Only <strong>name</strong> and <strong>phone</strong> columns are required — all others are optional</div>
+                    <input type="file" id="excel-upload" accept=".xlsx,.xls" onchange="handleExcelUpload(event)"/>
+                  </div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--surface2,#f9fafb);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.7;">
+                    💡 <strong>Tip:</strong> Phone numbers in Excel are often auto-converted to numbers.
+                    To avoid this: select the phone column → Format Cells → <strong>Text</strong> → enter numbers.
+                    <br>Or simply upload — the system auto-corrects numeric/scientific notation.
+                  </div>
+                </div>
+
+                <!-- Shared status + controls -->
                 <div id="upload-preview" style="margin-top:12px; display:none;">
                   <div style="font-size:11px; font-family:var(--mono); color:var(--teal); margin-bottom:8px;" id="upload-info"></div>
                 </div>
                 <div style="margin-top:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                  <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">⬇ Download Template</button>
+                  <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">⬇ Download CSV Template</button>
                   <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
                     <input type="checkbox" id="csv-force" style="cursor:pointer;accent-color:var(--teal)"/>
-                    Replace existing contacts (use if re-uploading same list)
+                    Replace existing contacts (re-import same list)
                   </label>
                 </div>
               </div>
@@ -1962,6 +1993,10 @@ tr:hover td { background: var(--teal-dim); }
             <button id="acct-tab-keys" onclick="switchAcctTab('keys')"
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
               🔑 API Keys
+            </button>
+            <button id="acct-tab-faq" onclick="switchAcctTab('faq')"
+              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
+              📚 FAQ / Training
             </button>
           </div>
 
@@ -2170,6 +2205,58 @@ tr:hover td { background: var(--teal-dim); }
 
             <div style="display:flex;justify-content:flex-end">
               <button class="btn btn-primary" onclick="saveAcctKeys()">💾 Save All Settings</button>
+            </div>
+          </div>
+
+          <!-- FAQ TRAINING TAB -->
+          <div id="acct-panel-faq" style="display:none">
+
+            <div style="margin-bottom:20px;">
+              <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">📚 FAQ & Agent Training</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.6;">
+                Add frequently asked questions and answers about your company, products, pricing, or services.
+                The AI agent will refer to these during calls to answer customer queries accurately.
+                Write each Q&amp;A on its own line or in any format you prefer.
+              </div>
+            </div>
+
+            <!-- Format hint -->
+            <div style="background:var(--surface2,#f9fafb);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:11px;color:var(--muted);line-height:1.8;">
+              <strong style="color:var(--text);">Suggested format:</strong><br>
+              Q: What is the price of your IoT sensor?<br>
+              A: Our basic IoT sensor starts at ₹4,500 per unit with bulk discounts available.<br><br>
+              Q: Do you offer free installation?<br>
+              A: Yes, free installation is included for orders above 10 units.<br><br>
+              <em>You can also write in Hindi or use bullet points — the agent understands any format.</em>
+            </div>
+
+            <!-- FAQ textarea -->
+            <div style="margin-bottom:16px;">
+              <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">
+                Company FAQ / Training Content
+              </label>
+              <textarea id="faq-editor"
+                style="width:100%;height:320px;font-size:12px;font-family:var(--mono);padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text);line-height:1.7;resize:vertical;"
+                placeholder="Q: What products does your company sell?&#10;A: We sell industrial IoT sensors, smart energy meters, and factory automation systems.&#10;&#10;Q: How long does installation take?&#10;A: Installation typically takes 1-2 days depending on the size of the facility.&#10;&#10;Q: Do you provide after-sales support?&#10;A: Yes, we offer 24/7 support with a 1-year warranty on all products."></textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                <span id="faq-char-count" style="font-size:11px;color:var(--muted);">0 characters</span>
+                <span id="faq-status" style="font-size:11px;color:var(--teal);"></span>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button class="btn btn-primary" onclick="saveFaq()">💾 Save FAQ</button>
+              <button class="btn btn-outline btn-sm" onclick="clearFaq()">🗑 Clear All</button>
+              <span style="font-size:11px;color:var(--muted);">Changes are active on the next call — no restart required.</span>
+            </div>
+
+            <!-- Live preview -->
+            <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">How this appears in the agent's system prompt:</div>
+              <pre id="faq-preview"
+                style="background:var(--surface2,#f9fafb);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;color:var(--muted);white-space:pre-wrap;word-break:break-word;max-height:180px;overflow-y:auto;font-family:var(--mono);">
+(save FAQ to see preview)
+              </pre>
             </div>
           </div>
 
@@ -4430,14 +4517,155 @@ async function cancelSchedule() {
 // ACCOUNT SETTINGS
 // ══════════════════════════════════════
 function switchAcctTab(name) {
-  ['profile','call','keys'].forEach(t => {
+  ['profile','call','keys','faq'].forEach(t => {
     const btn   = document.getElementById('acct-tab-' + t);
     const panel = document.getElementById('acct-panel-' + t);
     const active = t === name;
-    btn.style.background = active ? 'var(--orange)' : 'transparent';
-    btn.style.color      = active ? '#000' : 'var(--muted)';
-    panel.style.display  = active ? 'block' : 'none';
+    if (btn)   { btn.style.background = active ? 'var(--orange)' : 'transparent'; btn.style.color = active ? '#000' : 'var(--muted)'; }
+    if (panel) panel.style.display  = active ? 'block' : 'none';
   });
+  if (name === 'faq') loadFaq();
+}
+
+// ════════════════════════════════════════
+// UPLOAD TAB SWITCH
+// ════════════════════════════════════════
+function switchUploadTab(tab) {
+  const csvPanel   = document.getElementById('upload-panel-csv');
+  const xlsxPanel  = document.getElementById('upload-panel-excel');
+  const csvBtn     = document.getElementById('tab-csv-btn');
+  const xlsxBtn    = document.getElementById('tab-excel-btn');
+  const info       = document.getElementById('upload-info');
+  const preview    = document.getElementById('upload-preview');
+
+  if (info)    info.textContent = '';
+  if (preview) preview.style.display = 'none';
+
+  if (tab === 'csv') {
+    csvPanel.style.display   = '';
+    xlsxPanel.style.display  = 'none';
+    csvBtn.style.background  = 'var(--teal)';
+    csvBtn.style.color       = '#fff';
+    xlsxBtn.style.background = 'var(--card-bg)';
+    xlsxBtn.style.color      = 'var(--muted)';
+  } else {
+    csvPanel.style.display   = 'none';
+    xlsxPanel.style.display  = '';
+    xlsxBtn.style.background = 'var(--teal)';
+    xlsxBtn.style.color      = '#fff';
+    csvBtn.style.background  = 'var(--card-bg)';
+    csvBtn.style.color       = 'var(--muted)';
+  }
+}
+
+// ════════════════════════════════════════
+// EXCEL UPLOAD
+// ════════════════════════════════════════
+async function handleExcelUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const force = document.getElementById('csv-force')?.checked || false;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  document.getElementById('upload-info').textContent = '⏳ Uploading Excel file…';
+  document.getElementById('upload-preview').style.display = 'block';
+
+  try {
+    const url = API + '/api/leads/upload-excel' + (force ? '?force=true' : '');
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + authToken },
+      body:    formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+    if (data.imported === 0 && data.skipped > 0) {
+      document.getElementById('upload-info').textContent =
+        `⚠ ${file.name} — 0 imported, ${data.skipped} already exist. Enable "Replace existing" to re-import.`;
+      toast(`All ${data.skipped} contacts already exist.`, 'error');
+    } else {
+      document.getElementById('upload-info').textContent =
+        `✓ ${file.name} — ${data.imported} imported` +
+        (data.skipped > 0 ? `, ${data.skipped} skipped (duplicates)` : '');
+      toast(`Imported ${data.imported} contacts from Excel ✓`, 'success');
+    }
+
+    const cb = document.getElementById('csv-force');
+    if (cb) cb.checked = false;
+    e.target.value = '';
+
+    loadLeads();
+    loadDashboardStats();
+  } catch(err) {
+    document.getElementById('upload-info').textContent = '✗ Upload failed: ' + err.message;
+    toast('Excel upload failed: ' + err.message, 'error');
+    e.target.value = '';
+  }
+}
+
+// ════════════════════════════════════════
+// FAQ FUNCTIONS
+// ════════════════════════════════════════
+async function loadFaq() {
+  try {
+    const res = await apiFetch('/api/tenant/faq');
+    const editor  = document.getElementById('faq-editor');
+    const counter = document.getElementById('faq-char-count');
+    const preview = document.getElementById('faq-preview');
+    if (editor) {
+      editor.value = res.faq_content || '';
+      if (counter) counter.textContent = (res.faq_content || '').length + ' characters';
+    }
+    if (preview) preview.textContent = res.preview || '(no FAQ saved yet)';
+    if (editor) {
+      editor.oninput = () => {
+        if (counter) counter.textContent = editor.value.length + ' characters';
+      };
+    }
+  } catch(e) {
+    console.warn('FAQ load failed:', e.message);
+  }
+}
+
+async function saveFaq() {
+  const editor = document.getElementById('faq-editor');
+  const status = document.getElementById('faq-status');
+  if (!editor) return;
+
+  const faq_content = editor.value.trim();
+  if (status) status.textContent = '⏳ Saving…';
+
+  try {
+    await apiFetch('/api/tenant/faq', {
+      method: 'PUT',
+      body:   JSON.stringify({ faq_content }),
+    });
+    if (status) status.textContent = '✓ Saved';
+    toast('FAQ saved — active on next call ✓', 'success');
+
+    const preview = document.getElementById('faq-preview');
+    if (preview) {
+      const updated = await apiFetch('/api/tenant/faq');
+      preview.textContent = updated.preview || '(no FAQ)';
+    }
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  } catch(e) {
+    if (status) status.textContent = '✗ Save failed';
+    toast('FAQ save failed: ' + e.message, 'error');
+  }
+}
+
+function clearFaq() {
+  if (!confirm('Clear all FAQ content?')) return;
+  const editor  = document.getElementById('faq-editor');
+  const counter = document.getElementById('faq-char-count');
+  const preview = document.getElementById('faq-preview');
+  if (editor)  editor.value = '';
+  if (counter) counter.textContent = '0 characters';
+  if (preview) preview.textContent = '(save FAQ to see preview)';
 }
 
 function showAcctAlert(msg, type = 'success') {

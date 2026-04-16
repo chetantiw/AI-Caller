@@ -117,6 +117,14 @@ async def create_session(
     from app import tenant_db as tdb
     tenant_config = tdb.get_tenant_config(tenant_id) or {}
     system_prompt = tenant_config.get("system_prompt", "").strip() or SYSTEM_PROMPT
+    faq_content = (tenant_config.get("faq_content") or "").strip()
+    if faq_content:
+        system_prompt += (
+            "\n\n--- Frequently Asked Questions ---\n"
+            "Use the following Q&A to answer customer questions accurately. "
+            "If a customer asks something covered here, use this answer directly.\n\n"
+            + faq_content
+        )
     agent_name = tenant_config.get("agent_name", "Agent").strip()
     company_name = tenant_config.get("company_name", "Company").strip()
     call_language = tenant_config.get("call_language", "hindi").strip().lower()
