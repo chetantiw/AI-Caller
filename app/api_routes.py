@@ -216,6 +216,62 @@ async def dashboard_stats(request: Request):
     return db.get_dashboard_stats(tenant_id=user["tenant_id"])
 
 
+# In-memory active call tracker
+_active_calls: dict = {}
+
+
+@router.post("/calls/active/register")
+async def register_active_call(request: Request):
+    """Called by multi_agent_manager when a session starts."""
+    from datetime import datetime
+    body = await request.json()
+    call_id = body.get("call_id")
+    if call_id:
+        body["registered_at"] = datetime.utcnow().isoformat()
+        _active_calls[call_id] = body
+    return {"ok": True}
+
+
+@router.post("/calls/active/unregister")
+async def unregister_active_call(request: Request):
+    """Called by multi_agent_manager when a session ends."""
+    body = await request.json()
+    call_id = body.get("call_id")
+    if call_id:
+        _active_calls.pop(call_id, None)
+    return {"ok": True}
+
+
+@router.get("/active-calls")
+async def get_active_calls(request: Request):
+    """Returns currently active call sessions."""
+    from datetime import datetime, timedelta
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+
+    # Clean up old calls (older than 2 hours) to prevent memory leaks
+    cutoff = datetime.utcnow() - timedelta(hours=2)
+    to_remove = []
+    for call_id, call_data in _active_calls.items():
+        if call_data.get("registered_at"):
+            try:
+                registered_at = datetime.fromisoformat(call_data["registered_at"].replace('Z', '+00:00'))
+                if registered_at < cutoff:
+                    to_remove.append(call_id)
+            except (ValueError, TypeError):
+                # If we can't parse the timestamp, remove it anyway
+                to_remove.append(call_id)
+
+    for call_id in to_remove:
+        _active_calls.pop(call_id, None)
+
+    calls = [
+        c for c in _active_calls.values()
+        if str(c.get("tenant_id", "1")) == str(tid)
+    ]
+    return {"calls": calls, "total": len(calls)}
+
+
 @router.get("/dashboard/recent-calls")
 async def recent_calls(request: Request, limit: int = 8):
     user = get_current_user(request)

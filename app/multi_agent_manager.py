@@ -14,6 +14,7 @@ import asyncio
 import os
 import sys
 import time
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -30,10 +31,49 @@ from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
 from piopiy.services.elevenlabs.stt import ElevenLabsRealtimeSTTService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
+from piopiy.frames.frames import (
+    LLMTextFrame, LLMFullResponseStartFrame, LLMFullResponseEndFrame, LLMContextFrame,
+)
+from piopiy.processors.frame_processor import FrameDirection
 
 # ── DB ─────────────────────────────────────────────────────────
 from app import database as db
 from app import tenant_db as tdb
+
+
+class _ContextCommittingGroqLLM(GroqLLMService):
+    """GroqLLMService that self-commits assistant responses to the LLM context.
+
+    VoiceAgent places the LLMAssistantAggregator after transport.output(), which
+    swallows LLMFullResponseStartFrame / LLMTextFrame / LLMFullResponseEndFrame so
+    the aggregator never fires.  This subclass intercepts those frames as they leave
+    the LLM (before TTS) and writes the completed assistant turn directly into the
+    shared LLMContext — fixing both the transcript and multi-turn conversation memory.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._llm_context = None
+        self._response_buf: list = []
+
+    async def process_frame(self, frame, direction):
+        if isinstance(frame, LLMContextFrame):
+            self._llm_context = frame.context
+            self._response_buf = []
+        await super().process_frame(frame, direction)
+
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        if isinstance(frame, LLMFullResponseStartFrame):
+            self._response_buf = []
+        elif isinstance(frame, LLMTextFrame):
+            self._response_buf.append(frame.text)
+        elif isinstance(frame, LLMFullResponseEndFrame):
+            if self._response_buf and self._llm_context is not None:
+                text = "".join(self._response_buf).strip()
+                if text:
+                    self._llm_context.add_message({"role": "assistant", "content": text})
+            self._response_buf = []
+        await super().push_frame(frame, direction)
 
 # Valid Sarvam AI TTS speaker IDs (bulbul:v2)
 _VALID_SARVAM_VOICES = {
@@ -166,6 +206,15 @@ async def _post_call(
         cfg = tdb.get_tenant_config(tenant_id) or {}
         agent_name = cfg.get("agent_name") or "Aira"
 
+        # Ensure agent_name is properly formatted (female names for female agent)
+        if agent_name.lower() in ["aira", "meera", "anushka", "priya", "neha", "shreya", "kavya", "simran", "riddhi"]:
+            # These are female names, keep as is
+            pass
+        elif agent_name.lower() in ["arjun", "rahul", "vikram", "amit", "rohan", "karan", "dev", "aditya"]:
+            # If somehow a male name got set, change to female default
+            agent_name = "Aira"
+            logger.warning(f"[Tenant {tenant_id}] Agent name was male '{cfg.get('agent_name')}', changed to female 'Aira'")
+
         transcript_lines = []
         for m in conversation:
             role    = m.get("role", "").lower()
@@ -176,6 +225,11 @@ async def _post_call(
                 elif role == "user":
                     transcript_lines.append(f"Customer: {content}")
         full_transcript = "\n".join(transcript_lines)
+
+        # Log transcript for debugging
+        logger.info(f"[Tenant {tenant_id}] Generated transcript with {len(transcript_lines)} lines, agent_name='{agent_name}'")
+        if len(transcript_lines) == 0:
+            logger.warning(f"[Tenant {tenant_id}] No transcript lines generated from {len(conversation)} messages")
 
         analysis  = await analyze_call(conversation)
         outcome   = analysis.get("outcome", "answered")
@@ -324,6 +378,8 @@ def make_create_session(tenant_id: int, initial_config: dict):
             lead_id     = lead_id_db,
             campaign_id = lead_obj.get("campaign_id") if lead_obj else None,
             call_sid    = str(call_id or ""),
+            tenant_id   = tenant_id,
+            direction   = 'inbound' if is_inbound else 'outbound',
         )
         with db.get_conn() as conn:
             conn.execute(
@@ -337,18 +393,33 @@ def make_create_session(tenant_id: int, initial_config: dict):
             f"{customer_phone} | call_db_id={call_db_id}"
         )
 
+        # Register active call
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post("http://localhost:8000/api/calls/active/register", json={
+                    "call_id":    str(call_db_id),
+                    "lead_name":  customer_name,
+                    "phone":      customer_phone,
+                    "company":    company,
+                    "tenant_id":  tenant_id,
+                    "started_at": str(datetime.utcnow()),
+                })
+        except Exception as _e:
+            logger.warning(f"Active-call register failed for call {call_db_id}: {_e}")
+
         # ── Greeting ──────────────────────────────────────────
         company_name = tenant_config.get("company_name", "")
         greeting_tmpl = tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
             greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
         else:
-            # Simple introduction — NO questions. System prompt drives conversation.
-            greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}! मैं {agent_name} हूँ {company_name or 'अपनी कंपनी'} से।"
+            # Very short welcome message — let system prompt drive natural conversation
+            greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}!"
 
         # ── Services ──────────────────────────────────────────
         stt, tts = _build_stt_tts(tenant_config)
-        llm = GroqLLMService(
+        llm = _ContextCommittingGroqLLM(
             api_key=groq_key,
             model="llama-3.3-70b-versatile",
         )
@@ -378,6 +449,13 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 lead_id_db, voice_agent,
                 tg_token, tg_chat,
             )
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    await client.post("http://localhost:8000/api/calls/active/unregister",
+                                      json={"call_id": str(call_db_id)})
+            except Exception as _e:
+                logger.warning(f"Active-call unregister failed for call {call_db_id}: {_e}")
 
     return create_session
 
@@ -488,6 +566,8 @@ def make_platform_create_session():
             lead_id     = lead_id_db,
             campaign_id = lead_obj.get("campaign_id") if lead_obj else None,
             call_sid    = str(call_id or ""),
+            tenant_id   = tenant_id,
+            direction   = 'inbound' if is_inbound else 'outbound',
         )
         with db.get_conn() as conn:
             conn.execute(
@@ -501,17 +581,33 @@ def make_platform_create_session():
             f"{customer_phone} | call_db_id={call_db_id}"
         )
 
+        # Register active call
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                await client.post("http://localhost:8000/api/calls/active/register", json={
+                    "call_id":    str(call_db_id),
+                    "lead_name":  customer_name,
+                    "phone":      customer_phone,
+                    "company":    company,
+                    "tenant_id":  tenant_id,
+                    "started_at": str(datetime.utcnow()),
+                })
+        except Exception as _e:
+            logger.warning(f"Active-call register failed: {_e}")
+
         # ── Greeting ──────────────────────────────────────────
         company_name = tenant_config.get("company_name", "")
         greeting_tmpl = tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
             greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
         else:
-            greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}! मैं {agent_name} हूँ {company_name or 'अपनी कंपनी'} से।"
+            # Very short welcome message — let system prompt drive natural conversation
+            greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}!"
 
         # ── Services ──────────────────────────────────────────
         stt, tts = _build_stt_tts(tenant_config)
-        llm = GroqLLMService(
+        llm = _ContextCommittingGroqLLM(
             api_key=groq_key,
             model="llama-3.3-70b-versatile",
         )
@@ -541,6 +637,13 @@ def make_platform_create_session():
                 lead_id_db, voice_agent,
                 tg_token, tg_chat,
             )
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    await client.post("http://localhost:8000/api/calls/active/unregister",
+                                      json={"call_id": str(call_db_id)})
+            except Exception as _e:
+                logger.warning(f"Active-call unregister failed: {_e}")
 
     return create_session
 
@@ -587,7 +690,6 @@ async def run_platform_agent():
         await agent.connect()
     except Exception as e:
         logger.error(f"[Platform Agent] Agent.connect() failed: {e}")
-        raise
 
 
 async def run_tenant_agent(tenant_id: int, cfg: dict):
@@ -626,7 +728,6 @@ async def run_tenant_agent(tenant_id: int, cfg: dict):
         await agent.connect()
     except Exception as e:
         logger.error(f"[tenant={tenant_id}] Agent.connect() failed: {e}")
-        raise
 
 
 async def main():
@@ -693,10 +794,33 @@ async def main():
     n_tenant   = len(tasks) - (1 if platform_agent_id else 0)
     n_platform = 1 if platform_agent_id else 0
     logger.info(f"📡 Connecting {len(tasks)} agent(s) to PIOPIY ({n_tenant} tenant-dedicated + {n_platform} platform)…")
-    await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _acquire_pid_lock(pid_file: str) -> bool:
+    """Return True if we got the lock, False if another instance is already running."""
+    import fcntl
+    try:
+        fd = open(pid_file, "w")
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fd.write(str(os.getpid()))
+        fd.flush()
+        # Keep fd open for the lifetime of the process — closing releases the lock.
+        _acquire_pid_lock._fd = fd  # noqa: SLF001
+        return True
+    except BlockingIOError:
+        return False
 
 
 if __name__ == "__main__":
+    _PID_FILE = "/tmp/multi_agent_manager.lock"
+    if not _acquire_pid_lock(_PID_FILE):
+        logger.error(
+            "Another instance of multi_agent_manager.py is already running. "
+            f"Lock held by {_PID_FILE}. Exiting."
+        )
+        sys.exit(1)
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

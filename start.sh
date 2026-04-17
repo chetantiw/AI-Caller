@@ -32,13 +32,17 @@ celery -A app.celery_worker worker --loglevel=info --detach \
 
 echo "✅ Celery worker started"
 
-# Start PIOPIY Agent in background
-echo "🤖 Starting PIOPIY Agent..."
-python -m app.piopiy_agent > logs/piopiy_agent.log 2>&1 &
-echo $! > logs/piopiy_agent.pid
-sleep 2
-
-echo "✅ PIOPIY Agent started"
+# Start multi_agent_manager only if not already running (systemd may already manage it)
+if pgrep -f "app/multi_agent_manager.py" > /dev/null 2>&1; then
+    echo "✅ PIOPIY Agent (multi_agent_manager) already running — skipping"
+else
+    echo "🤖 Starting PIOPIY Agent (multi_agent_manager)..."
+    mkdir -p logs
+    /root/ai-caller-env/bin/python app/multi_agent_manager.py >> logs/multi_agent_manager.log 2>&1 &
+    echo $! > logs/multi_agent_manager.pid
+    sleep 2
+    echo "✅ PIOPIY Agent started"
+fi
 
 # Start FastAPI server
 echo "🌐 Starting FastAPI server..."

@@ -24,6 +24,7 @@ from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
+from piopiy.turns.user_start.vad_user_turn_start_strategy import VADUserTurnStartStrategy
 
 # ── DB ────────────────────────────────────────────────────────
 import sys
@@ -68,6 +69,7 @@ _OWN_NUMBER_DIGITS = "".join(
 )
 
 
+
 async def create_session(
     agent_id=None,
     call_id=None,
@@ -109,6 +111,7 @@ async def create_session(
         lead_id     = lead_id_db,
         campaign_id = lead_obj.get("campaign_id") if lead_obj else None,
         call_sid    = str(call_id or ""),
+        tenant_id   = tenant_id,
     )
     db.add_log(f"📞 PIOPIY {'inbound' if is_inbound else 'outbound'} call started — {customer_phone} | call_db_id={call_db_id}")
     logger.info(f"DB call record created: call_db_id={call_db_id}")
@@ -173,8 +176,14 @@ async def create_session(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad=True,
+            vad={
+                "confidence": 0.55,   # lower = detects speech sooner (default 0.7)
+                "start_secs": 0.1,    # 100ms to confirm speech start (default 0.2)
+                "stop_secs": 0.6,     # end-of-turn silence window (default 0.8)
+                "min_volume": 0.72,   # higher = rejects quiet background noise (default 0.6)
+            },
             allow_interruptions=True,
+            interruption_strategy=VADUserTurnStartStrategy(),  # trigger on VAD, not word count
         )
         await voice_agent.start()
 

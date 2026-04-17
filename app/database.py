@@ -281,6 +281,18 @@ def init_db():
 
             pass
 
+        # tenant_id column — required for multi-tenant call log filtering
+
+        try:
+
+            conn.execute("ALTER TABLE calls ADD COLUMN tenant_id INTEGER")
+
+            conn.commit()
+
+        except Exception:
+
+            pass  # already exists
+
         # Campaign scheduler columns
 
         try:
@@ -360,6 +372,13 @@ def init_db():
 
         try:
             conn.execute("ALTER TABLE tenant_configs ADD COLUMN faq_content TEXT")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
+        # direction column for calls (inbound/outbound)
+        try:
+            conn.execute("ALTER TABLE calls ADD COLUMN direction TEXT DEFAULT 'outbound'")
             conn.commit()
         except Exception:
             pass  # column already exists
@@ -781,6 +800,8 @@ def delete_lead(lead_id: int):
 
     with get_conn() as conn:
 
+        conn.execute("UPDATE calls SET lead_id=NULL WHERE lead_id=?", (lead_id,))
+
         conn.execute("DELETE FROM leads WHERE id=?", (lead_id,))
 
         conn.commit()
@@ -1197,17 +1218,17 @@ def create_call(phone: str, lead_name: str = None, company: str = None,
 
                 lead_id: int = None, campaign_id: int = None,
 
-                call_sid: str = None) -> int:
+                call_sid: str = None, tenant_id: int = None, direction: str = 'outbound') -> int:
 
     with get_conn() as conn:
 
         cur = conn.execute(
 
-            """INSERT INTO calls (phone, lead_name, company, lead_id, campaign_id, call_sid)
+            """INSERT INTO calls (phone, lead_name, company, lead_id, campaign_id, call_sid, tenant_id, direction)
 
-               VALUES (?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?)""",
 
-            (phone, lead_name, company, lead_id, campaign_id, call_sid)
+            (phone, lead_name, company, lead_id, campaign_id, call_sid, tenant_id, direction)
 
         )
 

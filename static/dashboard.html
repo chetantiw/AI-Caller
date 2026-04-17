@@ -1898,20 +1898,21 @@ tr:hover td { background: var(--teal-dim); }
           <div class="card-body" style="padding:0;">
             <div class="table-wrap">
               <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Contact</th>
-                    <th>Company</th>
-                    <th>Phone</th>
-                    <th>Duration</th>
-                    <th>Outcome</th>
-                    <th>Sentiment</th>
-                    <th>Summary</th>
-                    <th>Date & Time</th>
-                    <th>Transcript</th>
-                  </tr>
-                </thead>
+                 <thead>
+                   <tr>
+                     <th>#</th>
+                     <th>Contact</th>
+                     <th>Company</th>
+                     <th>Phone</th>
+                     <th>Direction</th>
+                     <th>Duration</th>
+                     <th>Outcome</th>
+                     <th>Sentiment</th>
+                     <th>Summary</th>
+                     <th>Date & Time</th>
+                     <th>Transcript</th>
+                   </tr>
+                 </thead>
                 <tbody id="calllogs-table">
                   <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">Loading…</td></tr>
                 </tbody>
@@ -3271,21 +3272,9 @@ async function renderLiveCalls() {
     document.getElementById('mon-today').textContent = stats.calls_today  ?? '0';
     document.getElementById('mon-queue').textContent = stats.total_calls  ?? '0';
 
-    // Fetch recent calls — get 100 to find active ones
-    const res  = await apiFetch('/api/calls?limit=100');
-    const all  = res.calls || [];
-
-    // A call is "live" if ended_at is null/empty
-    // Also treat calls started within last 10 min with no ended_at as possibly live
-    const now = Date.now();
-    const calls = all.filter(c => {
-      if (c.ended_at) return false;              // definitely ended
-      if (!c.started_at) return false;           // no start time
-      // Only show calls started in last 30 minutes to avoid stale records
-      const started = new Date(c.started_at.replace(' ', 'T') +
-        (c.started_at.includes('T') || c.started_at.includes('Z') ? '' : 'Z')).getTime();
-      return (now - started) < 30 * 60 * 1000;  // within last 30 min
-    });
+    // Fetch in-memory active calls — populated by piopiy_agent, zero DB lag
+    const activeRes = await apiFetch('/api/active-calls');
+    const calls = activeRes.calls || [];
 
     document.getElementById('mon-live').textContent         = calls.length;
     document.getElementById('live-calls-badge').textContent = calls.length || '0';
@@ -3656,6 +3645,7 @@ function showPage(name, el) {
   const meta = PAGE_META[name] || { title: name, breadcrumb: '' };
   document.getElementById('page-title').textContent = meta.title;
   document.getElementById('page-breadcrumb').textContent = meta.breadcrumb;
+  if (name === 'dashboard') loadDashboardStats();
   if (name === 'calllogs')  loadCallLogs();
   if (name === 'leads')     loadLeads();
   if (name === 'analytics') loadAnalytics();
@@ -3785,12 +3775,14 @@ function renderCallLogsTable() {
     const hasTranscript = !!c.summary; // if summary exists, call was analyzed
     const safeSum  = (c.summary||'').replace(/"/g,"'");
     const safeName = (c.lead_name||'').replace(/'/g,'');
+    const direction = c.direction === 'inbound' ? '📞 Inbound' : c.direction === 'outbound' ? '📤 Outbound' : '—';
     return `
     <tr>
       <td style="color:var(--muted2);font-family:var(--mono);font-size:11px">${num}</td>
       <td><strong>${c.lead_name || '—'}</strong></td>
       <td style="color:var(--muted)">${c.company || '—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${c.phone || '—'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:${c.direction === 'inbound' ? 'var(--teal)' : 'var(--muted)'}">${direction}</td>
       <td style="font-family:var(--mono);font-size:11px">${dur}</td>
       <td><span class="status-tag ${c.outcome||'unknown'}">${c.outcome === 'answered' ? 'connected' : (c.outcome||'unknown')}</span></td>
       <td><span class="status-tag ${c.sentiment === 'demo_booked' ? 'interested' : (c.sentiment||'neutral')}">${c.sentiment === 'demo_booked' ? 'Demo Booked' : c.sentiment === 'interested' ? 'Interested' : c.sentiment === 'rejected' ? 'Not Interested' : (c.sentiment||'neutral')}</span></td>
@@ -3889,7 +3881,7 @@ function renderLeadsTable() {
           <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
             onclick="openEditLead(${l.id})">✏️</button>
           <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
-            onclick="callLead('${l.phone}','${(l.name||'').replace(/'/g,'')}',${l.id})">📞</button>
+            onclick="callLead('${(l.phone||'').replace(/'/g, "\\'").replace(/"/g, '\\"')}','${(l.name||'').replace(/'/g, "\\'").replace(/"/g, '\\"')}',${l.id})">📞</button>
           <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px"
             onclick="deleteLead(${l.id})">✕</button>
         </div>
@@ -4051,7 +4043,7 @@ async function loadSystemHealth() {
 
     const telCfg2 = await apiFetch('/api/system/config').catch(() => ({}));
 
-    const telProv2 = (telCfg2.telephony || 'piopiy').toUpperCase();
+    const telProv2 = (telCfg2.telephony || 'piopiy').toUpperCase();   
 
     setHealth('exotel', telProv2 + ' · ' + (telCfg2.number || ''), {status:'ok'});
     setHealth('groq',   s.groq?.model   || 'llama-3.3-70b', s.groq);
@@ -4169,10 +4161,22 @@ async function openTranscript(callId, leadName, duration, outcome, sentiment, su
       return;
     }
     // Auto-detect agent name from first non-"Customer:" speaker
-    let agentName = 'Agent';
+    let agentName = 'Aira'; // Default to female agent name
     for (const l of raw.split('\n')) {
       const m = l.match(/^([^:]+):/);
-      if (m && m[1].trim() !== 'Customer') { agentName = m[1].trim(); break; }
+      if (m && m[1].trim() !== 'Customer') {
+        const detected = m[1].trim();
+        // Ensure we use female agent names
+        if (['aira', 'meera', 'anushka', 'priya', 'neha', 'shreya', 'kavya', 'simran'].includes(detected.toLowerCase())) {
+          agentName = detected;
+          break;
+        } else if (!['agent', 'assistant'].includes(detected.toLowerCase())) {
+          // If it's not a generic name, use it but log it might be male
+          console.warn('Detected potentially male agent name:', detected);
+          agentName = detected;
+          break;
+        }
+      }
     }
     const lines = raw.split('\n').map(line => {
       if (line.startsWith('Customer:')) {
