@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import database as db
 from app import tenant_db as tdb
+from app.plan_features import check_feature, check_campaign_limit, check_seat_limit, get_plan_features
 
 router = APIRouter(prefix="/api")
 
@@ -623,6 +624,7 @@ async def update_lead(lead_id: int, request: Request):
         language    = body.get("language"),
         status      = body.get("status"),
         notes       = body.get("notes"),
+        callback_at = body.get("callback_at"),
     )
 
     db.add_log(f"✏️ Lead #{lead_id} updated — {name or lead['name']} ({phone or lead['phone']})")
@@ -634,8 +636,9 @@ async def delete_lead(lead_id: int):
     lead = db.get_lead(lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    phone = lead.get("phone", "")
     db.delete_lead(lead_id)
-    return {"message": "Lead deleted"}
+    return {"message": f"Lead and all records for {phone} deleted"}
 
 
 # ═══════════════════════════════════════════════════════
@@ -661,6 +664,21 @@ async def create_campaign(request: Request):
     if not name:
         raise HTTPException(status_code=400, detail="Campaign name required")
 
+    tenant = tdb.get_tenant(tid) or {}
+    plan   = tenant.get("plan", "starter")
+    with db.get_conn() as _conn:
+        active_count = _conn.execute(
+            "SELECT COUNT(*) FROM campaigns WHERE tenant_id=? AND status='running'",
+            (tid,)
+        ).fetchone()[0]
+    gate = check_campaign_limit(plan, active_count)
+    if not gate["allowed"]:
+        raise HTTPException(status_code=402, detail={
+            "message":    gate["reason"],
+            "upgrade_to": gate["upgrade_to"],
+            "code":       "CAMPAIGN_LIMIT_REACHED",
+        })
+
     camp_id  = db.create_campaign(name=name, description=description, tenant_id=tid)
     assigned = db.assign_leads_to_campaign(camp_id, lead_group, tenant_id=tid)
 
@@ -674,6 +692,312 @@ async def get_campaign(campaign_id: int):
     if not c:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return c
+
+
+@router.put("/campaigns/{campaign_id}")
+async def update_campaign(campaign_id: int, request: Request):
+    """Update campaign name, description and call delay."""
+    user = get_current_user(request)
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    body = await request.json()
+    name        = (body.get("name") or "").strip()
+    description = (body.get("description") or "").strip()
+    delay       = body.get("delay_seconds")
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Campaign name cannot be empty")
+
+    with db.get_conn() as conn:
+        if delay is not None:
+            conn.execute(
+                """UPDATE campaigns SET name=?, description=?, schedule_delay=?
+                   WHERE id=?""",
+                (name, description, int(delay), campaign_id)
+            )
+        else:
+            conn.execute(
+                "UPDATE campaigns SET name=?, description=? WHERE id=?",
+                (name, description, campaign_id)
+            )
+        conn.commit()
+
+    db.add_log(f"✏️ Campaign updated: {name} (id={campaign_id})")
+    return {"ok": True, "message": "Campaign updated"}
+
+
+@router.post("/campaigns/{campaign_id}/add-leads")
+async def add_leads_to_campaign(campaign_id: int, request: Request):
+    """
+    Add more leads to an existing campaign by lead group selection.
+    Only adds leads not already assigned to an active campaign.
+    Works for any campaign status.
+    """
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    body       = await request.json()
+    lead_group = body.get("lead_group", "new")
+
+    added = db.assign_leads_to_campaign(campaign_id, lead_group, tenant_id=tid)
+
+    # Update leads_count to reflect new total
+    with db.get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM leads WHERE campaign_id=?", (campaign_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE campaigns SET leads_count=? WHERE id=?",
+            (total, campaign_id)
+        )
+        conn.commit()
+
+    db.add_log(
+        f"➕ {added} leads added to campaign '{c['name']}' (group: {lead_group})"
+    )
+    return {
+        "ok":           True,
+        "added":        added,
+        "total_leads":  total,
+        "message":      f"{added} leads added to campaign",
+    }
+
+
+@router.post("/campaigns/{campaign_id}/upload-leads")
+async def upload_leads_to_campaign(
+    request:     Request,
+    campaign_id: int,
+    file:        UploadFile = File(...),
+):
+    """
+    Upload a CSV or Excel file and add those contacts directly
+    to an existing campaign. Skips duplicates by phone number.
+    """
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    fname   = (file.filename or "").lower()
+    content = await file.read()
+    rows    = []
+
+    if fname.endswith(".csv"):
+        import io as _io
+        text   = content.decode("utf-8-sig")
+        reader = csv.DictReader(_io.StringIO(text))
+        rows   = list(reader)
+
+    elif fname.endswith(".xlsx") or fname.endswith(".xls"):
+        import openpyxl, io as _io
+        wb  = openpyxl.load_workbook(_io.BytesIO(content), read_only=True, data_only=True)
+        ws  = wb.active
+        it  = ws.iter_rows(values_only=True)
+        raw_header = next(it, None)
+        if not raw_header:
+            raise HTTPException(status_code=400, detail="Empty file")
+        header = [str(h).strip().lower() if h else "" for h in raw_header]
+        def col(n): return header.index(n) if n in header else None
+        i_name  = col("name");  i_phone = col("phone")
+        i_comp  = col("company"); i_des = col("designation"); i_lang = col("language")
+        if i_name is None or i_phone is None:
+            raise HTTPException(status_code=400, detail="File must have 'name' and 'phone' columns")
+        for row in it:
+            def cell(idx):
+                if idx is None or idx >= len(row): return ""
+                v = row[idx]
+                if isinstance(v, float): return str(int(v))
+                return str(v).strip() if v else ""
+            rows.append({
+                "name":        cell(i_name),
+                "phone":       cell(i_phone),
+                "company":     cell(i_comp),
+                "designation": cell(i_des),
+                "language":    cell(i_lang) or "hi",
+            })
+        wb.close()
+    else:
+        raise HTTPException(status_code=400, detail="Only .csv, .xlsx, .xls files are supported")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No rows found in file")
+
+    count   = db.bulk_insert_leads(rows, campaign_id=campaign_id, tenant_id=tid)
+    skipped = len(rows) - count
+
+    # Refresh leads_count
+    with db.get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM leads WHERE campaign_id=?", (campaign_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE campaigns SET leads_count=? WHERE id=?",
+            (total, campaign_id)
+        )
+        conn.commit()
+
+    db.add_log(
+        f"📂 {count} contacts uploaded to campaign '{c['name']}' from {file.filename}"
+        + (f" ({skipped} skipped)" if skipped else "")
+    )
+    return {
+        "ok":          True,
+        "imported":    count,
+        "skipped":     skipped,
+        "total":       len(rows),
+        "total_leads": total,
+        "message":     f"Imported {count} contacts into campaign",
+    }
+
+
+@router.get("/campaigns/{campaign_id}/leads")
+async def get_campaign_leads(
+    campaign_id: int,
+    request:     Request,
+    status:      str = None,
+    limit:       int = 100,
+    offset:      int = 0,
+):
+    """Get paginated leads for a specific campaign with optional status filter."""
+    user = get_current_user(request)
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    with db.get_conn() as conn:
+        query  = "SELECT * FROM leads WHERE campaign_id=?"
+        params = [campaign_id]
+        if status:
+            query += " AND status=?"
+            params.append(status)
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params += [limit, offset]
+        leads = [dict(r) for r in conn.execute(query, params).fetchall()]
+
+        # Total count
+        cq     = "SELECT COUNT(*) FROM leads WHERE campaign_id=?"
+        cp     = [campaign_id]
+        if status:
+            cq += " AND status=?"; cp.append(status)
+        total = conn.execute(cq, cp).fetchone()[0]
+
+        # Status breakdown
+        breakdown = {}
+        for row in conn.execute(
+            "SELECT status, COUNT(*) as cnt FROM leads WHERE campaign_id=? GROUP BY status",
+            (campaign_id,)
+        ).fetchall():
+            breakdown[row["status"]] = row["cnt"]
+
+    return {
+        "campaign_id": campaign_id,
+        "total":       total,
+        "offset":      offset,
+        "limit":       limit,
+        "status_filter": status,
+        "breakdown":   breakdown,
+        "leads":       leads,
+    }
+
+
+@router.delete("/campaigns/{campaign_id}/leads/{lead_id}")
+async def remove_lead_from_campaign(campaign_id: int, lead_id: int):
+    """
+    Remove a single lead from a campaign by setting campaign_id = NULL.
+    The lead itself is NOT deleted — it becomes unassigned.
+    Only works if the campaign is not currently running.
+    """
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if c["status"] == "running":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot remove leads while campaign is running. Pause it first."
+        )
+
+    with db.get_conn() as conn:
+        lead = conn.execute(
+            "SELECT * FROM leads WHERE id=? AND campaign_id=?",
+            (lead_id, campaign_id)
+        ).fetchone()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found in this campaign")
+
+        conn.execute(
+            "UPDATE leads SET campaign_id=NULL WHERE id=?", (lead_id,)
+        )
+        # Recalculate leads_count
+        total = conn.execute(
+            "SELECT COUNT(*) FROM leads WHERE campaign_id=?", (campaign_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE campaigns SET leads_count=? WHERE id=?",
+            (total, campaign_id)
+        )
+        conn.commit()
+
+    db.add_log(
+        f"➖ Lead #{lead_id} removed from campaign '{c['name']}'"
+    )
+    return {"ok": True, "message": "Lead removed from campaign", "total_leads": total}
+
+
+@router.delete("/campaigns/{campaign_id}/leads")
+async def bulk_remove_leads_from_campaign(campaign_id: int, request: Request):
+    """
+    Bulk remove leads from campaign by status.
+    E.g. remove all 'new' leads, or all 'not_interested' leads.
+    Body: { "status": "new" }  — if omitted, removes ALL unassigned leads (new only)
+    """
+    c = db.get_campaign(campaign_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if c["status"] == "running":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot remove leads while campaign is running. Pause it first."
+        )
+
+    body   = await request.json()
+    status = body.get("status", "new")
+    allowed = {"new", "called", "not_interested", "interested"}
+    if status not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only bulk-remove leads with status: {allowed}"
+        )
+
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE leads SET campaign_id=NULL WHERE campaign_id=? AND status=?",
+            (campaign_id, status)
+        )
+        removed = cur.rowcount
+        total = conn.execute(
+            "SELECT COUNT(*) FROM leads WHERE campaign_id=?", (campaign_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE campaigns SET leads_count=? WHERE id=?",
+            (total, campaign_id)
+        )
+        conn.commit()
+
+    db.add_log(
+        f"➖ {removed} '{status}' leads removed from campaign '{c['name']}'"
+    )
+    return {
+        "ok":          True,
+        "removed":     removed,
+        "total_leads": total,
+        "message":     f"{removed} leads removed from campaign",
+    }
 
 
 @router.post("/campaigns/{campaign_id}/restart")
@@ -1153,6 +1477,17 @@ async def create_user(request: Request):
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
 
+    tenant = tdb.get_tenant(current["tenant_id"]) or {}
+    plan   = tenant.get("plan", "starter")
+    current_seats = len(tdb.get_tenant_users(current["tenant_id"]))
+    gate = check_seat_limit(plan, current_seats)
+    if not gate["allowed"]:
+        raise HTTPException(status_code=402, detail={
+            "message":    gate["reason"],
+            "upgrade_to": gate["upgrade_to"],
+            "code":       "SEAT_LIMIT_REACHED",
+        })
+
     try:
         user_id = db.add_user(username, password, role, name, email,
                               tenant_id=current["tenant_id"])
@@ -1606,6 +1941,72 @@ async def get_tenant_profile(current_user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/tenant/usage")
+async def get_tenant_usage_summary(current_user: dict = Depends(get_current_user)):
+    """Minutes & calls usage summary for the client dashboard."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid) or {}
+    with db.get_conn() as conn:
+        today = conn.execute(
+            "SELECT COALESCE(SUM(calls_made),0), COALESCE(SUM(minutes_used),0) FROM usage_logs WHERE tenant_id=? AND date=date('now')",
+            (tid,)
+        ).fetchone()
+        month = conn.execute(
+            "SELECT COALESCE(SUM(calls_made),0), COALESCE(SUM(minutes_used),0) FROM usage_logs WHERE tenant_id=? AND date>=date('now','start of month')",
+            (tid,)
+        ).fetchone()
+    minutes_limit = tenant.get("minutes_limit") or 0
+    minutes_used  = round(float(tenant.get("minutes_used") or 0), 1)
+    return {
+        "minutes_used_total":  minutes_used,
+        "minutes_limit":       minutes_limit,
+        "minutes_left":        round(max(0, minutes_limit - minutes_used), 1) if minutes_limit else None,
+        "minutes_pct":         round(minutes_used / minutes_limit * 100, 1) if minutes_limit else None,
+        "minutes_today":       round(float(today[1] or 0), 1),
+        "minutes_this_month":  round(float(month[1] or 0), 1),
+        "calls_used_total":    tenant.get("calls_used", 0),
+        "calls_limit":         tenant.get("calls_limit", 0),
+        "calls_today":         int(today[0] or 0),
+        "calls_this_month":    int(month[0] or 0),
+        "plan":                tenant.get("plan", "starter"),
+    }
+
+
+@router.get("/tenant/plan-features")
+async def get_plan_features_route(current_user: dict = Depends(get_current_user)):
+    """Returns plan features + current usage for the logged-in tenant."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid) or {}
+    plan   = tenant.get("plan", "starter")
+    features = get_plan_features(plan)
+    return {
+        "plan":         plan,
+        "features":     features,
+        "calls_used":   tenant.get("calls_used", 0),
+        "calls_limit":  tenant.get("calls_limit", 1000),
+        "minutes_used": tenant.get("minutes_used", 0),
+    }
+
+
+@router.get("/tenant/billing")
+async def get_billing(current_user: dict = Depends(get_current_user)):
+    """Billing overview — plan, usage totals, 30-day daily usage, add-on purchases."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid) or {}
+    usage  = tdb.get_tenant_usage(tid, days=30)
+    from app.plan_features import get_plan_features
+    return {
+        "plan":             tenant.get("plan", "starter"),
+        "calls_used":       tenant.get("calls_used", 0),
+        "calls_limit":      tenant.get("calls_limit", 0),
+        "minutes_used":     tenant.get("minutes_used", 0),
+        "minutes_limit":    tenant.get("minutes_limit", 0),
+        "features":         get_plan_features(tenant.get("plan", "starter")),
+        "usage_30d":        usage,
+        "addon_purchases":  [],
+    }
+
+
 @router.put("/tenant/profile")
 async def update_tenant_profile(request: Request, current_user: dict = Depends(_require_admin)):
     """Update company profile and call guidelines — auto-builds system_prompt."""
@@ -1675,18 +2076,201 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
         "llm_provider", "llm_model",
         "groq_api_key", "openai_api_key", "anthropic_api_key", "gemini_api_key",
         # Speech
-        "speech_provider", "sarvam_api_key",
-        "elevenlabs_api_key", "elevenlabs_voice_id",
+        "speech_provider", "stt_provider", "tts_provider",
+        "sarvam_api_key",
+        "elevenlabs_api_key", "elevenlabs_voice_id", "elevenlabs_model",
         # Telephony
         "piopiy_agent_id", "piopiy_agent_token", "piopiy_number",
         # Messaging
         "telegram_bot_token", "telegram_chat_id",
         "whatsapp_api_key", "whatsapp_number",
+        # Webhook
+        "webhook_url", "webhook_secret", "webhook_events",
     )
     update_data = {f: data[f] for f in saveable_fields if f in data}
     if update_data:
         tdb.update_tenant_config(tid, **update_data)
     return {"ok": True, "message": "Settings saved."}
+
+
+@router.get("/tenant/service-quotas")
+async def get_service_quotas(current_user: dict = Depends(_require_admin)):
+    """Live quota check for Groq LLM, ElevenLabs TTS, and Sarvam STT/TTS."""
+    import httpx
+    tid    = current_user.get("tenant_id", 1)
+    config = tdb.get_tenant_config(tid) or {}
+    tenant = tdb.get_tenant(tid) or {}
+
+    # ── 1. GROQ LLM ──────────────────────────────────────────────
+    groq_key   = (config.get("groq_api_key") or "").strip()
+    token_rows = tdb.get_tenant_token_usage_today(tid)
+    groq_today = sum(r["total_tokens"] for r in token_rows if r["provider"] == "groq")
+    groq_calls = sum(r["call_count"]   for r in token_rows if r["provider"] == "groq")
+    groq_tpd_limit  = tenant.get("groq_daily_limit") or 100_000
+    groq_tpm_limit  = None
+    groq_tpm_remaining = None
+    groq_rpm_limit  = None
+    groq_rpm_remaining = None
+    groq_key_status = "not_configured"
+
+    if groq_key:
+        try:
+            async with httpx.AsyncClient(timeout=6) as c:
+                r = await c.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {groq_key}",
+                             "Content-Type": "application/json"},
+                    json={"model": "llama-3.3-70b-versatile",
+                          "messages": [{"role": "user", "content": "1"}],
+                          "max_tokens": 1},
+                )
+            if r.status_code in (200, 429):
+                groq_key_status  = "ok" if r.status_code == 200 else "exhausted"
+                h = r.headers
+                groq_tpm_limit      = int(h.get("x-ratelimit-limit-tokens",      0) or 0)
+                groq_tpm_remaining  = int(h.get("x-ratelimit-remaining-tokens",  0) or 0)
+                groq_rpm_limit      = int(h.get("x-ratelimit-limit-requests",     0) or 0)
+                groq_rpm_remaining  = int(h.get("x-ratelimit-remaining-requests", 0) or 0)
+                if r.status_code == 429:
+                    # Parse used/limit from error message if available
+                    try:
+                        err = r.json()["error"]["message"]
+                        import re
+                        m = re.search(r"Limit (\d+), Used (\d+)", err)
+                        if m:
+                            groq_tpd_limit = int(m.group(1))
+                            groq_today     = max(groq_today, int(m.group(2)))
+                    except Exception:
+                        pass
+            elif r.status_code == 401:
+                groq_key_status = "invalid_key"
+            else:
+                groq_key_status = f"error_{r.status_code}"
+        except Exception as e:
+            groq_key_status = "unreachable"
+
+    groq_tpd_used = groq_today
+    groq_tpd_pct  = round(groq_tpd_used / groq_tpd_limit * 100, 1) if groq_tpd_limit else 0
+    groq_tpd_status = (
+        "exhausted" if groq_tpd_used >= groq_tpd_limit else
+        "warning"   if groq_tpd_pct >= 80 else
+        groq_key_status
+    )
+
+    # ── 2. ELEVENLABS TTS ─────────────────────────────────────────
+    labs_key    = (config.get("elevenlabs_api_key") or "").strip()
+    labs_chars_today = tdb.get_tenant_tts_chars_today(tid)
+    labs_chars_limit = None
+    labs_chars_used  = None
+    labs_status      = "not_configured"
+    labs_plan        = None
+    labs_note        = None
+
+    if labs_key:
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                r_sub = await c.get(
+                    "https://api.elevenlabs.io/v1/user/subscription",
+                    headers={"xi-api-key": labs_key},
+                )
+            if r_sub.status_code == 200:
+                sub = r_sub.json()
+                labs_chars_used  = sub.get("character_count", 0)
+                labs_chars_limit = sub.get("character_limit", 0)
+                labs_plan        = sub.get("tier", "unknown")
+                labs_status      = "ok"
+            elif r_sub.status_code in (401, 403):
+                body = r_sub.text or ""
+                if "missing_permissions" in body or "user_read" in body:
+                    # Scoped TTS key — verify it works via /v1/models
+                    async with httpx.AsyncClient(timeout=5) as c2:
+                        r2 = await c2.get(
+                            "https://api.elevenlabs.io/v1/models",
+                            headers={"xi-api-key": labs_key},
+                        )
+                    if r2.status_code == 200:
+                        labs_status = "key_valid_scoped"
+                        labs_chars_used = labs_chars_today or 0
+                        labs_note = "Scoped TTS key — balance unavailable. Chars tracked from calls."
+                    else:
+                        labs_status = "invalid_key"
+                else:
+                    labs_status = "invalid_key"
+            elif r_sub.status_code == 402:
+                labs_status = "quota_exceeded"
+            else:
+                labs_status = f"error_{r_sub.status_code}"
+        except Exception:
+            labs_status = "unreachable"
+
+    # ── 3. SARVAM STT/TTS ─────────────────────────────────────────
+    sarvam_key    = (config.get("sarvam_api_key") or "").strip()
+    sarvam_status = "not_configured"
+    sarvam_note   = None
+    sarvam_calls_today = 0
+
+    if sarvam_key:
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                r = await c.get(
+                    "https://api.sarvam.ai/v1/models",
+                    headers={"api-subscription-key": sarvam_key},
+                )
+            if r.status_code == 200:
+                sarvam_status = "ok"
+                sarvam_note   = "Sarvam AI does not expose quota or usage via API."
+            elif r.status_code == 401:
+                sarvam_status = "invalid_key"
+            else:
+                sarvam_status = f"error_{r.status_code}"
+        except Exception:
+            sarvam_status = "unreachable"
+        # Count STT calls today from usage_logs (each call used STT)
+        try:
+            with __import__('app.database', fromlist=['get_conn']).get_conn() as conn:
+                row = conn.execute(
+                    "SELECT COALESCE(SUM(calls_made),0) FROM usage_logs WHERE tenant_id=? AND date=date('now')",
+                    (tid,)
+                ).fetchone()
+                sarvam_calls_today = row[0] if row else 0
+        except Exception:
+            sarvam_calls_today = 0
+
+    return {
+        "groq": {
+            "key_status":        groq_key_status,
+            "tpd_used":          groq_tpd_used,
+            "tpd_limit":         groq_tpd_limit,
+            "tpd_left":          max(0, groq_tpd_limit - groq_tpd_used),
+            "tpd_pct":           groq_tpd_pct,
+            "tpm_limit":         groq_tpm_limit,
+            "tpm_remaining":     groq_tpm_remaining,
+            "rpm_limit":         groq_rpm_limit,
+            "rpm_remaining":     groq_rpm_remaining,
+            "llm_calls_today":   groq_calls,
+            "status":            groq_tpd_status,
+            "note":              "Free tier: 100K tokens/day, 12K tokens/min, 1K req/min",
+        },
+        "elevenlabs": {
+            "key_status":        labs_status,
+            "plan":              labs_plan,
+            "chars_used_account": labs_chars_used,
+            "chars_limit_account": labs_chars_limit,
+            "chars_today":       labs_chars_today,
+            "chars_left":        max(0, (labs_chars_limit or 0) - (labs_chars_used or 0)) if labs_chars_limit else None,
+            "pct_used":          round(labs_chars_used / labs_chars_limit * 100, 1) if labs_chars_limit else None,
+            "status":            labs_status,
+            "note":              labs_note or ("Quota info from ElevenLabs account." if labs_status == "ok" else None),
+        },
+        "sarvam": {
+            "key_status":        sarvam_status,
+            "calls_today":       sarvam_calls_today,
+            "status":            sarvam_status,
+            "note":              sarvam_note,
+            "quota_api":         False,
+        },
+        "token_details": token_rows,
+    }
 
 
 @router.get("/tenant/api-keys")
@@ -1714,9 +2298,12 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "gemini_set":          bool(config.get("gemini_api_key")),
         # Speech
         "speech_provider":     config.get("speech_provider", "sarvam"),
+        "stt_provider":        config.get("stt_provider", "sarvam"),
+        "tts_provider":        config.get("tts_provider", "elevenlabs"),
         "sarvam_api_key":      mask(config.get("sarvam_api_key", "")),
         "elevenlabs_api_key":  mask(config.get("elevenlabs_api_key", "")),
         "elevenlabs_voice_id": config.get("elevenlabs_voice_id", ""),
+        "elevenlabs_model":    config.get("elevenlabs_model", "eleven_flash_v2_5"),
         "sarvam_set":          bool(config.get("sarvam_api_key")),
         "elevenlabs_set":      bool(config.get("elevenlabs_api_key")),
         # Telephony
@@ -1731,6 +2318,10 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "whatsapp_number":     config.get("whatsapp_number", ""),
         "telegram_set":        bool(config.get("telegram_bot_token")),
         "whatsapp_set":        bool(config.get("whatsapp_api_key")),
+        # Webhook
+        "webhook_url":         config.get("webhook_url", ""),
+        "webhook_events":      config.get("webhook_events", "call_completed"),
+        "webhook_secret_set":  bool(config.get("webhook_secret")),
     }
 
 
@@ -1779,6 +2370,127 @@ async def update_tenant_faq(
         "message": "FAQ saved. It will be active on the next call.",
         "chars":   len(faq_content),
     }
+
+
+@router.get("/tenant/webhook-config")
+async def get_webhook_config(current_user: dict = Depends(_require_admin)):
+    """Get tenant webhook URL."""
+    tid    = current_user.get("tenant_id", 1)
+    config = tdb.get_tenant_config(tid) or {}
+    return {"webhook_url": config.get("webhook_url") or ""}
+
+
+@router.put("/tenant/webhook-config")
+async def update_webhook_config(request: Request, current_user: dict = Depends(_require_admin)):
+    """Save tenant webhook URL. Requires crm_webhook feature on plan."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid) or {}
+    gate   = check_feature(tenant.get("plan", "starter"), "crm_webhook")
+    if not gate["allowed"]:
+        raise HTTPException(status_code=402, detail={
+            "message":    gate["reason"],
+            "upgrade_to": gate["upgrade_to"],
+            "code":       "FEATURE_LOCKED",
+        })
+    data        = await request.json()
+    webhook_url = (data.get("webhook_url") or "").strip()
+    tdb.update_tenant_config(tid, webhook_url=webhook_url)
+    db.add_log(f"🔗 Webhook URL {'set' if webhook_url else 'cleared'} by {current_user['username']}")
+    return {"ok": True, "webhook_url": webhook_url}
+
+
+@router.get("/tenant/webhook")
+async def get_webhook(current_user: dict = Depends(_require_admin)):
+    """Get tenant webhook configuration (canonical URL)."""
+    tid = current_user.get("tenant_id", 1)
+    cfg = tdb.get_tenant_config(tid) or {}
+    return {
+        "webhook_url":        cfg.get("webhook_url", ""),
+        "webhook_events":     cfg.get("webhook_events", "call_completed"),
+        "webhook_secret_set": bool(cfg.get("webhook_secret")),
+    }
+
+
+@router.put("/tenant/webhook")
+async def update_webhook(request: Request, current_user: dict = Depends(_require_admin)):
+    """Update webhook URL, events, and secret. Plan-gated to Growth+."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid)
+    plan   = (tenant or {}).get("plan", "starter")
+    gate   = check_feature(plan, "crm_webhook")
+    if not gate["allowed"]:
+        raise HTTPException(status_code=402, detail={
+            "message":    gate["reason"],
+            "upgrade_to": gate["upgrade_to"],
+            "code":       "FEATURE_LOCKED",
+        })
+    data   = await request.json()
+    update = {}
+    url = (data.get("webhook_url") or "").strip()
+    if url and not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="webhook_url must start with http/https")
+    if "webhook_url" in data:
+        update["webhook_url"] = url
+    if "webhook_events" in data:
+        update["webhook_events"] = data["webhook_events"] or "call_completed"
+    secret = (data.get("webhook_secret") or "").strip()
+    if secret:
+        update["webhook_secret"] = secret
+    if update:
+        tdb.update_tenant_config(tid, **update)
+    db.add_log(f"🔗 Webhook config updated by {current_user['username']}")
+    return {"ok": True, "message": "Webhook configuration saved."}
+
+
+@router.post("/tenant/webhook/test")
+async def test_webhook(request: Request, current_user: dict = Depends(_require_admin)):
+    """Send a test call_completed event to the configured webhook URL."""
+    from app.webhook_service import fire_call_webhook
+    tid = current_user.get("tenant_id", 1)
+    cfg = tdb.get_tenant_config(tid) or {}
+    if not cfg.get("webhook_url"):
+        raise HTTPException(status_code=400, detail="No webhook URL configured")
+    test_payload = {
+        "call_id":      0,
+        "phone":        "+919876543210",
+        "lead_name":    "Test Lead",
+        "company":      "Test Company",
+        "duration_sec": 45,
+        "outcome":      "answered",
+        "sentiment":    "interested",
+        "summary":      "This is a test webhook event from DialBot.",
+        "transcript":   "",
+        "campaign_id":  None,
+        "lead_id":      None,
+    }
+    import asyncio as _asyncio
+    _asyncio.create_task(fire_call_webhook(tid, test_payload))
+    return {"ok": True, "message": "Test webhook fired. Check webhook_logs for result."}
+
+
+@router.get("/tenant/addons")
+async def get_tenant_addons(current_user: dict = Depends(_require_admin)):
+    """List addon minute purchases for this tenant."""
+    tid = current_user.get("tenant_id", 1)
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM addon_purchases WHERE tenant_id=? ORDER BY purchased_at DESC",
+            (tid,),
+        ).fetchall()
+    return {"addons": [dict(r) for r in rows]}
+
+
+@router.get("/tenant/webhook/logs")
+async def get_webhook_logs(current_user: dict = Depends(_require_admin), limit: int = 50):
+    """Get recent webhook delivery logs for this tenant."""
+    tid = current_user.get("tenant_id", 1)
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, event, url, status_code, response, fired_at"
+            " FROM webhook_logs WHERE tenant_id=? ORDER BY fired_at DESC LIMIT ?",
+            (tid, limit),
+        ).fetchall()
+    return {"logs": [dict(r) for r in rows], "total": len(rows)}
 
 
 def _build_faq_prompt_section(faq_content: str) -> str:

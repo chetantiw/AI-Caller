@@ -30,6 +30,8 @@ REST routes:
 """
 
 
+import asyncio
+
 import os
 
 import csv
@@ -63,7 +65,7 @@ app = FastAPI(
 
     title="MuTech AI Caller — Aira",
 
-    description="PIOPIY + Exotel | Sarvam AI + Groq | Hindi voice sales agent",
+    description="PIOPIY + Exotel | Sarvam AI + LLM | Hindi voice sales agent",
 
     version="3.0.0",
 
@@ -100,6 +102,14 @@ async def startup_event():
     logger.info("Campaign scheduler started")
 
     db.add_log("📅 Campaign scheduler initialized")
+
+    from app.retry_scheduler import start_retry_scheduler
+
+    asyncio.create_task(start_retry_scheduler())
+
+    logger.info("Retry scheduler started")
+
+    db.add_log("🔁 Retry scheduler initialized")
 
 
 

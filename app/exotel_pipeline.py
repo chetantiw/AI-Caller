@@ -321,7 +321,11 @@ async def run_exotel_pipeline(websocket: WebSocket, lead: dict = None):
 
     # Update lead status if we have a lead
     if lead_id:
-        db.update_lead(lead_id, status=analysis.get("lead_status", "called"))
+        lead_status = analysis.get("lead_status", "called")
+        if analysis.get("outcome") == "no_answer":
+            db.set_lead_retry(lead_id, retry_count_floor=1, gap_minutes=30)
+        else:
+            db.update_lead(lead_id, status=lead_status)
 
     # Update campaign counters
     if campaign_id:

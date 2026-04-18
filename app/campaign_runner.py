@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 
 from app import database as db
+from app import tenant_db as tdb
 
 
 load_dotenv()
@@ -180,6 +181,8 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
     camp_name = c["name"] if c else f"Campaign {campaign_id}"
 
+    tenant_id = c.get("tenant_id", 1) if c else 1
+
 
     # Get all leads — skip only demo_booked
 
@@ -210,6 +213,22 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
 
     for i, lead in enumerate(to_call):
+
+        # ── Quota gate (checked per call, not just once) ──
+        try:
+            quota = tdb.check_quota(tenant_id)
+            if not quota["allowed"]:
+                logger.warning(
+                    f"Campaign {campaign_id}: quota exceeded for tenant {tenant_id} "
+                    f"— {quota.get('reason', '')} — pausing campaign"
+                )
+                db.add_log(
+                    f"⛔ Campaign '{camp_name}' paused: {quota.get('reason', 'quota exceeded')}"
+                )
+                db.update_campaign_status(campaign_id, "paused")
+                return
+        except Exception as quota_err:
+            logger.error(f"Quota check error (failing open): {quota_err}")
 
         # Pause check
 
@@ -243,10 +262,6 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
         logger.info(f"Campaign {campaign_id} [{i+1}/{total}] calling {name} ({phone})")
 
         db.add_log(f"📞 [{i+1}/{total}] Dialing {name} — {phone}")
-
-        # Add tenant_id from campaign so agent uses tenant's system prompt
-        campaign = db.get_campaign(campaign_id)
-        tenant_id = campaign.get("tenant_id", 1) if campaign else 1
 
         result = await make_single_call(
 
@@ -288,6 +303,29 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
             db.update_lead(lead_id, status="called")
 
+            # ── Schedule retry if campaign has max_retries set ──
+            try:
+                campaign_fresh = db.get_campaign(campaign_id)
+                max_retries    = campaign_fresh.get("max_retries", 0) if campaign_fresh else 0
+                if max_retries and max_retries > 0:
+                    from datetime import datetime as _dt, timedelta as _td
+                    next_retry = (
+                        _dt.utcnow() + _td(minutes=30)
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                    with db.get_conn() as conn:
+                        conn.execute(
+                            """UPDATE leads
+                               SET retry_count = 1,
+                                   next_retry_at = ?,
+                                   status = 'no_answer'
+                               WHERE id = ?
+                                 AND (retry_count IS NULL OR retry_count = 0)""",
+                            (next_retry, lead_id)
+                        )
+                        conn.commit()
+            except Exception as retry_err:
+                logger.warning(f"Retry scheduling error for lead {lead_id}: {retry_err}")
+
             db.increment_campaign_calls(campaign_id, answered=False)
 
             db.add_log(f"✅ [{provider.upper()}] {name} ({normalized_phone}) ID:{call_id}")
@@ -296,9 +334,9 @@ async def run_campaign(campaign_id: int, delay_seconds: int = 60):
 
             skipped += 1
 
-            db.update_lead(lead_id, status="called")
+            db.set_lead_retry(lead_id, retry_count_floor=1, gap_minutes=30)
 
-            db.add_log(f"❌ Call failed/DND — {name} ({phone})")
+            db.add_log(f"❌ Call failed/DND — {name} ({phone}) | scheduled for retry in 30 min")
 
 
         # Respect delay between calls (check pause every second)

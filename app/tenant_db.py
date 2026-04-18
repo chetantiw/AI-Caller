@@ -4,6 +4,7 @@ Tenant-aware database layer for MuTech AI Caller SaaS Platform
 Handles: tenants, tenant_configs, usage_logs, super_admins
 """
 
+import asyncio
 import sqlite3
 import hashlib
 import os
@@ -97,8 +98,8 @@ def create_tenant(name: str, slug: str, plan: str = 'starter',
 
 
 def update_tenant(tenant_id: int, **kwargs):
-    allowed = {'name', 'status', 'plan', 'calls_limit', 'contact_name',
-               'contact_email', 'contact_phone', 'expires_at'}
+    allowed = {'name', 'status', 'plan', 'calls_limit', 'groq_daily_limit',
+               'minutes_limit', 'contact_name', 'contact_email', 'contact_phone', 'expires_at'}
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
         return
@@ -153,10 +154,12 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'llm_provider', 'llm_model',
         'openai_api_key', 'anthropic_api_key', 'gemini_api_key',
         # Speech provider & ElevenLabs
-        'speech_provider', 'elevenlabs_api_key', 'elevenlabs_voice_id',
+        'speech_provider', 'elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model',
+        'stt_provider', 'tts_provider',
         # WhatsApp
         'whatsapp_api_key', 'whatsapp_number',
         'faq_content',
+        'webhook_url', 'webhook_secret', 'webhook_events',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
@@ -202,7 +205,116 @@ def log_usage(tenant_id: int, minutes: float, errors: int = 0):
                 minutes_used = minutes_used + ?
             WHERE id=?
         """, (minutes, tenant_id))
+
+        # ── Usage alerts (80% and 100%) ────────────────────
+        try:
+            tenant_row = conn.execute(
+                "SELECT calls_used, calls_limit FROM tenants WHERE id=?",
+                (tenant_id,)
+            ).fetchone()
+            if tenant_row:
+                cu = (tenant_row["calls_used"] or 0)
+                cl = tenant_row["calls_limit"] or 0
+                if cl > 0:
+                    pct = cu / cl * 100
+                    alert_type = None
+                    if pct >= 100:
+                        alert_type = "quota_100"
+                    elif pct >= 80:
+                        alert_type = "quota_80"
+
+                    if alert_type:
+                        already = conn.execute(
+                            "SELECT id FROM usage_logs"
+                            " WHERE tenant_id=? AND date=date('now') AND alert_sent=?",
+                            (tenant_id, alert_type)
+                        ).fetchone()
+                        if not already:
+                            conn.execute(
+                                "UPDATE usage_logs SET alert_sent=?"
+                                " WHERE tenant_id=? AND date=date('now')",
+                                (alert_type, tenant_id)
+                            )
+                            try:
+                                asyncio.create_task(
+                                    _fire_usage_alert(tenant_id, pct, alert_type)
+                                )
+                            except RuntimeError:
+                                asyncio.ensure_future(
+                                    _fire_usage_alert(tenant_id, pct, alert_type)
+                                )
+        except Exception:
+            pass  # never crash log_usage over alert logic
+
         conn.commit()
+
+
+def check_quota(tenant_id: int) -> dict:
+    """
+    Returns quota status for a tenant.
+    calls_limit = 0 means unlimited (enterprise / platform override).
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT calls_used, calls_limit, plan, status FROM tenants WHERE id=?",
+            (tenant_id,)
+        ).fetchone()
+    if not row:
+        return {"allowed": False, "reason": "Tenant not found"}
+
+    calls_used  = row["calls_used"]  or 0
+    calls_limit = row["calls_limit"] or 0
+    status      = row["status"]
+    plan        = row["plan"]
+
+    if status != "active":
+        return {
+            "allowed":     False,
+            "calls_used":  calls_used,
+            "calls_limit": calls_limit,
+            "remaining":   0,
+            "pct_used":    100.0,
+            "plan":        plan,
+            "reason":      f"Tenant account is {status}. Contact support.",
+        }
+
+    if calls_limit == 0:
+        return {
+            "allowed":     True,
+            "calls_used":  calls_used,
+            "calls_limit": 0,
+            "remaining":   999999,
+            "pct_used":    0.0,
+            "plan":        plan,
+            "reason":      "",
+        }
+
+    remaining = calls_limit - calls_used
+    pct_used  = round((calls_used / calls_limit) * 100, 1)
+
+    if remaining <= 0:
+        return {
+            "allowed":     False,
+            "calls_used":  calls_used,
+            "calls_limit": calls_limit,
+            "remaining":   0,
+            "pct_used":    pct_used,
+            "plan":        plan,
+            "reason":      (
+                f"Call quota exhausted ({calls_used}/{calls_limit}). "
+                f"Upgrade your {plan} plan or purchase add-on minutes."
+            ),
+        }
+
+    return {
+        "allowed":     True,
+        "calls_used":  calls_used,
+        "calls_limit": calls_limit,
+        "remaining":   remaining,
+        "pct_used":    pct_used,
+        "plan":        plan,
+        "reason":      "",
+    }
 
 
 def get_tenant_usage(tenant_id: int, days: int = 30) -> list:
@@ -221,11 +333,42 @@ def get_all_usage_today() -> list:
             SELECT
                 t.id, t.name, t.slug, t.status, t.plan,
                 t.calls_used, t.calls_limit, t.minutes_used,
-                COALESCE(u.calls_made, 0)    AS calls_today,
-                COALESCE(u.minutes_used, 0)  AS minutes_today,
-                COALESCE(u.api_errors, 0)    AS errors_today
+                COALESCE(t.minutes_limit, 0)      AS minutes_limit,
+                COALESCE(t.groq_daily_limit, 100000) AS groq_daily_limit,
+                COALESCE(ul.calls_today, 0)    AS calls_today,
+                COALESCE(ul.minutes_today, 0)  AS minutes_today,
+                COALESCE(ul.errors_today, 0)   AS errors_today,
+                COALESCE(ltok.total_tokens, 0) AS groq_tokens_today,
+                COALESCE(ltok.llm_calls, 0)    AS groq_calls_today,
+                COALESCE(ltok.prompt_tokens, 0)     AS prompt_tokens_today,
+                COALESCE(ltok.completion_tokens, 0) AS completion_tokens_today,
+                COALESCE(tts.chars_used, 0)    AS tts_chars_today,
+                COALESCE(tc.stt_provider, 'sarvam')     AS stt_provider,
+                COALESCE(tc.tts_provider, 'elevenlabs') AS tts_provider
             FROM tenants t
-            LEFT JOIN usage_logs u ON u.tenant_id=t.id AND u.date=date('now')
+            LEFT JOIN (
+                SELECT tenant_id,
+                       SUM(calls_made)    AS calls_today,
+                       SUM(minutes_used)  AS minutes_today,
+                       SUM(api_errors)    AS errors_today
+                FROM usage_logs WHERE date=date('now')
+                GROUP BY tenant_id
+            ) ul ON ul.tenant_id=t.id
+            LEFT JOIN (
+                SELECT tenant_id,
+                       SUM(total_tokens)      AS total_tokens,
+                       SUM(call_count)        AS llm_calls,
+                       SUM(prompt_tokens)     AS prompt_tokens,
+                       SUM(completion_tokens) AS completion_tokens
+                FROM llm_token_usage WHERE date=date('now')
+                GROUP BY tenant_id
+            ) ltok ON ltok.tenant_id=t.id
+            LEFT JOIN (
+                SELECT tenant_id, SUM(chars_used) AS chars_used
+                FROM tts_char_usage WHERE date=date('now') AND provider='elevenlabs'
+                GROUP BY tenant_id
+            ) tts ON tts.tenant_id=t.id
+            LEFT JOIN tenant_configs tc ON tc.tenant_id=t.id
             ORDER BY calls_today DESC
         """).fetchall()]
 
@@ -279,6 +422,83 @@ def get_tenant_users(tenant_id: int) -> list:
         ).fetchall()]
 
 
+# ─────────────────────────────────────────
+# LLM TOKEN USAGE TRACKING
+# ─────────────────────────────────────────
+
+def log_llm_tokens(tenant_id: int, provider: str, model: str,
+                   prompt_tokens: int, completion_tokens: int):
+    total = prompt_tokens + completion_tokens
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO llm_token_usage
+                (tenant_id, date, provider, model, prompt_tokens, completion_tokens, total_tokens, call_count)
+            VALUES (?, date('now'), ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(tenant_id, date, provider, model) DO UPDATE SET
+                prompt_tokens     = prompt_tokens     + excluded.prompt_tokens,
+                completion_tokens = completion_tokens + excluded.completion_tokens,
+                total_tokens      = total_tokens      + excluded.total_tokens,
+                call_count        = call_count        + 1,
+                updated_at        = datetime('now')
+        """, (tenant_id, provider, model, prompt_tokens, completion_tokens, total))
+        conn.commit()
+
+
+def get_tenant_token_usage_today(tenant_id: int) -> list:
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute("""
+            SELECT provider, model, prompt_tokens, completion_tokens,
+                   total_tokens, call_count
+            FROM llm_token_usage
+            WHERE tenant_id=? AND date=date('now')
+            ORDER BY total_tokens DESC
+        """, (tenant_id,)).fetchall()]
+
+
+def log_tts_chars(tenant_id: int, provider: str, chars: int):
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO tts_char_usage (tenant_id, date, provider, chars_used, call_count)
+            VALUES (?, date('now'), ?, ?, 1)
+            ON CONFLICT(tenant_id, date, provider) DO UPDATE SET
+                chars_used = chars_used + excluded.chars_used,
+                call_count = call_count + 1,
+                updated_at = datetime('now')
+        """, (tenant_id, provider, chars))
+        conn.commit()
+
+
+def get_tenant_tts_chars_today(tenant_id: int, provider: str = "elevenlabs") -> int:
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT COALESCE(SUM(chars_used), 0) AS total
+            FROM tts_char_usage
+            WHERE tenant_id=? AND provider=? AND date=date('now')
+        """, (tenant_id, provider)).fetchone()
+        return row["total"] if row else 0
+
+
+def get_all_tenants_token_usage_today() -> list:
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute("""
+            SELECT
+                t.id AS tenant_id, t.name, t.slug,
+                COALESCE(SUM(u.total_tokens), 0)    AS tokens_today,
+                COALESCE(SUM(u.call_count), 0)      AS llm_calls_today,
+                COALESCE(SUM(u.prompt_tokens), 0)   AS prompt_tokens_today,
+                COALESCE(SUM(u.completion_tokens),0) AS completion_tokens_today,
+                GROUP_CONCAT(u.provider || ':' || u.model, ', ') AS providers_used
+            FROM tenants t
+            LEFT JOIN llm_token_usage u ON u.tenant_id=t.id AND u.date=date('now')
+            GROUP BY t.id
+            ORDER BY tokens_today DESC
+        """).fetchall()]
+
+
+# ─────────────────────────────────────────
+# TENANT USER MANAGEMENT
+# ─────────────────────────────────────────
+
 def create_tenant_user(tenant_id: int, username: str, password: str,
                        role: str, name: str, email: str) -> int:
     with get_conn() as conn:
@@ -289,3 +509,36 @@ def create_tenant_user(tenant_id: int, username: str, password: str,
         )
         conn.commit()
         return cur.lastrowid
+
+
+# ─────────────────────────────────────────
+# USAGE ALERTS
+# ─────────────────────────────────────────
+
+async def _fire_usage_alert(tenant_id: int, pct: float, alert_type: str) -> None:
+    """Send Telegram alert when tenant hits 80% or 100% quota."""
+    try:
+        cfg     = get_tenant_config(tenant_id) or {}
+        token   = (cfg.get("telegram_bot_token") or "").strip()
+        chat_id = (cfg.get("telegram_chat_id")   or "").strip()
+        if not token or not chat_id:
+            return
+
+        emoji = "\U0001F6A8" if pct >= 100 else "\u26A0\uFE0F"
+        msg   = (
+            f"{emoji} <b>Usage Alert — Tenant {tenant_id}</b>\n\n"
+            f"\U0001F4CA Usage: <b>{pct:.0f}%</b> of call quota\n"
+        )
+        if pct >= 100:
+            msg += "\U0001F534 All calls are now <b>blocked</b>. Upgrade to continue."
+        else:
+            msg += "\U0001F7E1 Approaching limit. Consider upgrading."
+
+        import httpx
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+            )
+    except Exception:
+        pass  # never propagate alert errors

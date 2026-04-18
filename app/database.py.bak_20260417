@@ -724,23 +724,6 @@ def create_lead(name: str, phone: str, company: str = None, designation: str = N
 
 
 
-def set_lead_retry(lead_id: int, retry_count_floor: int = 1, gap_minutes: int = 30):
-    """Set retry fields after a no_answer call.
-    retry_count = max(existing, retry_count_floor)
-    next_retry_at = now + gap_minutes
-    """
-    with get_conn() as conn:
-        conn.execute("""
-            UPDATE leads
-            SET status        = 'no_answer',
-                retry_count   = MAX(COALESCE(retry_count, 0), ?),
-                next_retry_at = datetime('now', ? || ' minutes'),
-                last_called   = datetime('now')
-            WHERE id = ?
-        """, (retry_count_floor, f"+{gap_minutes}", lead_id))
-        conn.commit()
-
-
 def update_lead(lead_id: int, status: str = None, notes: str = None):
 
     """Quick update — status and/or notes only."""
@@ -779,8 +762,7 @@ def update_lead_full(lead_id: int, name: str = None, phone: str = None,
 
                      company: str = None, designation: str = None,
 
-                     language: str = None, status: str = None, notes: str = None,
-                     callback_at: str = None):
+                     language: str = None, status: str = None, notes: str = None):
 
     """Full update — any combination of fields."""
 
@@ -802,8 +784,6 @@ def update_lead_full(lead_id: int, name: str = None, phone: str = None,
 
         if notes       is not None: sets.append("notes=?");       params.append(notes)
 
-        if callback_at is not None: sets.append("callback_at=?"); params.append(callback_at)
-
         if not sets:
 
             return
@@ -817,55 +797,12 @@ def update_lead_full(lead_id: int, name: str = None, phone: str = None,
 
 
 def delete_lead(lead_id: int):
-    """Delete a lead and ALL records tied to it or sharing the same phone number.
 
-    Cascade:
-      1. Find the phone number of this lead.
-      2. Find all lead IDs with that phone (same tenant) — covers duplicates across campaigns.
-      3. Delete all calls for those leads.
-      4. Recalculate leads_count for every affected campaign.
-      5. Delete all matching leads.
-    """
     with get_conn() as conn:
-        # Step 1 — get phone + tenant for this lead
-        row = conn.execute(
-            "SELECT phone, tenant_id FROM leads WHERE id=?", (lead_id,)
-        ).fetchone()
-        if not row:
-            return
-        phone, tenant_id = row[0], row[1]
 
-        # Step 2 — all leads with same phone in same tenant
-        all_ids = [r[0] for r in conn.execute(
-            "SELECT id FROM leads WHERE phone=? AND (tenant_id=? OR (tenant_id IS NULL AND ? IS NULL))",
-            (phone, tenant_id, tenant_id)
-        ).fetchall()]
-        if not all_ids:
-            all_ids = [lead_id]
+        conn.execute("UPDATE calls SET lead_id=NULL WHERE lead_id=?", (lead_id,))
 
-        placeholders = ",".join("?" * len(all_ids))
-
-        # Step 3 — find affected campaigns before deleting
-        affected_campaigns = {r[0] for r in conn.execute(
-            f"SELECT DISTINCT campaign_id FROM leads WHERE id IN ({placeholders}) AND campaign_id IS NOT NULL",
-            all_ids
-        ).fetchall()}
-
-        # Step 4 — delete all calls for these leads (by lead_id OR by phone)
-        conn.execute(f"DELETE FROM calls WHERE lead_id IN ({placeholders})", all_ids)
-        conn.execute("DELETE FROM calls WHERE phone=? AND lead_id IS NULL", (phone,))
-
-        # Step 5 — delete all the leads
-        conn.execute(f"DELETE FROM leads WHERE id IN ({placeholders})", all_ids)
-
-        # Step 6 — recalculate leads_count for affected campaigns
-        for cid in affected_campaigns:
-            remaining = conn.execute(
-                "SELECT COUNT(*) FROM leads WHERE campaign_id=?", (cid,)
-            ).fetchone()[0]
-            conn.execute(
-                "UPDATE campaigns SET leads_count=? WHERE id=?", (remaining, cid)
-            )
+        conn.execute("DELETE FROM leads WHERE id=?", (lead_id,))
 
         conn.commit()
 
@@ -909,15 +846,9 @@ def bulk_insert_leads(leads: list, campaign_id: int = None, tenant_id: int = Non
                 continue
 
 
-            # Deduplicate within the same campaign (not globally) so the same
-            # number can be added to different campaigns independently.
             dup_query = "SELECT id FROM leads WHERE phone=?"
 
             dup_params = [phone]
-
-            if campaign_id is not None:
-
-                dup_query += " AND campaign_id=?"; dup_params.append(campaign_id)
 
             if tenant_id is not None:
 

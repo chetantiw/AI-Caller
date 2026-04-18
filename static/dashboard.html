@@ -918,7 +918,8 @@ tr:hover td { background: var(--teal-dim); }
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 .toast-item.success { border-color: rgba(0,210,150,0.3); }
-.toast-item.error { border-color: rgba(255,69,96,0.3); }
+.toast-item.error   { border-color: rgba(255,69,96,0.3); }
+.toast-item.info    { border-color: rgba(55,138,221,0.4); }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* ══════════════════════════════════════════
@@ -1312,6 +1313,7 @@ tr:hover td { background: var(--teal-dim); }
       <div>
         <h2>Dial<span>Bot</span></h2>
         <div class="version">AI Calling Platform</div>
+        <span id="plan-badge" style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.5px;text-transform:uppercase;">Starter</span>
       </div>
     </div>
 
@@ -1335,14 +1337,14 @@ tr:hover td { background: var(--teal-dim); }
       <div class="nav-item" onclick="showPage('calllogs', this)">
         <span class="icon">◐</span> Call Logs
       </div>
-      <div class="nav-item" onclick="showPage('analytics', this)">
+      <div class="nav-item" data-feature="campaign_analytics" onclick="showPage('analytics', this)">
         <span class="icon">◫</span> Analytics
       </div>
     </div>
 
     <div class="nav-section" id="admin-nav">
       <div class="nav-label">Admin</div>
-      <div class="nav-item" onclick="showPage('users', this)">
+      <div class="nav-item" data-feature="role_based_access" onclick="showPage('users', this)">
         <span class="icon">◎</span> User Management
       </div>
       <div class="nav-item" onclick="showPage('settings', this)">
@@ -1350,6 +1352,9 @@ tr:hover td { background: var(--teal-dim); }
       </div>
       <div class="nav-item" onclick="showPage('account', this)">
         <span class="icon">⚙</span> Account Settings
+      </div>
+      <div class="nav-item" onclick="showPage('billing', this)">
+        <span class="icon">💳</span> Billing & Usage
       </div>
     </div>
 
@@ -2067,6 +2072,17 @@ tr:hover td { background: var(--teal-dim); }
           <div id="acct-panel-keys" style="display:none">
             <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Bring your own API keys. Keys are masked after saving. Leave a key field blank to keep the existing saved value.</p>
 
+            <!-- ── Minutes Usage ── -->
+            <div class="card" style="margin-bottom:16px" id="usage-summary-card">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> ⏱ Your Plan Usage</div>
+                <button class="btn btn-ghost btn-sm" onclick="loadUsageSummary()">↻ Refresh</button>
+              </div>
+              <div class="card-body" id="usage-summary-body">
+                <div style="font-size:12px;color:var(--muted);text-align:center;padding:12px">Loading…</div>
+              </div>
+            </div>
+
             <!-- ── LLM ── -->
             <div class="card" style="margin-bottom:16px">
               <div class="card-header"><div class="card-title"><span class="dot"></span> 🧠 Language Model (LLM)</div></div>
@@ -2121,44 +2137,171 @@ tr:hover td { background: var(--teal-dim); }
               </div>
             </div>
 
-            <!-- ── Speech ── -->
+            <!-- ── Speech Engine ── -->
             <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 🎙 Speech Engine (STT & TTS)</div></div>
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 🎙 Speech Engine</div>
+                <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">
+                  STT and TTS configured independently
+                </span>
+              </div>
               <div class="card-body">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-                  <div id="sp-card-sarvam" onclick="selectSpeechProvider('sarvam')"
-                    style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;cursor:pointer;transition:all .2s;background:rgba(0,210,150,0.05)">
-                    <div style="font-weight:600;margin-bottom:4px">Sarvam AI</div>
-                    <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Indian languages · saarika v2.5 STT · bulbul v2 TTS</div>
-                  </div>
-                  <div id="sp-card-elevenlabs" onclick="selectSpeechProvider('elevenlabs')"
-                    style="border-radius:var(--r);border:1px solid var(--border);padding:14px;cursor:pointer;transition:all .2s;background:var(--bg2)">
-                    <div style="font-weight:600;margin-bottom:4px">ElevenLabs</div>
-                    <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Multilingual · ultra-realistic voices · low latency</div>
-                  </div>
-                </div>
-                <input type="hidden" id="ac-speech-provider" value="sarvam"/>
-                <div id="sp-panel-sarvam">
-                  <div class="form-row"><label>Sarvam API Key</label>
+
+                <!-- ── API Keys (shared) ── -->
+                <div class="form-grid" style="margin-bottom:18px">
+                  <div class="form-row">
+                    <label>Sarvam API Key
+                      <span style="color:var(--muted);font-weight:400"> — used for STT and/or TTS</span>
+                    </label>
                     <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-sarvam" placeholder="sk-••••••••" style="flex:1"/>
+                      <input type="password" id="ac-sarvam" placeholder="Leave blank to keep saved key" style="flex:1"/>
                       <span id="ac-sarvam-badge" class="key-badge">Not Set</span>
                     </div>
                   </div>
-                </div>
-                <div id="sp-panel-elevenlabs" style="display:none">
-                  <div class="form-grid">
-                    <div class="form-row"><label>ElevenLabs API Key</label>
-                      <div style="display:flex;gap:8px;align-items:center">
-                        <input type="password" id="ac-elevenlabs" placeholder="xi-api-key-••••" style="flex:1"/>
-                        <span id="ac-elevenlabs-badge" class="key-badge">Not Set</span>
-                      </div>
-                    </div>
-                    <div class="form-row"><label>Voice ID</label>
-                      <input id="ac-elevenlabs-voice" placeholder="21m00Tcm4TlvDq8ikWAM"/>
+                  <div class="form-row">
+                    <label>ElevenLabs API Key
+                      <span style="color:var(--muted);font-weight:400"> — used for STT and/or TTS</span>
+                    </label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <input type="password" id="ac-elevenlabs" placeholder="Leave blank to keep saved key" style="flex:1"/>
+                      <span id="ac-elevenlabs-badge" class="key-badge">Not Set</span>
                     </div>
                   </div>
                 </div>
+
+                <!-- ── STT selector ── -->
+                <div style="margin-bottom:20px">
+                  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                              letter-spacing:.06em;margin-bottom:8px">
+                    🎤 Speech-to-Text (STT) — who listens
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div id="stt-card-sarvam" onclick="selectStt('sarvam')"
+                      style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;
+                             cursor:pointer;transition:all .2s">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <span style="font-weight:600">Sarvam AI</span>
+                        <span id="stt-badge-sarvam" style="font-size:10px;font-family:var(--mono);
+                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
+                          color:var(--teal);display:none">active</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
+                        saarika:v2.5 · Best for Hindi &amp; Indian languages
+                      </div>
+                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Recommended for India/UAE</div>
+                    </div>
+                    <div id="stt-card-elevenlabs" onclick="selectStt('elevenlabs')"
+                      style="border-radius:var(--r);border:1px solid var(--border);padding:14px;
+                             cursor:pointer;transition:all .2s">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <span style="font-weight:600">ElevenLabs</span>
+                        <span id="stt-badge-elevenlabs" style="font-size:10px;font-family:var(--mono);
+                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
+                          color:var(--teal);display:none">active</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
+                        Realtime STT · Multilingual
+                      </div>
+                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Requires ElevenLabs key</div>
+                    </div>
+                  </div>
+                  <input type="hidden" id="ac-stt-provider" value="sarvam"/>
+                </div>
+
+                <!-- ── TTS selector ── -->
+                <div style="margin-bottom:16px">
+                  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                              letter-spacing:.06em;margin-bottom:8px">
+                    🔊 Text-to-Speech (TTS) — who speaks
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                    <div id="tts-card-sarvam" onclick="selectTts('sarvam')"
+                      style="border-radius:var(--r);border:1px solid var(--border);padding:14px;
+                             cursor:pointer;transition:all .2s">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <span style="font-weight:600">Sarvam AI</span>
+                        <span id="tts-badge-sarvam" style="font-size:10px;font-family:var(--mono);
+                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
+                          color:var(--teal);display:none">active</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
+                        bulbul:v2 · Natural Indian voices
+                      </div>
+                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Requires Sarvam key</div>
+                    </div>
+                    <div id="tts-card-elevenlabs" onclick="selectTts('elevenlabs')"
+                      style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;
+                             cursor:pointer;transition:all .2s">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <span style="font-weight:600">ElevenLabs</span>
+                        <span id="tts-badge-elevenlabs" style="font-size:10px;font-family:var(--mono);
+                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
+                          color:var(--teal);display:none">active</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
+                        eleven_flash_v2_5 · Ultra-realistic voice
+                      </div>
+                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Recommended for best quality</div>
+                    </div>
+                  </div>
+                  <input type="hidden" id="ac-tts-provider" value="elevenlabs"/>
+
+                  <!-- ElevenLabs voice config -->
+                  <div id="tts-elevenlabs-config" style="background:var(--bg2);border:1px solid var(--border);
+                       border-radius:var(--r);padding:14px">
+                    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+                      ElevenLabs Voice Configuration
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                      <div class="form-row">
+                        <label>Voice ID</label>
+                        <input id="ac-elevenlabs-voice" placeholder="e.g. TX3LPaxmHKxFdv7VOQHJ" style="font-family:var(--mono);font-size:12px"/>
+                      </div>
+                      <div class="form-row">
+                        <label>Model</label>
+                        <select id="ac-elevenlabs-model">
+                          <option value="eleven_flash_v2_5">eleven_flash_v2_5 — fastest (recommended)</option>
+                          <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 — balanced</option>
+                          <option value="eleven_multilingual_v2">eleven_multilingual_v2 — highest quality</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:8px">
+                      Popular voices: Aria <code>9BWtsMINqrJLrRacOk9x</code> ·
+                      Charlotte <code>XB0fDUnXU5powFXDhCwa</code> ·
+                      Liam <code>TX3LPaxmHKxFdv7VOQHJ</code>
+                    </div>
+                  </div>
+
+                  <!-- Sarvam voice config -->
+                  <div id="tts-sarvam-config" style="display:none;background:var(--bg2);
+                       border:1px solid var(--border);border-radius:var(--r);padding:14px">
+                    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+                      Sarvam Voice Selection
+                    </div>
+                    <div class="form-row">
+                      <label>Voice</label>
+                      <select id="ac-voice">
+                        <option value="anushka">Anushka (Female)</option>
+                        <option value="priya">Priya (Female)</option>
+                        <option value="kavya">Kavya (Female)</option>
+                        <option value="manisha">Manisha (Female)</option>
+                        <option value="vidya">Vidya (Female)</option>
+                        <option value="abhilash">Abhilash (Male)</option>
+                        <option value="karun">Karun (Male)</option>
+                        <option value="hitesh">Hitesh (Male)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Active pipeline summary -->
+                <div id="speech-pipeline-summary" style="background:rgba(0,210,150,0.06);
+                     border:1px solid rgba(0,210,150,0.2);border-radius:var(--r);
+                     padding:10px 14px;font-size:12px;font-family:var(--mono);color:var(--teal)">
+                  Pipeline: <span id="pipeline-label">Sarvam STT → Groq LLM → ElevenLabs TTS</span>
+                </div>
+
               </div>
             </div>
 
@@ -2264,9 +2407,139 @@ tr:hover td { background: var(--teal-dim); }
         </div>
       </div>
 
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- BILLING PAGE                                   -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="page" id="page-billing">
+        <div style="max-width:1100px">
+
+          <!-- ── Row 1: Plan quota bar (full width) ── -->
+          <div class="card" id="billing-usage-card" style="margin-bottom:16px">
+            <div class="card-header">
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--text)" id="billing-plan-title">Plan: —</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px" id="billing-minutes-label">Loading…</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-outline btn-sm" onclick="billingContact('addon')">＋ Add-on Minutes</button>
+                <button class="btn btn-primary btn-sm" onclick="billingContact('upgrade')">⬆ Upgrade Plan</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding-top:0">
+              <div style="background:var(--bg2);border-radius:6px;height:10px;overflow:hidden;margin-bottom:6px">
+                <div id="billing-minutes-bar" style="height:100%;background:var(--teal);border-radius:6px;width:0%;transition:width .5s"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+                <span id="billing-mins-used-lbl">0 min used</span>
+                <span id="billing-mins-limit-lbl">— min limit</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Row 2: Usage stats (left) + Plan features (right) ── -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start">
+
+            <!-- Left: live stats -->
+            <div class="card" style="height:100%">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> ⏱ Your Plan Usage</div>
+                <button class="btn btn-ghost btn-sm" onclick="loadBillingStats()">↻ Refresh</button>
+              </div>
+              <div class="card-body" id="billing-stats-body">
+                <div style="font-size:12px;color:var(--muted);text-align:center;padding:12px">Loading…</div>
+              </div>
+            </div>
+
+            <!-- Right: plan features -->
+            <div class="card" style="height:100%">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 📦 What's in Your Plan</div>
+              </div>
+              <div class="card-body">
+                <div id="billing-features-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:7px"></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ── Row 3: 30-day history (full width) ── -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><span class="dot"></span> 📅 Last 30 Days Usage</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="billing-usage-count" style="font-size:11px;color:var(--muted)"></span>
+                <button class="btn btn-ghost btn-sm" onclick="exportBillingCSV()">⬇ CSV</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding:0">
+              <div style="overflow-x:auto;max-height:300px;overflow-y:auto">
+                <table class="data-table">
+                  <thead style="position:sticky;top:0;z-index:1;background:var(--bg2)">
+                    <tr>
+                      <th>Date</th>
+                      <th>Calls Made</th>
+                      <th>Minutes Used</th>
+                      <th>API Errors</th>
+                    </tr>
+                  </thead>
+                  <tbody id="billing-usage-tbody">
+                    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- Pagination bar -->
+              <div id="billing-usage-pagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border)">
+                <button class="btn btn-ghost btn-sm" id="billing-pg-prev" onclick="billingUsagePage(-1)">◀ Prev</button>
+                <span id="billing-pg-label" style="font-size:12px;color:var(--muted)">Page 1</span>
+                <button class="btn btn-ghost btn-sm" id="billing-pg-next" onclick="billingUsagePage(1)">Next ▶</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- /page-billing -->
+
     </div><!-- /content -->
   </main>
 </div><!-- /app -->
+
+<!-- TAG LEAD MODAL -->
+<div id="tag-lead-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:340px;max-width:95vw">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px">🏷 Tag Lead</div>
+    <div id="tag-lead-name" style="font-size:12px;color:var(--muted);margin-bottom:18px"></div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+      <button class="btn btn-outline" id="tag-btn-interested"
+        onclick="selectTag('interested')"
+        style="justify-content:flex-start;gap:10px;padding:10px 14px;font-size:13px">
+        👍 Interested
+      </button>
+      <button class="btn btn-outline" id="tag-btn-not_interested"
+        onclick="selectTag('not_interested')"
+        style="justify-content:flex-start;gap:10px;padding:10px 14px;font-size:13px">
+        👎 Not Interested
+      </button>
+      <button class="btn btn-outline" id="tag-btn-callback"
+        onclick="selectTag('callback')"
+        style="justify-content:flex-start;gap:10px;padding:10px 14px;font-size:13px">
+        📅 Callback
+      </button>
+    </div>
+
+    <div id="tag-callback-dt" style="display:none;margin-bottom:16px">
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">Schedule callback at</label>
+      <input type="datetime-local" id="tag-callback-input"
+        style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);
+               border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px"/>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline btn-sm" onclick="closeTagLead()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveTagLead()">Save Tag</button>
+    </div>
+  </div>
+</div>
 
 <!-- ════════════════════════════════════════
      MODALS
@@ -2954,6 +3227,7 @@ function renderCampaigns(campaigns) {
         ${c.status === 'running' ? '● ' : ''}${c.status}
       </div>
       <div class="campaign-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openEditCampaign(${c.id})" title="Edit Campaign">✏️ Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="openSchedule(${c.id}, '${c.name.replace(/'/g,'')}')" title="Schedule">🕐 Schedule</button>
         ${actions}
         <button class="btn btn-danger btn-sm btn-icon" onclick="deleteCampaign(${c.id})" title="Delete">✕</button>
@@ -3626,6 +3900,7 @@ const PAGE_META = {
   users:      { title: 'User Management',  breadcrumb: 'Team access & roles' },
   settings:   { title: 'Agent Settings',   breadcrumb: 'Prompt editor · model config · API keys' },
   account:    { title: 'Account Settings', breadcrumb: 'Company profile · call config · API keys' },
+  billing:    { title: 'Billing & Usage',  breadcrumb: 'Plan · minutes · upgrade' },
 };
 
 function toggleSidebar() {
@@ -3652,6 +3927,7 @@ function showPage(name, el) {
   if (name === 'users')     loadUsers();
   if (name === 'settings')  loadSettings();
   if (name === 'account')   loadAccountSettings();
+  if (name === 'billing')   loadBilling();
   if (name === 'monitor')   renderLiveCalls();
   if (name === 'campaigns') loadCampaigns();
   closeSidebar(); // close on mobile after navigation
@@ -3664,6 +3940,7 @@ let _dashboardInitialized = false;
 function initDashboard() {
   if (_dashboardInitialized) return;
   _dashboardInitialized = true;
+  loadPlanFeatures();
   loadSystemHealth();
   loadDashboardStats();
   loadRecentCalls();
@@ -3788,11 +4065,13 @@ function renderCallLogsTable() {
       <td><span class="status-tag ${c.sentiment === 'demo_booked' ? 'interested' : (c.sentiment||'neutral')}">${c.sentiment === 'demo_booked' ? 'Demo Booked' : c.sentiment === 'interested' ? 'Interested' : c.sentiment === 'rejected' ? 'Not Interested' : (c.sentiment||'neutral')}</span></td>
       <td class="summary-cell" title="${safeSum}">${sum}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">${dt}</td>
-      <td>
+      <td style="white-space:nowrap">
         <button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px"
           onclick="openTranscript(${c.id},'${safeName}',${c.duration_sec||0},'${c.outcome||''}','${c.sentiment||''}','${safeSum}')">
           📄 ${c.summary ? 'Summary' : 'Detail'}
         </button>
+        ${c.lead_id ? `<button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px;margin-left:4px"
+          onclick="openTagLead(${c.lead_id},'${safeName}')">🏷 Tag</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -4364,9 +4643,346 @@ function refreshData() {
 function toast(msg, type = 'success') {
   const el = document.createElement('div');
   el.className = `toast-item ${type}`;
-  el.innerHTML = `<span>${type === 'success' ? '✓' : '✕'}</span> ${msg}`;
+  const icon = type === 'success' ? '✓' : type === 'info' ? 'ℹ' : '✕';
+  el.innerHTML = `<span>${icon}</span> ${msg}`;
   document.getElementById('toast').appendChild(el);
   setTimeout(() => el.remove(), 3500);
+}
+
+// ════════════════════════════════════════
+// TAG LEAD MODAL
+// ════════════════════════════════════════
+let _tagLeadId   = null;
+let _tagSelected = null;
+
+function openTagLead(leadId, name) {
+  _tagLeadId   = leadId;
+  _tagSelected = null;
+  document.getElementById('tag-lead-name').textContent = name || `Lead #${leadId}`;
+  document.getElementById('tag-callback-dt').style.display = 'none';
+  document.getElementById('tag-callback-input').value = '';
+  ['interested','not_interested','callback'].forEach(t => {
+    const btn = document.getElementById('tag-btn-' + t);
+    if (btn) { btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
+  });
+  const overlay = document.getElementById('tag-lead-overlay');
+  overlay.style.display = 'flex';
+}
+
+function closeTagLead() {
+  document.getElementById('tag-lead-overlay').style.display = 'none';
+  _tagLeadId = null;
+  _tagSelected = null;
+}
+
+function selectTag(tag) {
+  _tagSelected = tag;
+  ['interested','not_interested','callback'].forEach(t => {
+    const btn = document.getElementById('tag-btn-' + t);
+    if (!btn) return;
+    const active = t === tag;
+    btn.style.background   = active ? 'rgba(0,210,150,0.12)' : '';
+    btn.style.borderColor  = active ? 'rgba(0,210,150,0.5)'  : '';
+    btn.style.color        = active ? 'var(--teal)'          : '';
+  });
+  document.getElementById('tag-callback-dt').style.display = tag === 'callback' ? 'block' : 'none';
+  if (tag === 'callback') {
+    // Default to tomorrow 10:00
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0);
+    document.getElementById('tag-callback-input').value =
+      d.toISOString().slice(0, 16);
+  }
+}
+
+async function saveTagLead() {
+  if (!_tagLeadId || !_tagSelected) { toast('Please select a tag', 'error'); return; }
+  const statusMap = { interested: 'interested', not_interested: 'not_interested', callback: 'callback' };
+  const body = { status: statusMap[_tagSelected] };
+  if (_tagSelected === 'callback') {
+    const dt = document.getElementById('tag-callback-input').value;
+    if (!dt) { toast('Please pick a callback date/time', 'error'); return; }
+    body.callback_at = dt;
+  }
+  try {
+    await apiFetch(`/api/leads/${_tagLeadId}`, { method: 'PUT', body: JSON.stringify(body) });
+    toast(`✅ Lead tagged as ${_tagSelected.replace('_',' ')}`);
+    closeTagLead();
+    loadCallLogs();
+  } catch(e) {
+    toast('Failed to save tag: ' + (e.message || 'error'), 'error');
+  }
+}
+
+// Close on overlay click
+document.addEventListener('click', e => {
+  const overlay = document.getElementById('tag-lead-overlay');
+  if (e.target === overlay) closeTagLead();
+});
+
+// ════════════════════════════════════════
+// BILLING PAGE
+// ════════════════════════════════════════
+let _billingUsageRows = [];
+let _billingUsagePage = 0;
+const BILLING_PAGE_SIZE = 7;
+
+async function loadBilling() {
+  try {
+    const d = await apiFetch('/api/tenant/billing');
+
+    // ── Plan header ──────────────────────────────────
+    const plan      = d.plan || 'starter';
+    const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+    document.getElementById('billing-plan-title').textContent = `Plan: ${planLabel}`;
+
+    const mUsed  = Math.round(d.minutes_used  || 0);
+    const mLimit = d.minutes_limit || 0;
+    const pct    = mLimit ? Math.min(100, Math.round(mUsed / mLimit * 100)) : 0;
+    const barColor = pct >= 100 ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--teal)';
+    document.getElementById('billing-minutes-label').textContent =
+      mLimit ? `${pct}% of plan minutes used` : 'Unlimited / custom minutes';
+    document.getElementById('billing-minutes-bar').style.width      = pct + '%';
+    document.getElementById('billing-minutes-bar').style.background = barColor;
+    document.getElementById('billing-mins-used-lbl').textContent    = `${mUsed.toLocaleString()} min used`;
+    document.getElementById('billing-mins-limit-lbl').textContent   = mLimit ? `${mLimit.toLocaleString()} min limit` : 'No hard limit';
+
+    // ── Feature grid ─────────────────────────────────
+    const featureLabels = {
+      dynamic_variables:  'Dynamic Variables',
+      lead_tagging:       'Lead Tagging',
+      crm_webhook:        'CRM Webhook',
+      crm_2way:           'CRM 2-Way Sync',
+      smart_retry:        'Smart Retry',
+      flow_builder:       'Flow Builder',
+      multi_language:     'Multi-Language',
+      role_based_access:  'Role-Based Access',
+      campaign_analytics: 'Campaign Analytics',
+      detailed_analytics: 'Detailed Analytics',
+      custom_reporting:   'Custom Reporting',
+      api_access:         'API Access',
+      usage_alerts:       'Usage Alerts',
+      addon_minutes:      'Add-on Minutes',
+      billing_dashboard:  'Billing Dashboard',
+    };
+    const grid = document.getElementById('billing-features-grid');
+    grid.innerHTML = '';
+    const f = d.features || {};
+    Object.entries(featureLabels).forEach(([key, label]) => {
+      const val = f[key];
+      const on  = val === true || val === null;
+      const chip = document.createElement('div');
+      chip.style.cssText = `display:flex;align-items:center;gap:6px;font-size:11px;
+        padding:6px 9px;border-radius:6px;
+        background:${on ? 'rgba(0,210,150,0.07)' : 'var(--bg2)'};
+        border:1px solid ${on ? 'rgba(0,210,150,0.2)' : 'var(--border)'};
+        color:${on ? 'var(--text)' : 'var(--muted)'}`;
+      chip.innerHTML = `<span style="font-size:13px">${on ? '✓' : '✕'}</span>${label}`;
+      grid.appendChild(chip);
+    });
+
+    // ── 30-day usage table (paginated) ───────────────
+    _billingUsageRows = [...(d.usage_30d || [])].reverse(); // newest first
+    _billingUsagePage = 0;
+    renderBillingUsagePage();
+
+    // ── Load live stats panel ────────────────────────
+    loadBillingStats();
+  } catch(e) {
+    console.error('loadBilling', e);
+    toast('Failed to load billing data', 'error');
+  }
+}
+
+function renderBillingUsagePage() {
+  const rows   = _billingUsageRows;
+  const total  = rows.length;
+  const pages  = Math.ceil(total / BILLING_PAGE_SIZE) || 1;
+  const page   = Math.max(0, Math.min(_billingUsagePage, pages - 1));
+  _billingUsagePage = page;
+
+  const start  = page * BILLING_PAGE_SIZE;
+  const slice  = rows.slice(start, start + BILLING_PAGE_SIZE);
+
+  const tbody  = document.getElementById('billing-usage-tbody');
+  const pgBar  = document.getElementById('billing-usage-pagination');
+  const pgLbl  = document.getElementById('billing-pg-label');
+  const countEl= document.getElementById('billing-usage-count');
+
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">No usage data yet</td></tr>';
+    pgBar.style.display = 'none';
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = slice.map(r => `
+    <tr>
+      <td style="font-family:var(--mono);font-size:12px">${r.date}</td>
+      <td>${r.calls_made || 0}</td>
+      <td>${(r.minutes_used || 0).toFixed(1)}</td>
+      <td style="color:${(r.api_errors||0)>0?'var(--red)':'inherit'}">${r.api_errors || 0}</td>
+    </tr>`).join('');
+
+  if (countEl) countEl.textContent = `${total} day${total !== 1 ? 's' : ''}`;
+
+  if (pages > 1) {
+    pgBar.style.display = 'flex';
+    pgLbl.textContent   = `Page ${page + 1} of ${pages}`;
+    document.getElementById('billing-pg-prev').disabled = page === 0;
+    document.getElementById('billing-pg-next').disabled = page >= pages - 1;
+  } else {
+    pgBar.style.display = 'none';
+  }
+}
+
+function billingUsagePage(delta) {
+  _billingUsagePage += delta;
+  renderBillingUsagePage();
+}
+
+async function loadBillingStats() {
+  const body = document.getElementById('billing-stats-body');
+  if (!body) return;
+  body.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px">Loading…</div>`;
+  try {
+    const d = await apiFetch('/api/tenant/usage');
+    function bar(pct, warn=80, danger=95) {
+      const color = pct >= danger ? 'var(--red)' : pct >= warn ? 'var(--amber)' : 'var(--teal)';
+      return `<div style="background:var(--bg3);border-radius:4px;height:7px;width:100%;margin-top:6px">
+        <div style="height:7px;border-radius:4px;background:${color};width:${Math.min(100,pct||0)}%;transition:width .4s"></div></div>`;
+    }
+    const planLabel = (d.plan||'starter').charAt(0).toUpperCase() + (d.plan||'starter').slice(1);
+    const minLimit  = d.minutes_limit || 0;
+    const minUsed   = d.minutes_used_total || 0;
+    const minPct    = d.minutes_pct || 0;
+    const minLeft   = d.minutes_left;
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Today</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${(d.minutes_today||0).toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_today||0} calls today</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">This Month</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${(d.minutes_this_month||0).toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_this_month||0} calls this month</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">All Time</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${minUsed.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_used_total||0} calls total</div>
+        </div>
+      </div>
+      ${minLimit > 0 ? `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;font-weight:600">Quota — <span style="color:var(--teal)">${planLabel}</span></span>
+          <span style="font-size:12px;font-family:var(--mono);color:${minPct>=95?'var(--red)':minPct>=80?'var(--amber)':'var(--muted)'}">${minUsed.toFixed(1)} / ${minLimit} min (${minPct}%)</span>
+        </div>
+        ${bar(minPct)}
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)">
+          <span>${minLeft !== null && minLeft !== undefined ? minLeft.toFixed(1) + ' minutes remaining' : ''}</span>
+          <span>${d.calls_limit > 0 ? (d.calls_used_total||0) + ' / ' + d.calls_limit + ' calls' : ''}</span>
+        </div>
+        ${minPct >= 90 ? `<div style="margin-top:8px;padding:7px 10px;background:rgba(255,69,96,0.08);border-radius:5px;font-size:11px;color:var(--red)">⚠️ ${minPct}% used — contact support to upgrade before calls are blocked.</div>` : ''}
+      </div>` : `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-size:12px;color:var(--muted)">
+        📦 Plan: <strong>${planLabel}</strong> &nbsp;·&nbsp; ${d.calls_used_total||0} / ${d.calls_limit||'—'} calls used
+        ${d.calls_limit > 0 ? bar(Math.round((d.calls_used_total||0)/(d.calls_limit||1)*100)) : ''}
+      </div>`}`;
+  } catch(err) {
+    if (body) body.innerHTML = `<div style="font-size:12px;color:var(--red)">Could not load usage data</div>`;
+  }
+}
+
+function exportBillingCSV() {
+  if (!_billingUsageRows.length) return;
+  const header = 'Date,Calls Made,Minutes Used,API Errors';
+  const lines  = _billingUsageRows.map(r =>
+    `${r.date},${r.calls_made||0},${(r.minutes_used||0).toFixed(2)},${r.api_errors||0}`
+  );
+  const blob = new Blob([header + '\n' + lines.join('\n')], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `usage-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+function billingContact(type) {
+  const body = type === 'upgrade'
+    ? 'Hi, I would like to upgrade my MuTech AI Caller plan. Please get in touch.'
+    : 'Hi, I would like to purchase add-on minutes. Please get in touch.';
+  const waNum = '919131603204';
+  window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(body)}`, '_blank');
+}
+
+// ════════════════════════════════════════
+// PLAN FEATURE GATING
+// ════════════════════════════════════════
+let _planFeatures = null;
+
+async function loadPlanFeatures() {
+  try {
+    _planFeatures = await apiFetch('/api/tenant/plan-features');
+    renderPlanBadge();
+    applyFeatureGates();
+  } catch(e) { console.error('plan features', e); }
+}
+
+function renderPlanBadge() {
+  const plan = _planFeatures?.plan || 'starter';
+  const colors = {
+    starter: '#1D9E75', growth: '#378ADD', pro: '#BA7517', enterprise: '#E24B4A'
+  };
+  const badge = document.getElementById('plan-badge');
+  if (badge) {
+    badge.textContent = plan.charAt(0).toUpperCase() + plan.slice(1);
+    badge.style.background = (colors[plan] || '#1D9E75') + '20';
+    badge.style.color = colors[plan] || '#1D9E75';
+  }
+}
+
+function applyFeatureGates() {
+  if (!_planFeatures) return;
+  const f    = _planFeatures.features;
+  const plan = _planFeatures.plan;
+
+  document.querySelectorAll('[data-feature]').forEach(el => {
+    const feat    = el.dataset.feature;
+    const allowed = f[feat] === true || f[feat] === null;
+    if (!allowed) {
+      el.style.position     = 'relative';
+      el.style.pointerEvents = 'none';
+      el.style.opacity      = '0.45';
+      const lock = document.createElement('div');
+      lock.style.cssText = `position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.7);
+        color:#fff;font-size:10px;padding:3px 8px;border-radius:12px;
+        pointer-events:auto;cursor:pointer;z-index:10`;
+      lock.textContent = '🔒 Upgrade';
+      lock.onclick = () => showUpgradeModal(feat, plan);
+      el.appendChild(lock);
+    }
+  });
+}
+
+function showUpgradeModal(feature, currentPlan) {
+  const labels = {
+    crm_webhook:         'CRM Integration',
+    lead_tagging:        'Lead Tagging',
+    smart_retry:         'Smart Retry',
+    flow_builder:        'Flow Builder',
+    multi_language:      'Multi-Language',
+    detailed_analytics:  'Detailed Analytics',
+    role_based_access:   'Role-Based Access',
+    campaign_analytics:  'Analytics',
+    api_access:          'API Access',
+  };
+  const upgrades = { starter: 'Growth', growth: 'Pro', pro: 'Enterprise' };
+  const nextPlan  = upgrades[currentPlan] || 'Enterprise';
+  const featLabel = labels[feature] || feature;
+  toast(`🔒 ${featLabel} is available on the ${nextPlan} plan. Contact your admin to upgrade.`, 'info');
 }
 
 
@@ -4528,7 +5144,8 @@ function switchAcctTab(name) {
     if (btn)   { btn.style.background = active ? 'var(--orange)' : 'transparent'; btn.style.color = active ? '#000' : 'var(--muted)'; }
     if (panel) panel.style.display  = active ? 'block' : 'none';
   });
-  if (name === 'faq') loadFaq();
+  if (name === 'faq')  loadFaq();
+  if (name === 'keys') loadUsageSummary();
 }
 
 // ════════════════════════════════════════
@@ -4682,6 +5299,175 @@ function showAcctAlert(msg, type = 'success') {
   setTimeout(() => el.style.display = 'none', 4000);
 }
 
+async function loadUsageSummary() {
+  const body = document.getElementById('usage-summary-body');
+  if (!body) return;
+  body.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px">Loading…</div>`;
+  try {
+    const d = await apiFetch('/api/tenant/usage');
+    function bar(pct, warn=80, danger=95) {
+      const color = pct >= danger ? 'var(--red)' : pct >= warn ? 'var(--orange)' : 'var(--teal)';
+      return `<div style="background:var(--bg3);border-radius:4px;height:7px;width:100%;margin-top:6px">
+        <div style="height:7px;border-radius:4px;background:${color};width:${Math.min(100,pct||0)}%;transition:width .4s"></div></div>`;
+    }
+    const planLabel = (d.plan||'starter').charAt(0).toUpperCase() + (d.plan||'starter').slice(1);
+    const minLimit  = d.minutes_limit || 0;
+    const minUsed   = d.minutes_used_total || 0;
+    const minPct    = d.minutes_pct || 0;
+    const minLeft   = d.minutes_left;
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Today</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${d.minutes_today.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_today} calls today</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">This Month</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${d.minutes_this_month.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_this_month} calls this month</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Total Used</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--mono)">${minUsed.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> min</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${d.calls_used_total} calls total</div>
+        </div>
+      </div>
+      ${minLimit > 0 ? `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;font-weight:600">📦 Plan: <span style="color:var(--teal)">${planLabel}</span></span>
+          <span style="font-size:12px;font-family:var(--mono);color:${minPct>=95?'var(--red)':minPct>=80?'var(--orange)':'var(--muted)'}">${minUsed.toFixed(1)} / ${minLimit} minutes (${minPct}%)</span>
+        </div>
+        ${bar(minPct)}
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)">
+          <span>${minLeft !== null ? minLeft.toFixed(1) + ' minutes remaining' : ''}</span>
+          <span>${d.calls_limit > 0 ? d.calls_used_total + ' / ' + d.calls_limit + ' calls used' : ''}</span>
+        </div>
+        ${minPct >= 90 ? `<div style="margin-top:8px;padding:6px 8px;background:rgba(255,69,96,0.08);border-radius:4px;font-size:11px;color:var(--red)">⚠️ You have used ${minPct}% of your plan. Contact support to upgrade.</div>` : ''}
+      </div>` : `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-size:12px;color:var(--muted)">
+        📦 Plan: <strong>${planLabel}</strong> &nbsp;·&nbsp; ${d.calls_used_total} / ${d.calls_limit||'—'} calls used
+        ${d.calls_limit > 0 ? bar(Math.round(d.calls_used_total/(d.calls_limit||1)*100)) : ''}
+        <div style="margin-top:6px;font-size:11px">Minutes limit not set — contact your administrator.</div>
+      </div>`}`;
+  } catch(err) {
+    if (body) body.innerHTML = `<div style="font-size:12px;color:var(--red)">Could not load usage data</div>`;
+  }
+}
+
+async function loadServiceQuotas() {
+  // Kept for backwards-compat but no longer shown in tenant dashboard
+  const body = document.getElementById('quota-body');
+  if (!body) return;
+  try {
+    const d = await apiFetch('/api/tenant/service-quotas');
+    const g = d.groq || {};
+    const e = d.elevenlabs || {};
+    const s = d.sarvam || {};
+
+    function statusIcon(st) {
+      return st === 'ok' || st === 'key_valid_scoped' ? '🟢'
+           : st === 'not_configured' ? '⚪'
+           : st === 'exhausted' || st === 'invalid_key' || st === 'quota_exceeded' ? '🔴'
+           : st === 'warning' ? '🟡' : '🟡';
+    }
+    function bar(pct, status, h=5) {
+      const color = status === 'exhausted' ? 'var(--red)' : status === 'warning' ? 'var(--orange)' : 'var(--teal)';
+      return `<div style="background:var(--bg3);border-radius:3px;height:${h}px;width:100%;margin-top:5px">
+        <div style="height:${h}px;border-radius:3px;background:${color};width:${Math.min(100,pct||0)}%;transition:width .4s"></div></div>`;
+    }
+    function row(label, val) {
+      return `<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px">
+        <span style="color:var(--muted)">${label}</span>
+        <span style="font-family:var(--mono)">${val}</span></div>`;
+    }
+    function card(icon, title, statusStr, content) {
+      const ic = statusIcon(statusStr);
+      const borderColor = statusStr === 'exhausted' || statusStr === 'invalid_key' ? 'rgba(255,69,96,0.3)'
+                        : statusStr === 'warning' ? 'rgba(255,176,32,0.3)'
+                        : statusStr === 'ok' || statusStr === 'key_valid_scoped' ? 'rgba(0,210,150,0.25)'
+                        : 'var(--border)';
+      return `<div style="background:var(--bg2);border:1px solid ${borderColor};border-radius:var(--r);padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600">${icon} ${title}</span>
+          <span style="font-size:11px;font-family:var(--mono)">${ic} ${statusStr}</span>
+        </div>${content}</div>`;
+    }
+
+    // ── GROQ ──
+    const groqContent = (() => {
+      if (g.key_status === 'not_configured') return `<div style="font-size:11px;color:var(--muted)">API key not configured</div>`;
+      if (g.key_status === 'invalid_key')    return `<div style="font-size:11px;color:var(--red)">⚠️ Invalid API key</div>`;
+      const tpdColor = g.status === 'exhausted' ? 'var(--red)' : g.status === 'warning' ? 'var(--orange)' : 'var(--teal)';
+      return `
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Daily Tokens (TPD)</div>
+        <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:${tpdColor}">${(g.tpd_used||0).toLocaleString()}<span style="font-size:12px;color:var(--muted)"> / ${((g.tpd_limit||100000)/1000).toFixed(0)}K</span></div>
+        ${bar(g.tpd_pct, g.status)}
+        ${row('Remaining today', `${(g.tpd_left||0).toLocaleString()} tokens`)}
+        ${row('LLM calls today', g.llm_calls_today||0)}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Per-Minute Rate (TPM)</div>
+          ${g.tpm_limit ? `
+            ${row('TPM limit', `${(g.tpm_limit||0).toLocaleString()} tokens/min`)}
+            ${row('TPM remaining', `${(g.tpm_remaining||0).toLocaleString()} tokens`)}
+            ${bar(g.tpm_limit ? Math.round((g.tpm_limit - (g.tpm_remaining||0)) / g.tpm_limit * 100) : 0, 'ok')}
+            ${row('RPM limit', `${g.rpm_limit||0} req/min`)}
+            ${row('RPM remaining', `${g.rpm_remaining||0} req`)}
+          ` : `<div style="font-size:10px;color:var(--muted)">Live TPM not available</div>`}
+        </div>
+        ${g.status === 'exhausted' ? `<div style="margin-top:8px;padding:6px 8px;background:rgba(255,69,96,0.1);border-radius:4px;font-size:10px;color:var(--red);font-weight:600">⚠️ Daily limit hit — agent won't respond. Resets at midnight UTC (5:30 AM IST)</div>` : ''}
+        <div style="margin-top:6px;font-size:10px;color:var(--muted2)">${g.note||''}</div>`;
+    })();
+
+    // ── ELEVENLABS ──
+    const labsContent = (() => {
+      if (e.status === 'not_configured') return `<div style="font-size:11px;color:var(--muted)">API key not configured</div>`;
+      if (e.status === 'invalid_key')    return `<div style="font-size:11px;color:var(--red)">⚠️ Invalid API key</div>`;
+      if (e.status === 'unreachable')    return `<div style="font-size:11px;color:var(--amber)">⚠️ API unreachable</div>`;
+      const hasAccountData = e.status === 'ok' && e.chars_limit_account;
+      return `
+        ${hasAccountData ? `
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Account Balance</div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--mono)">${(e.chars_used_account||0).toLocaleString()}<span style="font-size:12px;color:var(--muted)"> / ${(e.chars_limit_account||0).toLocaleString()}</span></div>
+          ${bar(e.pct_used, e.pct_used >= 90 ? 'exhausted' : e.pct_used >= 70 ? 'warning' : 'ok')}
+          ${row('Chars remaining', `${(e.chars_left||0).toLocaleString()}`)}
+          ${e.plan ? row('Plan', e.plan) : ''}
+        ` : `
+          <div style="font-size:11px;color:var(--amber);margin-bottom:6px">⚠️ Scoped TTS key — account balance not accessible</div>
+          <div style="font-size:10px;color:var(--muted)">Grant <code>user_read</code> permission on your ElevenLabs key to see balance.</div>
+        `}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Today's Usage (internally tracked)</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono)">${(e.chars_today||0).toLocaleString()} <span style="font-size:11px;color:var(--muted)">chars synthesised</span></div>
+        </div>
+        ${e.status === 'quota_exceeded' ? `<div style="margin-top:8px;padding:6px 8px;background:rgba(255,69,96,0.1);border-radius:4px;font-size:10px;color:var(--red);font-weight:600">⚠️ Quota exceeded — add credits on ElevenLabs</div>` : ''}`;
+    })();
+
+    // ── SARVAM ──
+    const sarvamContent = (() => {
+      if (s.status === 'not_configured') return `<div style="font-size:11px;color:var(--muted)">API key not configured</div>`;
+      if (s.status === 'invalid_key')    return `<div style="font-size:11px;color:var(--red)">⚠️ Invalid API key</div>`;
+      return `
+        <div style="font-size:11px;color:var(--teal);margin-bottom:8px">✓ Key valid</div>
+        ${row('Calls made today', s.calls_today||0)}
+        <div style="margin-top:8px;padding:6px 8px;background:rgba(255,140,0,0.06);border-radius:4px;font-size:10px;color:var(--muted)">
+          ℹ️ Sarvam AI does not provide quota or usage data via API. Monitor usage on your Sarvam dashboard.
+        </div>`;
+    })();
+
+    body.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      ${card('🧠', 'Groq LLM', g.status || g.key_status || 'not_configured', groqContent)}
+      ${card('🎙', 'ElevenLabs TTS', e.status || 'not_configured', labsContent)}
+      ${card('🔊', 'Sarvam STT/TTS', s.status || 'not_configured', sarvamContent)}
+    </div>`;
+
+  } catch(err) {
+    if (body) body.innerHTML = `<div style="font-size:12px;color:var(--red)">Could not load quota data: ${err.message}</div>`;
+  }
+}
+
 async function loadAccountSettings() {
   try {
     const res = await fetch('/api/tenant/profile', { headers: { 'Authorization': `Bearer ${authToken}` } });
@@ -4715,10 +5501,12 @@ async function loadAccountSettings() {
     setKeyBadge('ac-gemini-badge',    d.gemini_set);
 
     // Speech
-    selectSpeechProvider(d.speech_provider || 'sarvam');
+    selectStt(d.stt_provider || 'sarvam');
+    selectTts(d.tts_provider || 'elevenlabs');
     setKeyBadge('ac-sarvam-badge',      d.sarvam_set);
     setKeyBadge('ac-elevenlabs-badge',  d.elevenlabs_set);
     document.getElementById('ac-elevenlabs-voice').value = d.elevenlabs_voice_id || '';
+    if (d.elevenlabs_model) document.getElementById('ac-elevenlabs-model').value = d.elevenlabs_model;
 
     // Telephony
     document.getElementById('ac-piopiy-id').value     = d.piopiy_agent_id || '';
@@ -4754,19 +5542,41 @@ function onLlmProviderChange() {
   if (target) target.style.display = 'block';
 }
 
-function selectSpeechProvider(prov) {
-  document.getElementById('ac-speech-provider').value = prov;
-  const isSarvam = prov === 'sarvam';
-  // Panel visibility
-  document.getElementById('sp-panel-sarvam').style.display      = isSarvam ? 'block' : 'none';
-  document.getElementById('sp-panel-elevenlabs').style.display  = isSarvam ? 'none'  : 'block';
-  // Card highlight
-  const sCard = document.getElementById('sp-card-sarvam');
-  const eCard = document.getElementById('sp-card-elevenlabs');
-  sCard.style.borderColor = isSarvam ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-  sCard.style.background  = isSarvam ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
-  eCard.style.borderColor = !isSarvam ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-  eCard.style.background  = !isSarvam ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
+function selectStt(prov) {
+  document.getElementById('ac-stt-provider').value = prov;
+  ['sarvam','elevenlabs'].forEach(p => {
+    const card  = document.getElementById('stt-card-' + p);
+    const badge = document.getElementById('stt-badge-' + p);
+    const active = p === prov;
+    card.style.borderColor = active ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
+    card.style.background  = active ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
+    badge.style.display    = active ? 'inline' : 'none';
+  });
+  _updatePipelineLabel();
+}
+
+function selectTts(prov) {
+  document.getElementById('ac-tts-provider').value = prov;
+  ['sarvam','elevenlabs'].forEach(p => {
+    const card  = document.getElementById('tts-card-' + p);
+    const badge = document.getElementById('tts-badge-' + p);
+    const active = p === prov;
+    card.style.borderColor = active ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
+    card.style.background  = active ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
+    badge.style.display    = active ? 'inline' : 'none';
+  });
+  document.getElementById('tts-elevenlabs-config').style.display = prov === 'elevenlabs' ? 'block' : 'none';
+  document.getElementById('tts-sarvam-config').style.display     = prov === 'sarvam'     ? 'block' : 'none';
+  _updatePipelineLabel();
+}
+
+function _updatePipelineLabel() {
+  const stt = document.getElementById('ac-stt-provider').value;
+  const tts = document.getElementById('ac-tts-provider').value;
+  const sttLabel = stt === 'sarvam' ? 'Sarvam STT' : 'ElevenLabs STT';
+  const ttsLabel = tts === 'elevenlabs' ? 'ElevenLabs TTS' : 'Sarvam TTS';
+  document.getElementById('pipeline-label').textContent =
+    `${sttLabel}  →  Groq LLM  →  ${ttsLabel}`;
 }
 
 async function saveAcctProfile() {
@@ -4829,7 +5639,8 @@ async function saveAcctKeys() {
     // LLM — always send provider + model selections
     llm_provider: document.getElementById('ac-llm-provider').value,
     llm_model:    document.getElementById('ac-llm-model').value.trim(),
-    speech_provider: document.getElementById('ac-speech-provider').value,
+    stt_provider: document.getElementById('ac-stt-provider').value,
+    tts_provider: document.getElementById('ac-tts-provider').value,
     // PIOPIY Telephony
     piopiy_agent_id:    document.getElementById('ac-piopiy-id').value.trim(),
     piopiy_number:      document.getElementById('ac-piopiy-num').value.trim(),
@@ -4859,9 +5670,10 @@ async function saveAcctKeys() {
     if (v) body[field] = v;
   });
 
-  // ElevenLabs voice ID (non-secret)
+  // ElevenLabs voice ID + model (non-secret)
   const evid = document.getElementById('ac-elevenlabs-voice').value.trim();
   if (evid) body.elevenlabs_voice_id = evid;
+  body.elevenlabs_model = document.getElementById('ac-elevenlabs-model').value;
 
   try {
     const res = await fetch('/api/tenant/api-keys', {
@@ -4870,10 +5682,316 @@ async function saveAcctKeys() {
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) { showAcctAlert('✅ Settings saved successfully.'); loadAccountSettings(); }
+    if (res.ok) {
+      const sttLabel = body.stt_provider === 'elevenlabs' ? 'ElevenLabs STT' : 'Sarvam STT';
+      const ttsLabel = body.tts_provider === 'elevenlabs' ? 'ElevenLabs TTS' : 'Sarvam TTS';
+      showAcctAlert(`✅ Settings saved. Pipeline: ${sttLabel} → ${ttsLabel}`);
+      loadAccountSettings();
+    }
     else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
   } catch (err) {
     showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
+  }
+}
+
+// ════════════════════════════════════════
+// CAMPAIGN EDIT STATE
+// ════════════════════════════════════════
+let _editCampId     = null;
+let _editCampStatus = null;
+let _manageOffset   = 0;
+const MANAGE_LIMIT  = 20;
+
+// ════════════════════════════════════════
+// OPEN EDIT MODAL
+// ════════════════════════════════════════
+async function openEditCampaign(campId) {
+  _editCampId   = campId;
+  _manageOffset = 0;
+
+  // Load campaign data
+  try {
+    const c = await apiFetch(`/api/campaigns/${campId}`);
+    _editCampStatus = c.status;
+
+    document.getElementById('edit-camp-subtitle').textContent =
+      `${c.name} · ${c.status} · ${c.leads_count || 0} contacts`;
+    document.getElementById('edit-camp-name').value        = c.name || '';
+    document.getElementById('edit-camp-description').value = c.description || '';
+    document.getElementById('edit-camp-delay').value       = c.schedule_delay || 60;
+
+    // Stats
+    document.getElementById('ec-stat-total').textContent  = c.leads_count || 0;
+    document.getElementById('ec-stat-called').textContent = c.calls_made  || 0;
+    document.getElementById('ec-stat-new').textContent    =
+      Math.max(0, (c.leads_count || 0) - (c.calls_made || 0));
+    document.getElementById('ec-stat-demos').textContent  = c.demos_booked || 0;
+
+    // Disable remove buttons if running
+    const isRunning = c.status === 'running';
+    document.querySelectorAll('#edit-tab-manage .btn-danger, #edit-tab-manage [style*="red"]')
+      .forEach(btn => { btn.disabled = isRunning; });
+
+  } catch(e) {
+    toast('Could not load campaign: ' + e.message, 'error');
+    return;
+  }
+
+  switchEditTab('info');
+  openModal('modal-edit-campaign');
+}
+
+// ════════════════════════════════════════
+// TAB SWITCHING
+// ════════════════════════════════════════
+function switchEditTab(tab) {
+  ['info', 'add', 'manage'].forEach(t => {
+    document.getElementById(`edit-tab-${t}`).style.display     = t === tab ? '' : 'none';
+    const btn = document.getElementById(`edit-tab-btn-${t}`);
+    if (btn) {
+      btn.style.color        = t === tab ? 'var(--teal)' : 'var(--muted)';
+      btn.style.borderBottom = t === tab ? '2px solid var(--teal)' : '2px solid transparent';
+      btn.style.fontWeight   = t === tab ? '600' : '500';
+    }
+  });
+
+  if (tab === 'manage') loadCampaignLeads();
+}
+
+function switchAddMethod(method) {
+  document.getElementById('add-method-group').style.display = method === 'group' ? '' : 'none';
+  document.getElementById('add-method-file').style.display  = method === 'file'  ? '' : 'none';
+  const gb = document.getElementById('add-method-group-btn');
+  const fb = document.getElementById('add-method-file-btn');
+  gb.style.background = method === 'group' ? 'var(--teal)' : 'var(--card-bg)';
+  gb.style.color      = method === 'group' ? '#fff'        : 'var(--muted)';
+  fb.style.background = method === 'file'  ? 'var(--teal)' : 'var(--card-bg)';
+  fb.style.color      = method === 'file'  ? '#fff'        : 'var(--muted)';
+  document.getElementById('add-leads-result').style.display = 'none';
+}
+
+// ════════════════════════════════════════
+// TAB 1: SAVE BASIC INFO
+// ════════════════════════════════════════
+async function saveEditCampaignInfo() {
+  const name  = document.getElementById('edit-camp-name').value.trim();
+  const desc  = document.getElementById('edit-camp-description').value.trim();
+  const delay = parseInt(document.getElementById('edit-camp-delay').value) || 60;
+
+  if (!name) { toast('Campaign name is required', 'error'); return; }
+  if (delay < 10) { toast('Delay must be at least 10 seconds', 'error'); return; }
+
+  try {
+    await apiFetch(`/api/campaigns/${_editCampId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description: desc, delay_seconds: delay }),
+    });
+    document.getElementById('edit-camp-subtitle').textContent =
+      `${name} · ${_editCampStatus} · updated`;
+    toast(`Campaign "${name}" updated ✓`, 'success');
+    loadCampaigns(); // refresh the campaigns list
+  } catch(e) {
+    toast('Update failed: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════
+// TAB 2: ADD LEAD GROUP
+// ════════════════════════════════════════
+async function addLeadGroupToCampaign() {
+  const group = document.getElementById('edit-lead-group').value;
+  const result = document.getElementById('add-leads-result');
+
+  try {
+    const res = await apiFetch(`/api/campaigns/${_editCampId}/add-leads`, {
+      method: 'POST',
+      body: JSON.stringify({ lead_group: group }),
+    });
+
+    result.style.display    = '';
+    result.style.background = 'rgba(0,210,150,0.1)';
+    result.style.border     = '1px solid rgba(0,210,150,0.3)';
+    result.style.color      = 'var(--teal)';
+    result.textContent      = `✓ ${res.added} contacts added. Campaign now has ${res.total_leads} total.`;
+
+    // Update stats
+    document.getElementById('ec-stat-total').textContent = res.total_leads;
+    document.getElementById('ec-stat-new').textContent   =
+      Math.max(0, res.total_leads - parseInt(document.getElementById('ec-stat-called').textContent || 0));
+
+    toast(`${res.added} contacts added to campaign ✓`, 'success');
+    loadCampaigns();
+  } catch(e) {
+    result.style.display    = '';
+    result.style.background = 'rgba(239,68,68,0.1)';
+    result.style.border     = '1px solid rgba(239,68,68,0.3)';
+    result.style.color      = 'var(--red,#ef4444)';
+    result.textContent      = `✗ Failed: ${e.message}`;
+  }
+}
+
+// ════════════════════════════════════════
+// TAB 2: UPLOAD FILE
+// ════════════════════════════════════════
+async function uploadFileToCampaign(e) {
+  const file   = e.target.files[0];
+  if (!file) return;
+  const result = document.getElementById('add-leads-result');
+  result.style.display = '';
+  result.style.background = 'var(--surface2,#f9fafb)';
+  result.style.color = 'var(--muted)';
+  result.textContent = '⏳ Uploading…';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(
+      `${typeof API !== 'undefined' ? API : ''}/api/campaigns/${_editCampId}/upload-leads`,
+      {
+        method:  'POST',
+        headers: { 'Authorization': 'Bearer ' + authToken },
+        body:    formData,
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+    result.style.background = 'rgba(0,210,150,0.1)';
+    result.style.border     = '1px solid rgba(0,210,150,0.3)';
+    result.style.color      = 'var(--teal)';
+    result.textContent      =
+      `✓ ${data.imported} contacts imported${data.skipped ? `, ${data.skipped} skipped (duplicates)` : ''}. Campaign now has ${data.total_leads} total.`;
+
+    document.getElementById('ec-stat-total').textContent = data.total_leads;
+    e.target.value = '';
+    toast(`${data.imported} contacts added ✓`, 'success');
+    loadCampaigns();
+  } catch(err) {
+    result.style.background = 'rgba(239,68,68,0.1)';
+    result.style.border     = '1px solid rgba(239,68,68,0.3)';
+    result.style.color      = 'var(--red,#ef4444)';
+    result.textContent      = `✗ ${err.message}`;
+    e.target.value = '';
+  }
+}
+
+// ════════════════════════════════════════
+// TAB 3: LOAD CAMPAIGN LEADS TABLE
+// ════════════════════════════════════════
+async function loadCampaignLeads() {
+  const status = document.getElementById('manage-status-filter').value;
+  const tbody  = document.getElementById('edit-camp-leads-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);">Loading…</td></tr>';
+
+  try {
+    const res = await apiFetch(
+      `/api/campaigns/${_editCampId}/leads?limit=${MANAGE_LIMIT}&offset=${_manageOffset}` +
+      (status ? `&status=${status}` : '')
+    );
+
+    const leads   = res.leads || [];
+    const total   = res.total || 0;
+    const isRunning = _editCampStatus === 'running';
+
+    // Update info
+    const start = _manageOffset + 1;
+    const end   = Math.min(_manageOffset + MANAGE_LIMIT, total);
+    document.getElementById('manage-leads-info').textContent =
+      total === 0 ? 'No contacts found' : `Showing ${start}–${end} of ${total}`;
+    document.getElementById('manage-prev').disabled = _manageOffset === 0;
+    document.getElementById('manage-next').disabled = end >= total;
+
+    if (leads.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="padding:30px;text-align:center;color:var(--muted);">
+        No contacts found with selected filter.</td></tr>`;
+      return;
+    }
+
+    const statusColors = {
+      new:            'var(--teal)',
+      called:         'var(--muted)',
+      interested:     '#f59e0b',
+      demo_booked:    '#10b981',
+      not_interested: '#ef4444',
+      unknown:        'var(--muted)',
+    };
+
+    tbody.innerHTML = leads.map(l => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 12px;color:var(--text);font-weight:500;">${l.name || '—'}</td>
+        <td style="padding:10px 12px;color:var(--muted);font-family:var(--mono);font-size:11px;">${l.phone || '—'}</td>
+        <td style="padding:10px 12px;color:var(--muted);">${l.company || '—'}</td>
+        <td style="padding:10px 12px;text-align:center;">
+          <span style="font-size:10px;font-weight:600;color:${statusColors[l.status] || 'var(--muted)'};">
+            ${(l.status || 'unknown').toUpperCase()}
+          </span>
+        </td>
+        <td style="padding:10px 12px;text-align:center;">
+          ${!isRunning && l.status !== 'demo_booked' ? `
+          <button onclick="removeLeadFromCampaign(${l.id}, '${(l.name||'').replace(/'/g,'')}')"
+            style="padding:3px 10px;border:1px solid #ef4444;border-radius:4px;background:none;
+              color:#ef4444;font-size:11px;cursor:pointer;">✕ Remove</button>` :
+          `<span style="font-size:10px;color:var(--muted);">${isRunning ? 'Running' : 'Protected'}</span>`}
+        </td>
+      </tr>`
+    ).join('');
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--red,#ef4444);">
+      Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function managePage(dir) {
+  _manageOffset = Math.max(0, _manageOffset + (dir * MANAGE_LIMIT));
+  loadCampaignLeads();
+}
+
+// ════════════════════════════════════════
+// TAB 3: REMOVE SINGLE LEAD
+// ════════════════════════════════════════
+async function removeLeadFromCampaign(leadId, leadName) {
+  if (!confirm(`Remove "${leadName}" from this campaign?\n\nThe contact will NOT be deleted — it becomes unassigned.`)) return;
+
+  try {
+    const res = await apiFetch(`/api/campaigns/${_editCampId}/leads/${leadId}`, {
+      method: 'DELETE',
+    });
+    toast(`"${leadName}" removed from campaign ✓`, 'success');
+    document.getElementById('ec-stat-total').textContent = res.total_leads;
+    loadCampaignLeads();
+    loadCampaigns();
+  } catch(e) {
+    toast('Remove failed: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════
+// TAB 3: BULK REMOVE
+// ════════════════════════════════════════
+async function bulkRemoveLeads(status) {
+  const label = {
+    new:            'pending (new)',
+    not_interested: 'not interested',
+    called:         'called',
+  }[status] || status;
+
+  if (!confirm(`Remove all "${label}" contacts from this campaign?\n\nThey will NOT be deleted — they become unassigned.`)) return;
+
+  try {
+    const res = await apiFetch(`/api/campaigns/${_editCampId}/leads`, {
+      method: 'DELETE',
+      body: JSON.stringify({ status }),
+    });
+    toast(`${res.removed} "${label}" contacts removed ✓`, 'success');
+    document.getElementById('ec-stat-total').textContent = res.total_leads;
+    document.getElementById('ec-stat-new').textContent   =
+      status === 'new' ? 0 : document.getElementById('ec-stat-new').textContent;
+    loadCampaignLeads();
+    loadCampaigns();
+  } catch(e) {
+    toast('Bulk remove failed: ' + e.message, 'error');
   }
 }
 
@@ -4930,5 +6048,177 @@ function previewAcctPrompt() {
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-edit-campaign">
+  <div class="modal" style="width:700px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+
+    <!-- Header -->
+    <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:var(--text);">✏️ Edit Campaign</div>
+        <div id="edit-camp-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+      </div>
+      <button onclick="closeModal('modal-edit-campaign')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;border-bottom:1px solid var(--border);padding:0 24px;">
+      <button id="edit-tab-btn-info"
+        style="padding:12px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--teal);border-bottom:2px solid var(--teal);"
+        onclick="switchEditTab('info')">📋 Basic Info</button>
+      <button id="edit-tab-btn-add"
+        style="padding:12px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;"
+        onclick="switchEditTab('add')">➕ Add Contacts</button>
+      <button id="edit-tab-btn-manage"
+        style="padding:12px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;"
+        onclick="switchEditTab('manage')">👥 Manage Contacts</button>
+    </div>
+
+    <!-- TAB 1: Basic Info -->
+    <div id="edit-tab-info" style="padding:24px;">
+      <div style="display:grid;gap:16px;">
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Campaign Name *</label>
+          <input id="edit-camp-name" type="text"
+            style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--card-bg);color:var(--text);"
+            placeholder="e.g. Q2 Industrial IoT Campaign"/>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Description / Notes</label>
+          <textarea id="edit-camp-description"
+            style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--card-bg);color:var(--text);height:80px;resize:vertical;"
+            placeholder="Optional notes about this campaign…"></textarea>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Delay Between Calls (seconds)</label>
+          <input id="edit-camp-delay" type="number" min="10" max="600" value="60"
+            style="width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--card-bg);color:var(--text);"/>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Minimum 10 seconds. Applied from the next call onwards.</div>
+        </div>
+
+        <!-- Campaign stats summary -->
+        <div id="edit-camp-stats"
+          style="background:var(--surface2,#f9fafb);border:1px solid var(--border);border-radius:8px;padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center;">
+          <div><div id="ec-stat-total" style="font-size:20px;font-weight:700;color:var(--text);">—</div><div style="font-size:10px;color:var(--muted);">Total</div></div>
+          <div><div id="ec-stat-called" style="font-size:20px;font-weight:700;color:var(--teal);">—</div><div style="font-size:10px;color:var(--muted);">Called</div></div>
+          <div><div id="ec-stat-new" style="font-size:20px;font-weight:700;color:var(--amber,#f59e0b);">—</div><div style="font-size:10px;color:var(--muted);">Pending</div></div>
+          <div><div id="ec-stat-demos" style="font-size:20px;font-weight:700;color:var(--green,#10b981);">—</div><div style="font-size:10px;color:var(--muted);">Demos</div></div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="saveEditCampaignInfo()">💾 Save Changes</button>
+          <button class="btn btn-outline" onclick="closeModal('modal-edit-campaign')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Add Contacts -->
+    <div id="edit-tab-add" style="padding:24px;display:none;">
+      <div style="display:grid;gap:20px;">
+
+        <!-- Method selector -->
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;">
+          <button id="add-method-group-btn"
+            style="padding:8px 18px;font-size:12px;border:none;cursor:pointer;background:var(--teal);color:#fff;font-weight:600;"
+            onclick="switchAddMethod('group')">📊 Lead Group</button>
+          <button id="add-method-file-btn"
+            style="padding:8px 18px;font-size:12px;border:none;cursor:pointer;background:var(--card-bg);color:var(--muted);"
+            onclick="switchAddMethod('file')">📁 Upload File</button>
+        </div>
+
+        <!-- Method A: Lead Group -->
+        <div id="add-method-group">
+          <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:8px;">Select Lead Group to Add</label>
+          <select id="edit-lead-group"
+            style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--card-bg);color:var(--text);">
+            <option value="new">New leads (never called)</option>
+            <option value="unassigned">Unassigned leads</option>
+            <option value="called">Previously called leads</option>
+            <option value="interested">Interested leads</option>
+            <option value="not_interested">Not interested (retry)</option>
+            <option value="all">All leads</option>
+          </select>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Only leads not assigned to an active campaign will be added.</div>
+          <button class="btn btn-primary" style="margin-top:16px;" onclick="addLeadGroupToCampaign()">➕ Add to Campaign</button>
+        </div>
+
+        <!-- Method B: File upload -->
+        <div id="add-method-file" style="display:none;">
+          <div class="upload-zone" onclick="document.getElementById('edit-camp-file').click()"
+            style="border:2px dashed var(--border);border-radius:8px;padding:30px;text-align:center;cursor:pointer;">
+            <div style="font-size:28px;margin-bottom:8px;">📁</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Drop CSV or Excel file here</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Only <strong>name</strong> and <strong>phone</strong> are required</div>
+            <input type="file" id="edit-camp-file" accept=".csv,.xlsx,.xls"
+              style="display:none;" onchange="uploadFileToCampaign(event)"/>
+          </div>
+        </div>
+
+        <!-- Result message -->
+        <div id="add-leads-result" style="display:none;padding:12px;border-radius:6px;font-size:13px;"></div>
+
+      </div>
+    </div>
+
+    <!-- TAB 3: Manage Contacts -->
+    <div id="edit-tab-manage" style="padding:24px;display:none;">
+
+      <!-- Filter + bulk actions -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <select id="manage-status-filter"
+          style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card-bg);color:var(--text);"
+          onchange="loadCampaignLeads()">
+          <option value="">All contacts</option>
+          <option value="new">Pending (new)</option>
+          <option value="called">Called</option>
+          <option value="interested">Interested</option>
+          <option value="demo_booked">Demo Booked</option>
+          <option value="not_interested">Not Interested</option>
+        </select>
+
+        <button class="btn btn-outline btn-sm" onclick="loadCampaignLeads()">🔄 Refresh</button>
+
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);"
+            onclick="bulkRemoveLeads('new')">Remove Pending</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);"
+            onclick="bulkRemoveLeads('not_interested')">Remove Not Interested</button>
+        </div>
+      </div>
+
+      <!-- Leads table -->
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:var(--surface2,#f9fafb);border-bottom:1px solid var(--border);">
+              <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;">Name</th>
+              <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;">Phone</th>
+              <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;">Company</th>
+              <th style="padding:10px 12px;text-align:center;color:var(--muted);font-weight:600;">Status</th>
+              <th style="padding:10px 12px;text-align:center;color:var(--muted);font-weight:600;">Remove</th>
+            </tr>
+          </thead>
+          <tbody id="edit-camp-leads-tbody">
+            <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--muted);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+        <span id="manage-leads-info" style="font-size:11px;color:var(--muted);"></span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" id="manage-prev" onclick="managePage(-1)">← Prev</button>
+          <button class="btn btn-outline btn-sm" id="manage-next" onclick="managePage(+1)">Next →</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>

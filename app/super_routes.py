@@ -68,13 +68,14 @@ class CreateTenantRequest(BaseModel):
 
 
 class UpdateTenantRequest(BaseModel):
-    name:          Optional[str] = None
-    plan:          Optional[str] = None
-    status:        Optional[str] = None
-    calls_limit:   Optional[int] = None
-    contact_name:  Optional[str] = None
-    contact_email: Optional[str] = None
-    contact_phone: Optional[str] = None
+    name:             Optional[str] = None
+    plan:             Optional[str] = None
+    status:           Optional[str] = None
+    calls_limit:      Optional[int] = None
+    groq_daily_limit: Optional[int] = None
+    contact_name:     Optional[str] = None
+    contact_email:    Optional[str] = None
+    contact_phone:    Optional[str] = None
 
 
 class UpdateTenantStatusRequest(BaseModel):
@@ -127,6 +128,25 @@ async def super_dashboard(auth=Depends(verify_super_token)):
     stats   = tdb.get_platform_stats()
     tenants = tdb.get_all_usage_today()
     return {"stats": stats, "tenants": tenants}
+
+
+@router.get("/api/token-usage")
+async def super_token_usage(auth=Depends(verify_super_token)):
+    """Per-tenant LLM token usage today — for quota monitoring."""
+    rows = tdb.get_all_tenants_token_usage_today()
+    GROQ_FREE_LIMIT = 100_000
+    result = []
+    for r in rows:
+        used = r["tokens_today"]
+        pct  = round(used / GROQ_FREE_LIMIT * 100, 1) if used else 0
+        result.append({
+            **r,
+            "groq_limit":   GROQ_FREE_LIMIT,
+            "groq_pct":     pct,
+            "groq_status":  "exhausted" if used >= GROQ_FREE_LIMIT
+                            else ("warning" if pct >= 80 else "ok"),
+        })
+    return {"date": "today", "tenants": result}
 
 
 # ─────────────────────────────────────────
@@ -360,3 +380,93 @@ async def debug_tenant(tenant_id: int, auth=Depends(verify_super_token)):
     }
 
     return {"tenant_id": tenant_id, "debug": results}
+
+
+# ─────────────────────────────────────────
+# COMPREHENSIVE QUOTA & USAGE (per tenant, today)
+# ─────────────────────────────────────────
+
+class UpdateQuotaRequest(BaseModel):
+    calls_limit:      Optional[int]   = None
+    minutes_limit:    Optional[float] = None
+    groq_daily_limit: Optional[int]   = None
+
+
+@router.get("/api/quotas")
+async def get_all_quotas(auth=Depends(verify_super_token)):
+    """All tenants with full service usage today + quota config."""
+    import httpx, asyncio
+
+    rows = tdb.get_all_usage_today()
+
+    # Live key-validity checks per tenant (parallel)
+    async def _check_key(key_type: str, key: str) -> str:
+        if not key:
+            return "not_configured"
+        try:
+            async with httpx.AsyncClient(timeout=4) as c:
+                if key_type == "groq":
+                    r = await c.get("https://api.groq.com/openai/v1/models",
+                                    headers={"Authorization": f"Bearer {key}"})
+                elif key_type == "elevenlabs":
+                    r = await c.get("https://api.elevenlabs.io/v1/models",
+                                    headers={"xi-api-key": key})
+                elif key_type == "sarvam":
+                    r = await c.get("https://api.sarvam.ai/v1/models",
+                                    headers={"api-subscription-key": key})
+                else:
+                    return "unknown"
+            return "ok" if r.status_code == 200 else ("invalid_key" if r.status_code in (401,403) else f"error_{r.status_code}")
+        except Exception:
+            return "unreachable"
+
+    # Fetch configs for all tenants and check keys in parallel
+    all_configs = {r["id"]: (tdb.get_tenant_config(r["id"]) or {}) for r in rows}
+    checks = []
+    for r in rows:
+        cfg = all_configs[r["id"]]
+        checks.append(_check_key("groq",        cfg.get("groq_api_key",       "")))
+        checks.append(_check_key("elevenlabs",  cfg.get("elevenlabs_api_key", "")))
+        checks.append(_check_key("sarvam",      cfg.get("sarvam_api_key",     "")))
+
+    statuses = await asyncio.gather(*checks, return_exceptions=True)
+
+    result = []
+    for i, r in enumerate(rows):
+        groq_key_ok   = statuses[i*3]   if not isinstance(statuses[i*3],   Exception) else "unreachable"
+        labs_key_ok   = statuses[i*3+1] if not isinstance(statuses[i*3+1], Exception) else "unreachable"
+        sarvam_key_ok = statuses[i*3+2] if not isinstance(statuses[i*3+2], Exception) else "unreachable"
+
+        groq_limit = r.get("groq_daily_limit") or 100_000
+        groq_used  = r.get("groq_tokens_today", 0)
+        groq_pct   = round(groq_used / groq_limit * 100, 1) if groq_limit else 0
+        calls_pct  = round(r.get("calls_used", 0) / r["calls_limit"] * 100, 1) if r["calls_limit"] else 0
+
+        result.append({
+            **r,
+            "groq_daily_limit": groq_limit,
+            "groq_pct":         groq_pct,
+            "groq_status":      "exhausted" if groq_used >= groq_limit
+                                else ("warning" if groq_pct >= 80 else groq_key_ok),
+            "groq_key_status":  groq_key_ok,
+            "labs_key_status":  labs_key_ok,
+            "sarvam_key_status": sarvam_key_ok,
+            "calls_pct":        calls_pct,
+            "calls_status":     "exhausted" if calls_pct >= 100
+                                else ("warning" if calls_pct >= 80 else "ok"),
+        })
+    return {"date": "today", "tenants": result}
+
+
+@router.put("/api/tenants/{tenant_id}/quota")
+async def update_quota(tenant_id: int, req: UpdateQuotaRequest,
+                       auth=Depends(verify_super_token)):
+    """Update calls_limit and/or groq_daily_limit for a tenant."""
+    tenant = tdb.get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    tdb.update_tenant(tenant_id, **updates)
+    return {"message": "Quota updated", "updates": updates}

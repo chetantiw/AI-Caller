@@ -51,10 +51,25 @@ class _ContextCommittingGroqLLM(GroqLLMService):
     shared LLMContext — fixing both the transcript and multi-turn conversation memory.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, tenant_id: int = 1, **kwargs):
         super().__init__(**kwargs)
+        self._tenant_id = tenant_id
         self._llm_context = None
         self._response_buf: list = []
+
+    async def start_llm_usage_metrics(self, tokens):
+        await super().start_llm_usage_metrics(tokens)
+        try:
+            from app import tenant_db as _tdb
+            _tdb.log_llm_tokens(
+                tenant_id         = self._tenant_id,
+                provider          = "groq",
+                model             = self._model or "llama-3.3-70b-versatile",
+                prompt_tokens     = tokens.prompt_tokens or 0,
+                completion_tokens = tokens.completion_tokens or 0,
+            )
+        except Exception:
+            pass
 
     async def process_frame(self, frame, direction):
         if isinstance(frame, LLMContextFrame):
@@ -75,6 +90,22 @@ class _ContextCommittingGroqLLM(GroqLLMService):
             self._response_buf = []
         await super().push_frame(frame, direction)
 
+class _TrackingElevenLabsTTS(ElevenLabsTTSService):
+    """ElevenLabsTTSService that logs character usage to tenant_db."""
+
+    def __init__(self, tenant_id: int = 1, **kwargs):
+        super().__init__(**kwargs)
+        self._tenant_id = tenant_id
+
+    async def start_tts_usage_metrics(self, text: str):
+        await super().start_tts_usage_metrics(text)
+        try:
+            from app import tenant_db as _tdb
+            _tdb.log_tts_chars(self._tenant_id, "elevenlabs", len(text or ""))
+        except Exception:
+            pass
+
+
 # Valid Sarvam AI TTS speaker IDs (bulbul:v2)
 _VALID_SARVAM_VOICES = {
     "anushka", "abhilash", "manisha", "vidya", "arya", "karun", "hitesh",
@@ -91,66 +122,102 @@ def _safe_voice(v: str) -> str:
     return v if v and v.lower() in _VALID_SARVAM_VOICES else _DEFAULT_VOICE
 
 
-def _build_stt_tts(tenant_config: dict):
+_ELEVENLABS_DEFAULT_VOICE = "TX3LPaxmHKxFdv7VOQHJ"  # Liam — clear, neutral
+
+
+async def _validate_elevenlabs_voice(api_key: str, voice_id: str) -> str:
+    """Check voice_id exists in the account; return default if not."""
+    if not voice_id or not api_key:
+        return voice_id
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+                headers={"xi-api-key": api_key},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as r:
+                if r.status == 200:
+                    return voice_id
+                logger.warning(
+                    f"[TTS] ElevenLabs voice_id={voice_id!r} returned {r.status} — "
+                    f"falling back to default voice {_ELEVENLABS_DEFAULT_VOICE}"
+                )
+                return _ELEVENLABS_DEFAULT_VOICE
+    except Exception as e:
+        logger.warning(f"[TTS] Could not validate ElevenLabs voice_id: {e} — keeping configured ID")
+        return voice_id
+
+
+def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     """
-    Return the correct (stt, tts) service pair based on tenant's speech_provider.
+    Builds STT + TTS independently based on stt_provider / tts_provider.
 
-    Sarvam AI  → SarvamSTTService  + SarvamTTSService   (default)
-    ElevenLabs → SarvamSTTService  + ElevenLabsTTSService  (hybrid: Sarvam STT for fast
-                 Hindi recognition, ElevenLabs TTS for better voice quality)
-    Falls back to Sarvam fully if ElevenLabs is selected but api_key is missing.
+    STT options:  'sarvam' (default, best for Hindi) | 'elevenlabs'
+    TTS options:  'elevenlabs' (default, best quality) | 'sarvam'
+
+    Each side falls back gracefully if the required API key is missing.
     """
-    provider   = (tenant_config.get("speech_provider") or "sarvam").lower()
-    sarvam_key = tenant_config.get("sarvam_api_key")      or ""
-    labs_key   = tenant_config.get("elevenlabs_api_key")  or ""
-    labs_voice = (tenant_config.get("elevenlabs_voice_id") or "").strip()
+    sarvam_key   = (tenant_config.get("sarvam_api_key")      or "").strip()
+    labs_key     = (tenant_config.get("elevenlabs_api_key")   or "").strip()
+    labs_voice   = (tenant_config.get("elevenlabs_voice_id")  or "").strip()
+    call_lang    = (tenant_config.get("call_language")        or "hi").lower()
+    stt_prov     = (tenant_config.get("stt_provider")         or "sarvam").lower()
+    tts_prov     = (tenant_config.get("tts_provider")         or "elevenlabs").lower()
+    sarvam_voice = _safe_voice(tenant_config.get("agent_voice") or "")
 
-    if provider == "elevenlabs":
-        if not labs_key:
-            logger.warning("ElevenLabs selected but api_key not set — falling back to Sarvam")
-        else:
-            if not labs_voice:
-                # Default to ElevenLabs "Jessica" voice (widely available on free tier)
-                labs_voice = "cgSgspJ2msm6clMCkdW9"
-                logger.warning(f"elevenlabs_voice_id not set — using default voice {labs_voice}")
+    stt_lang = Language.HI_IN if "hi" in call_lang else Language.EN_IN
 
-            # Hybrid: Sarvam STT (fast Hindi recognition, low latency) +
-            #         ElevenLabs TTS (better voice quality for Hindi output)
-            stt = SarvamSTTService(
-                api_key=sarvam_key,
-                model="saarika:v2.5",
-                params=SarvamSTTService.InputParams(language=Language.HI_IN, vad_signals=True),
-            )
-            tts = ElevenLabsTTSService(
-                api_key=labs_key,
-                voice_id=labs_voice,
-                model="eleven_flash_v2_5",   # fastest model — lower latency for real-time
-                params=ElevenLabsTTSService.InputParams(
-                    language=Language.HI,
-                    stability=0.5,            # balanced stability
-                    similarity_boost=0.75,    # closer to original voice tone
-                    style=0.0,                # less style exaggeration — more natural
-                    use_speaker_boost=True,   # enhance voice clarity
-                    speed=1.1,                # slightly faster delivery
-                ),
-            )
-            logger.info(f"[Speech] Hybrid (Sarvam STT + ElevenLabs TTS) | voice_id={labs_voice}")
-            return stt, tts
+    # ── STT ──────────────────────────────────────────────────────
+    if stt_prov == "elevenlabs" and labs_key:
+        stt = ElevenLabsRealtimeSTTService(api_key=labs_key)
+        stt_label = "ElevenLabs STT"
+    else:
+        if stt_prov == "elevenlabs" and not labs_key:
+            logger.warning("[STT] ElevenLabs selected but no api_key — falling back to Sarvam")
+        stt = SarvamSTTService(
+            api_key=sarvam_key,
+            model="saarika:v2.5",
+            params=SarvamSTTService.InputParams(
+                language=stt_lang,
+                vad_signals=True,
+                high_vad_sensitivity=True,
+            ),
+        )
+        stt_label = f"Sarvam STT ({stt_lang})"
 
-    # ── Sarvam AI (default) ───────────────────────────────────────
-    voice = _safe_voice(tenant_config.get("agent_voice") or "")
-    stt = SarvamSTTService(
-        api_key=sarvam_key,
-        model="saarika:v2.5",
-        params=SarvamSTTService.InputParams(language=Language.HI_IN, vad_signals=True),
-    )
-    tts = SarvamTTSService(
-        api_key=sarvam_key,
-        model="bulbul:v2",
-        voice_id=voice,
-        params=SarvamTTSService.InputParams(language=Language.HI, pace=1.1),
-    )
-    logger.info(f"[Speech] Sarvam AI | voice={voice}")
+    # ── TTS ──────────────────────────────────────────────────────
+    if tts_prov == "elevenlabs" and labs_key:
+        if not labs_voice:
+            labs_voice = _ELEVENLABS_DEFAULT_VOICE
+            logger.info("[TTS] elevenlabs_voice_id not set — using default voice")
+        tts = _TrackingElevenLabsTTS(
+            tenant_id=tenant_id or 1,
+            api_key=labs_key,
+            voice_id=labs_voice,
+            model="eleven_flash_v2_5",
+            params=ElevenLabsTTSService.InputParams(
+                language=Language.HI,
+                stability=0.45,
+                similarity_boost=0.80,
+                style=0.20,
+                use_speaker_boost=True,
+                speed=0.95,
+            ),
+        )
+        tts_label = f"ElevenLabs TTS (voice={labs_voice[:8]}…)"
+    else:
+        if tts_prov == "elevenlabs" and not labs_key:
+            logger.warning("[TTS] ElevenLabs selected but no api_key — falling back to Sarvam")
+        tts = SarvamTTSService(
+            api_key=sarvam_key,
+            model="bulbul:v2",
+            voice_id=sarvam_voice,
+            params=SarvamTTSService.InputParams(language=Language.HI, pace=0.92),
+        )
+        tts_label = f"Sarvam TTS (voice={sarvam_voice})"
+
+    logger.info(f"[Speech Pipeline] {stt_label}  →  {tts_label}")
     return stt, tts
 
 # ── Logging ────────────────────────────────────────────────────
@@ -190,6 +257,7 @@ async def _post_call(
     voice_agent,
     tg_token: str,
     tg_chat: str,
+    greeting: str = "",
 ) -> None:
     """Analyze conversation, persist results, notify, log usage."""
     if call_db_id is None:
@@ -200,7 +268,13 @@ async def _post_call(
 
         from app.exotel_pipeline import analyze_call
 
-        conversation = voice_agent._messages if hasattr(voice_agent, "_messages") else []
+        conversation = list(voice_agent._messages) if hasattr(voice_agent, "_messages") else []
+
+        # Prepend greeting as first assistant message if not already present
+        if greeting:
+            first_assistant = next((m for m in conversation if m.get("role") == "assistant"), None)
+            if not first_assistant or first_assistant.get("content", "").strip() != greeting.strip():
+                conversation = [{"role": "assistant", "content": greeting}] + conversation
 
         # Reload agent_name from DB for accurate transcript labelling
         cfg = tdb.get_tenant_config(tenant_id) or {}
@@ -249,7 +323,10 @@ async def _post_call(
         await schedule_call_follow_up(call_db_id)
 
         if lead_id_db:
-            db.update_lead(lead_id_db, status=analysis.get("lead_status", "called"))
+            if outcome == "no_answer":
+                db.set_lead_retry(lead_id_db, retry_count_floor=1, gap_minutes=30)
+            else:
+                db.update_lead(lead_id_db, status=analysis.get("lead_status", "called"))
 
         db.add_log(
             f"✅ [T{tenant_id}] Call done — {customer_phone} | "
@@ -258,6 +335,26 @@ async def _post_call(
         logger.info(f"[Tenant {tenant_id}] DB updated: call_db_id={call_db_id} | {analysis}")
 
         tdb.log_usage(tenant_id, minutes=round(duration_sec / 60, 2))
+
+        # CRM webhook — fire-and-forget
+        # ── Fire webhook (non-blocking) ──────────────────
+        try:
+            from app.webhook_service import fire_call_webhook as _fire_call_webhook
+            asyncio.create_task(_fire_call_webhook(tenant_id, {
+                "call_id":      call_db_id,
+                "phone":        customer_phone,
+                "lead_name":    customer_name,
+                "company":      company,
+                "duration_sec": duration_sec,
+                "outcome":      outcome,
+                "sentiment":    sentiment,
+                "summary":      summary,
+                "transcript":   transcript_text,
+                "campaign_id":  lead_obj.get("campaign_id") if lead_obj else None,
+                "lead_id":      lead_id_db,
+            }))
+        except Exception:
+            pass  # never block call completion for webhook errors
 
         if outcome == "answered":
             lead_label = customer_name or customer_phone
@@ -277,6 +374,40 @@ async def _post_call(
 
     except Exception as e:
         logger.error(f"[Tenant {tenant_id}] Post-call error: {e}")
+
+
+def _apply_dynamic_vars(text: str, lead_obj: dict | None,
+                        customer_name: str = "",
+                        agent_name: str = "",
+                        company_name: str = "") -> str:
+    """Replace {lead_name}, {company}, {city}, {designation} (and legacy {name}/{agent})
+    with actual lead values. Safe — undefined placeholders are left unchanged.
+    """
+    if not text:
+        return text
+    lead = lead_obj or {}
+    replacements = {
+        "{lead_name}":   customer_name or lead.get("name", ""),
+        "{name}":        customer_name or lead.get("name", ""),
+        "{company}":     lead.get("company", "") or company_name,
+        "{city}":        lead.get("city", ""),
+        "{designation}": lead.get("designation", ""),
+        "{agent}":       agent_name,
+    }
+    for placeholder, value in replacements.items():
+        text = text.replace(placeholder, value or "")
+    return text
+
+
+async def _fire_webhook(webhook_url: str, payload: dict):
+    """POST call result to tenant webhook URL. Fire-and-forget — never blocks."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.post(webhook_url, json=payload)
+            logger.info(f"[Webhook] POST {webhook_url} → {r.status_code}")
+    except Exception as e:
+        logger.warning(f"[Webhook] POST {webhook_url} failed: {e}")
 
 
 def make_create_session(tenant_id: int, initial_config: dict):
@@ -369,6 +500,15 @@ def make_create_session(tenant_id: int, initial_config: dict):
             customer_name = lead_obj.get("name", "")
         company = lead_obj.get("company", "") if lead_obj else ""
 
+        # Dynamic variable substitution in system_prompt (plan-gated)
+        _tenant_plan = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
+        from app.plan_features import check_feature as _cf_dv
+        if _cf_dv(_tenant_plan, "dynamic_variables")["allowed"]:
+            _company_name_dv = tenant_config.get("company_name", "")
+            system_prompt = _apply_dynamic_vars(
+                system_prompt, lead_obj, customer_name, agent_name, _company_name_dv
+            )
+
         # ── DB: create call record ────────────────────────────
         call_start = time.time()
         call_db_id = db.create_call(
@@ -409,17 +549,40 @@ def make_create_session(tenant_id: int, initial_config: dict):
             logger.warning(f"Active-call register failed for call {call_db_id}: {_e}")
 
         # ── Greeting ──────────────────────────────────────────
-        company_name = tenant_config.get("company_name", "")
+        company_name  = tenant_config.get("company_name", "")
         greeting_tmpl = tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
-            greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+            _tenant_plan_g = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
+            from app.plan_features import check_feature as _cf_g
+            if _cf_g(_tenant_plan_g, "dynamic_variables")["allowed"]:
+                greeting = _apply_dynamic_vars(
+                    greeting_tmpl, lead_obj, customer_name, agent_name, company_name
+                )
+            else:
+                greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+        elif is_inbound:
+            co = f"आपकी {company_name} में " if company_name else ""
+            greeting = f"नमस्ते! {co}स्वागत है। बताइए, मैं आपकी कैसे सहायता कर सकती हूँ?"
         else:
-            # Very short welcome message — let system prompt drive natural conversation
             greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}!"
 
+        # Normalize greeting: collapse newlines/extra spaces so TTS speaks it fully
+        import re as _re
+        greeting = _re.sub(r'\s*\n\s*', ' ', greeting).strip()
+
         # ── Services ──────────────────────────────────────────
-        stt, tts = _build_stt_tts(tenant_config)
+        # Validate ElevenLabs voice ID; fall back to default if voice was deleted
+        _labs_key_v = (tenant_config.get("elevenlabs_api_key") or "").strip()
+        _labs_voice_v = (tenant_config.get("elevenlabs_voice_id") or "").strip()
+        if _labs_key_v and _labs_voice_v:
+            _validated_voice = await _validate_elevenlabs_voice(_labs_key_v, _labs_voice_v)
+            if _validated_voice != _labs_voice_v:
+                tenant_config = dict(tenant_config)
+                tenant_config["elevenlabs_voice_id"] = _validated_voice
+
+        stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
         llm = _ContextCommittingGroqLLM(
+            tenant_id=tenant_id,
             api_key=groq_key,
             model="llama-3.3-70b-versatile",
         )
@@ -433,7 +596,13 @@ def make_create_session(tenant_id: int, initial_config: dict):
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad=True, allow_interruptions=True,
+                vad={
+                    "confidence": 0.5,   # lower = catches softer/partial speech
+                    "start_secs": 0.1,   # agent stops within 100ms of client speaking
+                    "stop_secs":  0.4,   # 400ms silence before handing turn back to agent
+                    "min_volume": 0.35,  # pick up quieter interruptions
+                },
+                allow_interruptions=True,
             )
             await voice_agent.start()
         except asyncio.CancelledError:
@@ -448,6 +617,7 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 customer_name, customer_phone, company,
                 lead_id_db, voice_agent,
                 tg_token, tg_chat,
+                greeting=greeting,
             )
             try:
                 import httpx
@@ -557,6 +727,15 @@ def make_platform_create_session():
             customer_name = lead_obj.get("name", "")
         company = lead_obj.get("company", "") if lead_obj else ""
 
+        # Dynamic variable substitution in system_prompt (plan-gated)
+        _tenant_plan = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
+        from app.plan_features import check_feature as _cf_dv
+        if _cf_dv(_tenant_plan, "dynamic_variables")["allowed"]:
+            _company_name_dv = tenant_config.get("company_name", "")
+            system_prompt = _apply_dynamic_vars(
+                system_prompt, lead_obj, customer_name, agent_name, _company_name_dv
+            )
+
         # ── DB: create call record ────────────────────────────
         call_start = time.time()
         call_db_id = db.create_call(
@@ -597,17 +776,40 @@ def make_platform_create_session():
             logger.warning(f"Active-call register failed: {_e}")
 
         # ── Greeting ──────────────────────────────────────────
-        company_name = tenant_config.get("company_name", "")
+        company_name  = tenant_config.get("company_name", "")
         greeting_tmpl = tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
-            greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+            _tenant_plan_g = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
+            from app.plan_features import check_feature as _cf_g
+            if _cf_g(_tenant_plan_g, "dynamic_variables")["allowed"]:
+                greeting = _apply_dynamic_vars(
+                    greeting_tmpl, lead_obj, customer_name, agent_name, company_name
+                )
+            else:
+                greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+        elif is_inbound:
+            co = f"आपकी {company_name} में " if company_name else ""
+            greeting = f"नमस्ते! {co}स्वागत है। बताइए, मैं आपकी कैसे सहायता कर सकती हूँ?"
         else:
-            # Very short welcome message — let system prompt drive natural conversation
             greeting = f"नमस्ते{' ' + customer_name + ' जी' if customer_name else ''}!"
 
+        # Normalize greeting: collapse newlines/extra spaces so TTS speaks it fully
+        import re as _re
+        greeting = _re.sub(r'\s*\n\s*', ' ', greeting).strip()
+
         # ── Services ──────────────────────────────────────────
-        stt, tts = _build_stt_tts(tenant_config)
+        # Validate ElevenLabs voice ID; fall back to default if voice was deleted
+        _labs_key_v = (tenant_config.get("elevenlabs_api_key") or "").strip()
+        _labs_voice_v = (tenant_config.get("elevenlabs_voice_id") or "").strip()
+        if _labs_key_v and _labs_voice_v:
+            _validated_voice = await _validate_elevenlabs_voice(_labs_key_v, _labs_voice_v)
+            if _validated_voice != _labs_voice_v:
+                tenant_config = dict(tenant_config)
+                tenant_config["elevenlabs_voice_id"] = _validated_voice
+
+        stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
         llm = _ContextCommittingGroqLLM(
+            tenant_id=tenant_id,
             api_key=groq_key,
             model="llama-3.3-70b-versatile",
         )
@@ -621,7 +823,13 @@ def make_platform_create_session():
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad=True, allow_interruptions=True,
+                vad={
+                    "confidence": 0.5,   # lower = catches softer/partial speech
+                    "start_secs": 0.1,   # agent stops within 100ms of client speaking
+                    "stop_secs":  0.4,   # 400ms silence before handing turn back to agent
+                    "min_volume": 0.35,  # pick up quieter interruptions
+                },
+                allow_interruptions=True,
             )
             await voice_agent.start()
         except asyncio.CancelledError:
@@ -636,6 +844,7 @@ def make_platform_create_session():
                 customer_name, customer_phone, company,
                 lead_id_db, voice_agent,
                 tg_token, tg_chat,
+                greeting=greeting,
             )
             try:
                 import httpx

@@ -220,6 +220,9 @@ tr:last-child td { border-bottom: none; }
       <div class="nav-item" onclick="showPage('tenants')" id="nav-tenants">
         <span class="icon">🏢</span> Tenants
       </div>
+      <div class="nav-item" onclick="showPage('quotas')" id="nav-quotas">
+        <span class="icon">📊</span> Usage & Quotas
+      </div>
     </div>
     <div class="nav-section">
       <div class="nav-label">Tools</div>
@@ -274,16 +277,16 @@ tr:last-child td { border-bottom: none; }
             <div class="card-title"><span class="dot"></span> Tenant Usage Today</div>
             <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">↻ Refresh</button>
           </div>
-          <div class="card-body">
-            <div class="table-wrap">
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap" style="max-height:360px;overflow-y:auto">
               <table>
-                <thead><tr>
+                <thead style="position:sticky;top:0;background:var(--card);z-index:2"><tr>
                   <th>Tenant</th><th>Plan</th><th>Status</th>
                   <th>Calls Today</th><th>Min Today</th><th>Errors</th>
-                  <th>Usage</th><th>Actions</th>
+                  <th>LLM Tokens Today</th><th>Calls Quota</th><th>Actions</th>
                 </tr></thead>
                 <tbody id="tenant-usage-body">
-                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Loading...</td></tr>
+                  <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Loading...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -318,6 +321,72 @@ tr:last-child td { border-bottom: none; }
         </div>
       </div>
  
+      <!-- USAGE & QUOTAS PAGE -->
+      <div class="page" id="page-quotas">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:13px;color:var(--muted)">Today's service usage across all tenants. Click <strong>Edit Quota</strong> to update limits.</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadQuotas()">↻ Refresh</button>
+        </div>
+
+        <!-- Summary stats -->
+        <div id="quota-summary-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px"></div>
+
+        <!-- Full usage table -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="dot"></span> Per-Tenant Service Usage — Today</div>
+            <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">STT · TTS · LLM · Calls</span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap" style="overflow-x:auto">
+              <table style="min-width:1200px">
+                <thead><tr>
+                  <th>Tenant</th>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>STT Provider</th>
+                  <th>TTS Provider</th>
+                  <th style="min-width:120px">🔊 Sarvam Key</th>
+                  <th style="min-width:120px">🎙 ElevenLabs Key</th>
+                  <th style="min-width:160px">ElevenLabs Chars Today</th>
+                  <th style="min-width:160px">🧠 Groq Tokens Today</th>
+                  <th style="min-width:80px">🧠 Key</th>
+                  <th>LLM Calls</th>
+                  <th style="min-width:160px">Minutes (Total)</th>
+                  <th style="min-width:160px">Calls Quota (Total)</th>
+                  <th>Calls Today</th>
+                  <th>Actions</th>
+                </tr></thead>
+                <tbody id="quota-table-body">
+                  <tr><td colspan="15" style="text-align:center;color:var(--muted);padding:40px">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Groq Token detail (collapsible) -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-header" style="cursor:pointer" onclick="toggleSection('groq-detail-body')">
+            <div class="card-title"><span class="dot"></span> Groq LLM Token Breakdown — Today</div>
+            <span style="font-size:11px;color:var(--muted)">prompt vs completion</span>
+          </div>
+          <div id="groq-detail-body" class="card-body" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Tenant</th><th>Total Tokens</th><th>Prompt</th><th>Completion</th>
+                  <th>LLM Calls</th><th>Quota</th><th>% Used</th><th>Status</th>
+                </tr></thead>
+                <tbody id="groq-detail-tbody">
+                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- DEBUG PAGE -->
       <div class="page" id="page-debug">
         <div class="card">
@@ -345,6 +414,41 @@ tr:last-child td { border-bottom: none; }
   </div>
 </div>
  
+<!-- EDIT QUOTA MODAL -->
+<div class="modal-overlay" id="modal-edit-quota">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      <h3>Edit Quota — <span id="eq-tenant-name" style="color:var(--orange)">Tenant</span></h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-quota')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eq-id"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Minutes Limit <span style="font-size:10px;color:var(--muted)">(plan allocation)</span></label>
+          <input type="number" id="eq-minutes-limit" min="0" placeholder="500" step="1"/>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Total minutes client has purchased</div>
+        </div>
+        <div class="form-group">
+          <label>Calls Limit <span style="font-size:10px;color:var(--muted)">(total period)</span></label>
+          <input type="number" id="eq-calls-limit" min="0" placeholder="1000"/>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Total call count allowance</div>
+        </div>
+        <div class="form-group">
+          <label>Groq Daily Token Limit</label>
+          <input type="number" id="eq-groq-limit" min="0" placeholder="100000"/>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Free tier = 100,000 · Paid key = higher</div>
+        </div>
+      </div>
+      <div id="eq-current-usage" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px;margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--muted)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-quota')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuota()">Save Quota</button>
+    </div>
+  </div>
+</div>
+
 <!-- CREATE TENANT MODAL -->
 <div class="modal-overlay" id="modal-create-tenant">
   <div class="modal">
@@ -544,13 +648,18 @@ function showPage(name) {
   const titles = {
     dashboard: ['Platform Dashboard', 'Super Admin → Overview'],
     tenants:   ['Tenant Management', 'Super Admin → Tenants'],
+    quotas:    ['Usage & Quotas', 'Super Admin → Usage & Quotas'],
     debug:     ['Debug Console', 'Super Admin → Debug'],
   };
+  if (name === 'quotas') loadQuotas();
   document.getElementById('page-title').textContent = titles[name][0];
   document.getElementById('page-breadcrumb').textContent = titles[name][1];
 }
  
-function refreshPage() { loadDashboard(); loadTenants(); }
+function refreshPage() {
+  loadDashboard(); loadTenants();
+  if (document.getElementById('page-quotas')?.classList.contains('active')) loadQuotas();
+}
  
 // ── DASHBOARD ─────────────────────────────────────────────────
 async function loadDashboard() {
@@ -576,6 +685,9 @@ async function loadDashboard() {
     tbody.innerHTML = data.tenants.map(t => {
       const pct = t.calls_limit > 0 ? Math.min(100, Math.round(t.calls_used / t.calls_limit * 100)) : 0;
       const fillClass = pct > 90 ? 'danger' : pct > 70 ? '' : 'ok';
+      const tokToday = t._tokens_today || 0;
+      const tokPct   = Math.min(100, Math.round(tokToday / 100000 * 100));
+      const tokColor = tokPct >= 100 ? 'var(--red)' : tokPct >= 80 ? 'var(--orange)' : 'var(--muted)';
       return `<tr>
         <td><strong>${t.name}</strong></td>
         <td><span class="badge ${t.plan}">${t.plan}</span></td>
@@ -583,6 +695,7 @@ async function loadDashboard() {
         <td style="font-family:var(--mono)">${t.calls_today}</td>
         <td style="font-family:var(--mono)">${(+t.minutes_today).toFixed(1)}m</td>
         <td style="font-family:var(--mono);color:${t.errors_today>0?'var(--red)':'var(--muted)'}">${t.errors_today}</td>
+        <td style="font-family:var(--mono);color:${tokColor}">${tokToday > 0 ? tokToday.toLocaleString() + ' (' + tokPct + '%)' : '—'}</td>
         <td style="min-width:100px">
           <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:4px">${t.calls_used}/${t.calls_limit} (${pct}%)</div>
           <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
@@ -592,7 +705,168 @@ async function loadDashboard() {
         </td>
       </tr>`;
     }).join('');
+
+    // nothing extra to load here now
   } catch(e) { console.error(e); }
+}
+
+// ── QUOTAS PAGE ───────────────────────────────────────────────
+let quotaData = [];
+
+function miniBar(pct, status, width=100) {
+  const color = status === 'exhausted' ? 'var(--red)' :
+                status === 'warning'   ? 'var(--orange)' : 'var(--teal)';
+  return `<div style="background:var(--bg3);border-radius:3px;height:5px;width:${width}px;display:inline-block;vertical-align:middle;margin-top:4px">
+    <div style="height:5px;border-radius:3px;background:${color};width:${Math.min(100,pct||0)}%;transition:width .4s"></div></div>`;
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+async function loadQuotas() {
+  try {
+    const res = await fetch(`${API}/quotas`, {headers: authHeaders()});
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json();
+    quotaData = data.tenants || [];
+
+    // Summary stats strip
+    const totalGroqWarning  = quotaData.filter(t => t.groq_status === 'warning').length;
+    const totalGroqExhausted = quotaData.filter(t => t.groq_status === 'exhausted').length;
+    const totalCallsWarning  = quotaData.filter(t => t.calls_status === 'warning').length;
+    const totalCallsExhausted= quotaData.filter(t => t.calls_status === 'exhausted').length;
+    document.getElementById('quota-summary-stats').innerHTML = `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;margin-bottom:8px">Groq Exhausted</div>
+        <div style="font-size:28px;font-weight:700;font-family:var(--mono);color:${totalGroqExhausted>0?'var(--red)':'var(--teal)'}">${totalGroqExhausted}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${totalGroqWarning} warning</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;margin-bottom:8px">Calls Quota Full</div>
+        <div style="font-size:28px;font-weight:700;font-family:var(--mono);color:${totalCallsExhausted>0?'var(--red)':'var(--teal)'}">${totalCallsExhausted}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${totalCallsWarning} warning</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;margin-bottom:8px">Total LLM Tokens Today</div>
+        <div style="font-size:28px;font-weight:700;font-family:var(--mono)">${quotaData.reduce((s,t)=>s+(t.groq_tokens_today||0),0).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">across ${quotaData.length} tenants</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;margin-bottom:8px">TTS Chars Today</div>
+        <div style="font-size:28px;font-weight:700;font-family:var(--mono)">${quotaData.reduce((s,t)=>s+(t.tts_chars_today||0),0).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">ElevenLabs</div>
+      </div>`;
+
+    // Main quota table
+    const tbody = document.getElementById('quota-table-body');
+    if (!quotaData.length) {
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:40px">No tenants found</td></tr>';
+    } else {
+      function keyBadge(st) {
+        if (!st || st === 'not_configured') return `<span style="font-size:10px;color:var(--muted2)">—</span>`;
+        const color = st === 'ok' ? 'var(--teal)' : st === 'invalid_key' ? 'var(--red)' : st === 'unreachable' ? 'var(--amber)' : 'var(--muted)';
+        const icon  = st === 'ok' ? '✓' : st === 'invalid_key' ? '✗' : st === 'unreachable' ? '!' : '?';
+        return `<span style="font-size:11px;font-family:var(--mono);color:${color}">${icon} ${st}</span>`;
+      }
+
+      tbody.innerHTML = quotaData.map(t => {
+        const groqColor  = t.groq_status === 'exhausted' ? 'var(--red)' : t.groq_status === 'warning' ? 'var(--orange)' : 'var(--teal)';
+        const callsColor = t.calls_status === 'exhausted' ? 'var(--red)' : t.calls_status === 'warning' ? 'var(--orange)' : 'var(--muted)';
+        const groqLimitK = ((t.groq_daily_limit||100000)/1000).toFixed(0) + 'K';
+        return `<tr>
+          <td><strong>${t.name}</strong><br><span style="font-size:10px;font-family:var(--mono);color:var(--muted)">${t.slug}</span></td>
+          <td><span class="badge ${t.plan}">${t.plan}</span></td>
+          <td><span class="badge ${t.status}">${t.status}</span></td>
+          <td style="font-size:11px;font-family:var(--mono);color:var(--muted)">${t.stt_provider||'sarvam'}</td>
+          <td style="font-size:11px;font-family:var(--mono);color:var(--muted)">${t.tts_provider||'elevenlabs'}</td>
+          <td>${keyBadge(t.sarvam_key_status)}</td>
+          <td>${keyBadge(t.labs_key_status)}</td>
+          <td style="font-family:var(--mono);font-size:12px">
+            ${t.tts_chars_today > 0 ? (t.tts_chars_today).toLocaleString() + ' chars' : '<span style="color:var(--muted2)">—</span>'}
+          </td>
+          <td style="font-family:var(--mono);font-size:12px">
+            <span style="color:${groqColor}">${(t.groq_tokens_today||0).toLocaleString()}</span>
+            <span style="color:var(--muted2);font-size:10px"> / ${groqLimitK}</span><br>
+            ${miniBar(t.groq_pct, t.groq_status, 120)}
+          </td>
+          <td>${keyBadge(t.groq_key_status)}</td>
+          <td style="font-family:var(--mono);color:var(--muted)">${t.groq_calls_today||0}</td>
+          <td>
+            ${t.minutes_limit > 0 ? `
+              <div style="font-size:11px;font-family:var(--mono)">${(t.minutes_used||0).toFixed(1)} / ${t.minutes_limit} min</div>
+              ${miniBar(t.minutes_limit ? Math.round((t.minutes_used||0)/t.minutes_limit*100) : 0, t.minutes_limit && (t.minutes_used||0)/t.minutes_limit>=1 ? 'exhausted' : (t.minutes_used||0)/t.minutes_limit>=0.8 ? 'warning' : 'ok', 120)}
+            ` : `<span style="color:var(--muted2);font-size:11px">${(t.minutes_used||0).toFixed(1)} min <span style="color:var(--muted2)">(no limit)</span></span>`}
+          </td>
+          <td>
+            <div style="font-size:11px;font-family:var(--mono);color:${callsColor}">${t.calls_used||0} / ${t.calls_limit}</div>
+            ${miniBar(t.calls_pct, t.calls_status, 120)}
+          </td>
+          <td style="font-family:var(--mono)">${t.calls_today||0}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="openEditQuota(${t.id})">✏ Quota</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Groq detail table
+    const gTbody = document.getElementById('groq-detail-tbody');
+    gTbody.innerHTML = quotaData.map(t => {
+      const pct   = t.groq_pct || 0;
+      const color = t.groq_status === 'exhausted' ? 'var(--red)' : t.groq_status === 'warning' ? 'var(--orange)' : 'var(--teal)';
+      const icon  = t.groq_status === 'exhausted' ? '🔴' : t.groq_status === 'warning' ? '🟡' : '🟢';
+      const limitK = ((t.groq_daily_limit||100000)/1000).toFixed(0) + 'K';
+      return `<tr>
+        <td><strong>${t.name}</strong></td>
+        <td style="font-family:var(--mono);color:${color}">${(t.groq_tokens_today||0).toLocaleString()}</td>
+        <td style="font-family:var(--mono);color:var(--muted)">${(t.prompt_tokens_today||0).toLocaleString()}</td>
+        <td style="font-family:var(--mono);color:var(--muted)">${(t.completion_tokens_today||0).toLocaleString()}</td>
+        <td style="font-family:var(--mono)">${t.groq_calls_today||0}</td>
+        <td style="font-family:var(--mono);color:var(--muted)">${limitK}</td>
+        <td>${pct}% ${miniBar(pct, t.groq_status, 100)}</td>
+        <td>${icon} <span style="font-size:11px;font-family:var(--mono)">${t.groq_status||'ok'}</span></td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) { console.error('loadQuotas error', e); }
+}
+
+function openEditQuota(id) {
+  const t = quotaData.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('eq-id').value           = id;
+  document.getElementById('eq-tenant-name').textContent = t.name;
+  document.getElementById('eq-minutes-limit').value = t.minutes_limit || '';
+  document.getElementById('eq-calls-limit').value   = t.calls_limit || 1000;
+  document.getElementById('eq-groq-limit').value    = t.groq_daily_limit || 100000;
+  document.getElementById('eq-current-usage').innerHTML =
+    `Minutes used: ${(t.minutes_used||0).toFixed(1)} min total ·` +
+    ` Calls used: ${t.calls_used||0} / ${t.calls_limit} ·` +
+    ` Groq today: ${(t.groq_tokens_today||0).toLocaleString()} tokens (${t.groq_pct||0}%) ·` +
+    ` TTS chars today: ${(t.tts_chars_today||0).toLocaleString()}`;
+  document.getElementById('modal-edit-quota').classList.add('open');
+}
+
+async function saveQuota() {
+  const id = document.getElementById('eq-id').value;
+  if (!id) return;
+  const minVal  = parseFloat(document.getElementById('eq-minutes-limit').value);
+  const callVal = parseInt(document.getElementById('eq-calls-limit').value);
+  const groqVal = parseInt(document.getElementById('eq-groq-limit').value);
+  const body = {};
+  if (!isNaN(minVal)  && minVal  >= 0) body.minutes_limit    = minVal;
+  if (!isNaN(callVal) && callVal >= 0) body.calls_limit      = callVal;
+  if (!isNaN(groqVal) && groqVal >= 0) body.groq_daily_limit = groqVal;
+  if (!Object.keys(body).length) { alert('Enter at least one value'); return; }
+  const res = await fetch(`${API}/tenants/${id}/quota`, {
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || 'Error saving quota'); return; }
+  closeModal('modal-edit-quota');
+  loadQuotas();
 }
  
 // ── TENANTS ───────────────────────────────────────────────────
