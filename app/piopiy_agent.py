@@ -25,6 +25,8 @@ from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
 from piopiy.turns.user_start.vad_user_turn_start_strategy import VADUserTurnStartStrategy
+from piopiy.audio.vad.silero import SileroVADAnalyzer
+from piopiy.audio.vad.vad_analyzer import VADParams
 
 # ── DB ────────────────────────────────────────────────────────
 import sys
@@ -157,11 +159,13 @@ async def create_session(
     tts = SarvamTTSService(
         api_key=os.getenv("SARVAM_API_KEY"),
         model="bulbul:v3",
-        voice_id="anushka",
+        voice_id="kavya",
         params=SarvamTTSService.InputParams(
             language=Language.HI,
             pace=0.9,
             temperature=0.4,
+            min_buffer_size=20,    # start audio sooner (default 50 chars)
+            max_chunk_length=80,   # smaller chunks = faster first audio (default 200)
         ),
     )
 
@@ -172,20 +176,22 @@ async def create_session(
         idle_timeout_secs=120,
     )
 
-    VAD_CONFIG = {
-        "stop_secs":  0.4,   # stop listening after 0.4s silence (was default ~0.8s)
-        "start_secs": 0.1,   # detect speech start faster
-        "confidence": 0.7,   # sensitivity — higher = more responsive to soft speech
-    }
+    # Pass SileroVADAnalyzer directly — avoids map_vad_params() key mismatch bug
+    # where stop_secs/start_secs dict keys were silently ignored (defaults used instead)
+    vad = SileroVADAnalyzer(params=VADParams(
+        confidence=0.7,
+        start_secs=0.1,   # detect speech start in 100ms (default 200ms)
+        stop_secs=0.3,    # end-of-turn after 300ms silence (default 800ms)
+    ))
 
     try:
         await voice_agent.Action(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad=VAD_CONFIG,
+            vad=vad,
             allow_interruptions=True,
-            interruption_strategy=VADUserTurnStartStrategy(),  # trigger on VAD, not word count
+            interruption_strategy=VADUserTurnStartStrategy(),
         )
         await voice_agent.start()
 

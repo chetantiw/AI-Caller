@@ -205,13 +205,14 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     labs_model   = (tenant_config.get("elevenlabs_model")    or "eleven_flash_v2_5").strip()
     call_lang    = (tenant_config.get("call_language")       or "hi").lower()
     _V3_VOICES = {
-        "aditya","ritu","priya","neha","rahul","pooja","rohan","simran",
-        "kavya","amit","dev","ishita","shreya","ratan","varun","manan",
-        "sumit","roopa","kabir","aayan","shubh","ashutosh","advait",
-        "amelia","sophia","anushka",
+        "aditya","ritu","ashutosh","priya","neha","rahul","pooja","rohan",
+        "simran","kavya","amit","dev","ishita","shreya","ratan","varun",
+        "manan","sumit","roopa","kabir","aayan","shubh","advait","anand",
+        "tanya","tarun","sunny","mani","gokul","vijay","shruti","suhani",
+        "mohit","kavitha","rehan","soham","rupali","niharika",
     }
-    raw_voice = (tenant_config.get("agent_voice") or "anushka").lower()
-    tts_voice = raw_voice if raw_voice in _V3_VOICES else "anushka"
+    raw_voice = (tenant_config.get("agent_voice") or "kavya").lower()
+    tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
 
     old_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
     stt_prov     = (tenant_config.get("stt_provider") or old_provider).lower()
@@ -259,7 +260,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             logger.warning(f"[TTS] ElevenLabs init failed ({e}) — falling back to Sarvam")
             tts = SarvamTTSService(
                 api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
-                params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4),
+                params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4, min_buffer_size=20, max_chunk_length=80),
             )
             tts_label = "Sarvam TTS bulbul:v3 (fallback)"
     else:
@@ -267,7 +268,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             logger.warning("[TTS] ElevenLabs selected but api_key not set — using Sarvam")
         tts = SarvamTTSService(
             api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
-            params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4),
+            params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4, min_buffer_size=20, max_chunk_length=80),
         )
         tts_label = f"Sarvam TTS (bulbul:v3, voice={tts_voice})"
 

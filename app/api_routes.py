@@ -250,18 +250,31 @@ async def get_active_calls(request: Request):
     user = get_current_user(request)
     tid  = user["tenant_id"]
 
-    # Clean up old calls (older than 2 hours) to prevent memory leaks
-    cutoff = datetime.utcnow() - timedelta(hours=2)
     to_remove = []
+    cutoff = datetime.utcnow() - timedelta(minutes=20)
+
     for call_id, call_data in _active_calls.items():
+        # 1. Stale timeout: 20 minutes (covers crash/restart where finally never ran)
         if call_data.get("registered_at"):
             try:
                 registered_at = datetime.fromisoformat(call_data["registered_at"].replace('Z', '+00:00'))
-                if registered_at < cutoff:
+                if registered_at.replace(tzinfo=None) < cutoff:
                     to_remove.append(call_id)
+                    continue
             except (ValueError, TypeError):
-                # If we can't parse the timestamp, remove it anyway
                 to_remove.append(call_id)
+                continue
+
+        # 2. DB cross-check: if the call has duration_sec set it already ended
+        try:
+            with db.get_conn() as conn:
+                row = conn.execute(
+                    "SELECT duration_sec FROM calls WHERE id=?", (call_id,)
+                ).fetchone()
+                if row and row[0] is not None:
+                    to_remove.append(call_id)
+        except Exception:
+            pass
 
     for call_id in to_remove:
         _active_calls.pop(call_id, None)
