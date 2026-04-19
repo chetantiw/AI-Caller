@@ -1282,8 +1282,8 @@ tr:hover td { background: var(--teal-dim); }
       <div class="sub">AI-Powered Calling Platform</div>
     </div>
     <div class="field-group">
-      <label>Username</label>
-      <input type="text" id="login-user" placeholder="admin" autocomplete="username"/>
+      <label>Email or Username</label>
+      <input type="text" id="login-user" placeholder="your@email.com" autocomplete="username"/>
     </div>
     <div class="field-group">
       <label>Password</label>
@@ -1358,7 +1358,7 @@ tr:hover td { background: var(--teal-dim); }
       <div class="nav-item" id="nav-billing" onclick="showPage('billing', this)">
         <span class="icon">💳</span> Billing & Usage
       </div>
-      <div class="nav-item" id="nav-flow" data-feature="flow_builder" style="position:relative" onclick="showPage('billing', this)">
+      <div class="nav-item" onclick="showPage('flowbuilder', this)" id="nav-flow">
         <span class="icon">◇</span> Flow Builder
       </div>
     </div>
@@ -1598,6 +1598,28 @@ tr:hover td { background: var(--teal-dim); }
 
       <!-- ── ANALYTICS ── -->
       <div class="page" id="page-analytics">
+        <!-- Analytics toolbar -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--muted);font-family:var(--mono)">CAMPAIGN</label>
+            <select id="analytics-campaign-filter" onchange="loadAnalytics()"
+              style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:7px 12px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
+              <option value="">All Campaigns</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--muted);font-family:var(--mono)">PERIOD</label>
+            <select id="analytics-days-filter" onchange="loadAnalytics()"
+              style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:7px 12px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
+              <option value="7">Last 7 days</option>
+              <option value="14" selected>Last 14 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadAnalytics()">↻ Refresh</button>
+          <div id="analytics-summary-pills" style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap"></div>
+        </div>
         <!-- Row 1: daily chart + funnel -->
         <div class="analytics-grid">
           <div class="card">
@@ -1635,7 +1657,35 @@ tr:hover td { background: var(--teal-dim); }
           </div>
         </div>
 
-        <!-- Row 3: call history table -->
+        <!-- Row 3: Lead outcome breakdown -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <div class="card-title"><span class="dot"></span> Lead Outcome Breakdown</div>
+            <button class="btn btn-outline btn-sm" onclick="exportAnalyticsCSV()">⬇ Export CSV</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <th style="padding:10px 14px;text-align:left;color:var(--muted);font-weight:500">Date</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Calls</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Answered</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Interested</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Demo Booked</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Not Interested</th>
+                    <th style="padding:10px 14px;text-align:right;color:var(--muted);font-weight:500">Connect Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="analytics-breakdown-table">
+                  <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 4: call history table -->
         <div class="card">
           <div class="card-header">
             <div class="card-title"><span class="dot"></span> Recent Calls</div>
@@ -2229,6 +2279,52 @@ tr:hover td { background: var(--teal-dim); }
 
         </div>
       </div><!-- /page-billing -->
+
+      <!-- ── FLOW BUILDER ── -->
+      <div class="page" id="page-flowbuilder">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:12px;color:var(--muted)">
+            Define conversation stages — Greeting → Qualify → Pitch → Close. Assign flows to campaigns.
+          </div>
+          <button class="btn btn-primary" onclick="openNewFlow()">+ New Flow</button>
+        </div>
+
+        <div id="flows-list">
+          <div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>
+        </div>
+
+        <!-- Flow editor panel -->
+        <div id="flow-editor" style="display:none;margin-top:20px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="flow-editor-title">New Flow</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-outline btn-sm" onclick="closeFlowEditor()">Cancel</button>
+                <button class="btn btn-primary btn-sm" onclick="saveFlow()">Save Flow</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <input type="hidden" id="flow-editing-id"/>
+              <div class="form-grid" style="margin-bottom:16px">
+                <div class="form-row"><label>Flow Name</label><input id="flow-name" placeholder="e.g. Standard Sales Flow"/></div>
+                <div class="form-row"><label>Description</label><input id="flow-desc" placeholder="e.g. IoT sales pitch with objection handling"/></div>
+              </div>
+
+              <!-- Stage builder -->
+              <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">
+                Conversation Stages
+                <button class="btn btn-outline btn-sm" style="margin-left:12px;font-size:10px" onclick="addStage()">+ Add Stage</button>
+              </div>
+              <div id="flow-stages"></div>
+
+              <div style="margin-top:16px;padding:12px;background:var(--bg2);border-radius:var(--r2);font-size:11px;color:var(--muted)">
+                💡 Each stage defines what the agent says, listens for keywords, and decides the next stage.
+                The agent uses these stages to guide the conversation instead of open-ended LLM chat.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-flowbuilder -->
 
     </div><!-- /content -->
   </main>
@@ -3490,37 +3586,121 @@ function endCall(callId) {
 // ANALYTICS — BIG CHART
 // ════════════════════════════════════════
 async function loadAnalytics() {
-  renderBigChart();
+  const days       = document.getElementById('analytics-days-filter')?.value || 14;
+  const campaignId = document.getElementById('analytics-campaign-filter')?.value || '';
+
+  // Populate campaign dropdown if empty
+  const sel = document.getElementById('analytics-campaign-filter');
+  if (sel && sel.options.length === 1) {
+    try {
+      const cr = await apiFetch('/api/campaigns');
+      (cr.campaigns || []).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch(e) {}
+  }
+
+  const campParam = campaignId ? `&campaign_id=${campaignId}` : '';
+
+  // Load daily chart + breakdown
+  try {
+    const res = await apiFetch(`/api/analytics/daily?days=${days}${campParam}`);
+    renderBigChart(res.daily || res.data || []);
+    renderBreakdownTable(res.daily || res.data || []);
+
+    // Summary pills
+    const daily = res.daily || res.data || [];
+    const totCalls  = daily.reduce((a,r) => a+(r.total||0), 0);
+    const totAns    = daily.reduce((a,r) => a+(r.answered||0), 0);
+    const totDemos  = daily.reduce((a,r) => a+(r.demos||0), 0);
+    const connRate  = totCalls > 0 ? Math.round(totAns/totCalls*100) : 0;
+    const demoRate  = totAns  > 0 ? Math.round(totDemos/totAns*100) : 0;
+    const pills = document.getElementById('analytics-summary-pills');
+    if (pills) pills.innerHTML = [
+      [`📞 ${totCalls}`, 'Total Calls', 'var(--text)'],
+      [`✅ ${connRate}%`, 'Connect Rate', 'var(--teal)'],
+      [`🎯 ${demoRate}%`, 'Demo Rate', 'var(--amber)'],
+    ].map(([val,lbl,col]) => `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:6px 14px;text-align:center">
+        <div style="font-size:15px;font-weight:700;color:${col};font-family:var(--mono)">${val}</div>
+        <div style="font-size:10px;color:var(--muted)">${lbl}</div>
+      </div>`).join('');
+  } catch(e) { console.error('Analytics daily error:', e); }
+
+  // Load funnel
+  try {
+    const res = await apiFetch(`/api/analytics/funnel?days=${days}${campParam}`);
+    renderFunnel(res.funnel || []);
+  } catch(e) { console.error('Funnel error:', e); }
+
+  // Load heatmap
+  try {
+    const res = await apiFetch(`/api/analytics/hourly?days=${days}`);
+    renderHeatmap(res.data || []);
+  } catch(e) { console.error('Heatmap error:', e); }
+
   loadCallHistory();
-  loadFunnel();
-  loadHeatmap();
 }
 
-async function renderBigChart() {
-  try {
-    const res  = await apiFetch('/api/analytics/daily?days=14');
-    const data = res.data || [];
-    if (data.length === 0) {
-      document.getElementById('big-chart').innerHTML =
-        '<div style="color:var(--muted);font-size:12px;text-align:center;width:100%;padding:40px 0">No call data yet. Make some calls first!</div>';
+function renderBreakdownTable(daily) {
+  const tbody = document.getElementById('analytics-breakdown-table');
+  if (!tbody) return;
+  if (!daily.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No data for selected period</td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...daily].reverse().map(r => {
+    const connRate = r.total > 0 ? Math.round((r.answered||0)/r.total*100) : 0;
+    return `<tr style="border-bottom:0.5px solid var(--border)">
+      <td style="padding:8px 14px;font-family:var(--mono);font-size:11px">${r.date||''}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono)">${r.total||0}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono);color:var(--teal)">${r.answered||0}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono);color:#3d9ef5">${r.interested||0}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono);color:var(--amber)">${r.demos||0}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono);color:var(--red)">${r.not_interested||0}</td>
+      <td style="padding:8px 14px;text-align:right;font-family:var(--mono)">${connRate}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportAnalyticsCSV() {
+  const days = document.getElementById('analytics-days-filter')?.value || 14;
+  const cid  = document.getElementById('analytics-campaign-filter')?.value || '';
+  window.location.href = `/api/analytics/daily?days=${days}${cid ? '&campaign_id='+cid : ''}&format=csv`;
+}
+
+async function renderBigChart(data) {
+  if (!data) {
+    try {
+      const res = await apiFetch('/api/analytics/daily?days=14');
+      data = res.daily || res.data || [];
+    } catch(e) {
+      document.getElementById('big-chart').innerHTML = '';
+      await renderWeekChart();
       return;
     }
-    const max = Math.max(...data.map(d => d.total), 1);
-    document.getElementById('big-chart').innerHTML = data.map((d,i) => {
-      const label = d.date ? d.date.slice(5) : '';
-      const isLatest = i === data.length - 1;
-      return `
-      <div class="big-bar-wrap">
-        <div class="big-bar-val">${d.total}</div>
-        <div class="big-bar" style="height:${Math.max((d.total/max)*100,4)}px;
-          background:${isLatest ? 'var(--teal2)' : 'var(--teal)'};
-          opacity:${0.4 + (i/data.length)*0.6}"></div>
-        <div class="big-bar-label">${label}</div>
-      </div>`;
-    }).join('');
-  } catch(e) {
-    document.getElementById('big-chart').innerHTML = '';
   }
+  if (data.length === 0) {
+    document.getElementById('big-chart').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;text-align:center;width:100%;padding:40px 0">No call data yet. Make some calls first!</div>';
+    await renderWeekChart();
+    return;
+  }
+  const max = Math.max(...data.map(d => d.total), 1);
+  document.getElementById('big-chart').innerHTML = data.map((d,i) => {
+    const label = d.date ? d.date.slice(5) : '';
+    const isLatest = i === data.length - 1;
+    return `
+    <div class="big-bar-wrap">
+      <div class="big-bar-val">${d.total}</div>
+      <div class="big-bar" style="height:${Math.max((d.total/max)*100,4)}px;
+        background:${isLatest ? 'var(--teal2)' : 'var(--teal)'};
+        opacity:${0.4 + (i/data.length)*0.6}"></div>
+      <div class="big-bar-label">${label}</div>
+    </div>`;
+  }).join('');
   await renderWeekChart();
 }
 
@@ -3743,7 +3923,8 @@ const PAGE_META = {
   users:      { title: 'User Management',  breadcrumb: 'Team access & roles' },
   settings:   { title: 'Agent Settings',   breadcrumb: 'Prompt editor · model config · API keys' },
   account:    { title: 'Account Settings', breadcrumb: 'Company profile · call config · API keys' },
-  billing:    { title: 'Billing & Usage',  breadcrumb: 'Plan · minutes · upgrade' },
+  billing:     { title: 'Billing & Usage',  breadcrumb: 'Plan · minutes · upgrade' },
+  flowbuilder: { title: 'Flow Builder',     breadcrumb: 'Conversation scripts · stages · branching' },
 };
 
 function toggleSidebar() {
@@ -3770,7 +3951,8 @@ function showPage(name, el) {
   if (name === 'users')     loadUsers();
   if (name === 'settings')  loadSettings();
   if (name === 'account')   loadAccountSettings();
-  if (name === 'billing')   loadBilling();
+  if (name === 'billing')      loadBilling();
+  if (name === 'flowbuilder')  loadFlows();
   if (name === 'monitor')   renderLiveCalls();
   if (name === 'campaigns') loadCampaigns();
   closeSidebar(); // close on mobile after navigation
@@ -5908,34 +6090,211 @@ async function openCampaignAnalytics(id, name) {
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
         ${[
           ['Total Calls',  total,    'var(--text)'],
-          ['Answered',     \`\${answered} <span style="font-size:11px;color:var(--muted)">(\${ansRate}%)</span>\`, 'var(--teal)'],
-          ['Interested',   \`\${interest} <span style="font-size:11px;color:var(--muted)">(\${intRate}%)</span>\`, 'var(--blue)'],
-          ['Demos Booked', \`\${demos} <span style="font-size:11px;color:var(--muted)">(\${demoRate}%)</span>\`, 'var(--amber)'],
-        ].map(([label, val, color]) => \`
+          ['Answered',     answered + ' (' + ansRate + '%)',  'var(--teal)'],
+          ['Interested',   interest + ' (' + intRate + '%)',  'var(--blue)'],
+          ['Demos Booked', demos    + ' (' + demoRate + '%)', 'var(--amber)'],
+        ].map(([label, val, color]) => `
           <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;text-align:center">
-            <div style="font-size:20px;font-weight:700;color:\${color};font-family:var(--mono)">\${val}</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">\${label}</div>
-          </div>\`).join('')}
+            <div style="font-size:20px;font-weight:700;color:${color};font-family:var(--mono)">${val}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">${label}</div>
+          </div>`).join('')}
       </div>
 
       <!-- Daily trend -->
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
-          Daily Trend <span style="font-weight:400">· avg \${avgDur} / call</span>
+          Daily Trend <span style="font-weight:400">· avg ${avgDur} / call</span>
         </div>
-        \${barChart}
+        ${barChart}
       </div>
 
       <!-- Sentiment breakdown -->
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Sentiment Breakdown</div>
-        \${sentRows}
+        ${sentRows}
       </div>
     `;
   } catch(e) {
     document.getElementById('ca-body').innerHTML =
       `<div style="color:var(--red);padding:20px;font-size:13px">Error loading analytics: ${e.message}</div>`;
   }
+}
+
+// ════════════════════════════════════════
+// FLOW BUILDER
+// ════════════════════════════════════════
+let _flowStages = [];
+let _editingFlowId = null;
+
+async function loadFlows() {
+  const el = document.getElementById('flows-list');
+  try {
+    const res = await apiFetch('/api/flows');
+    const flows = res.flows || [];
+    if (!flows.length) {
+      el.innerHTML = `
+        <div class="card">
+          <div class="card-body" style="text-align:center;padding:40px">
+            <div style="font-size:32px;margin-bottom:12px;opacity:0.3">◇</div>
+            <div style="color:var(--muted);font-size:13px">No flows yet.</div>
+            <div style="color:var(--muted);font-size:12px;margin-top:6px">
+              Create a flow to define a guided conversation script for your AI agent.
+            </div>
+          </div>
+        </div>`;
+      return;
+    }
+    el.innerHTML = flows.map(f => `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-body" style="display:flex;align-items:center;gap:16px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${f.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono)">
+              ${f.description || 'No description'} · Created ${(f.created_at||'').slice(0,10)}
+            </div>
+          </div>
+          <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-family:var(--mono);
+            background:${f.is_active?'rgba(0,210,150,0.1)':'var(--bg2)'};
+            color:${f.is_active?'var(--teal)':'var(--muted)'}">
+            ${f.is_active ? 'Active' : 'Draft'}
+          </span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="editFlow(${f.id})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteFlow(${f.id})">✕</button>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">Error loading flows: ${e.message}</div>`;
+  }
+}
+
+function openNewFlow() {
+  _editingFlowId = null;
+  _flowStages = [
+    { id: 'greeting',  name: 'Greeting',   script: 'नमस्ते! मैं {agent} बोल रही हूँ {company} से। क्या आपके पास 2 मिनट हैं?', next_on_yes: 'qualify', next_on_no: 'end', keywords_yes: 'हाँ,yes,okay,ठीक है', keywords_no: 'नहीं,busy,later,बाद में' },
+    { id: 'qualify',   name: 'Qualify',    script: 'हम {company_product} के solutions provide करते हैं। आपकी industry में क्या challenges हैं?', next_on_yes: 'pitch', next_on_no: 'end', keywords_yes: 'problem,challenge,issue,समस्या', keywords_no: 'no,नहीं,not interested' },
+    { id: 'pitch',     name: 'Pitch',      script: 'हमारा solution आपकी {company_product} की cost 30% तक कम कर सकता है। क्या आप एक demo देखना चाहेंगे?', next_on_yes: 'close', next_on_no: 'objection', keywords_yes: 'हाँ,yes,sure,demo,interested', keywords_no: 'no,costly,expensive,महंगा' },
+    { id: 'objection', name: 'Handle Objection', script: 'मैं समझती हूँ। हम एक free 30-minute demo दे सकते हैं जहाँ आप खुद results देख सकते हैं। कब convenient होगा?', next_on_yes: 'close', next_on_no: 'end', keywords_yes: 'okay,ठीक,yes,schedule', keywords_no: 'no,नहीं,not now' },
+    { id: 'close',     name: 'Book Demo',  script: 'बहुत अच्छा! मैं आपको calendar invite और details send करती हूँ। आपकी email क्या है?', next_on_yes: 'end', next_on_no: 'end', keywords_yes: '', keywords_no: '' },
+    { id: 'end',       name: 'End Call',   script: 'धन्यवाद आपके समय के लिए। Have a great day!', next_on_yes: '', next_on_no: '', keywords_yes: '', keywords_no: '' },
+  ];
+  document.getElementById('flow-name').value = '';
+  document.getElementById('flow-desc').value = '';
+  document.getElementById('flow-editing-id').value = '';
+  document.getElementById('flow-editor-title').textContent = 'New Flow';
+  renderStages();
+  document.getElementById('flow-editor').style.display = 'block';
+  document.getElementById('flow-editor').scrollIntoView({behavior:'smooth'});
+}
+
+async function editFlow(id) {
+  try {
+    const res = await apiFetch(`/api/flows/${id}`);
+    const f = res.flow;
+    _editingFlowId = id;
+    _flowStages = JSON.parse(f.flow_json || '[]');
+    document.getElementById('flow-name').value = f.name || '';
+    document.getElementById('flow-desc').value = f.description || '';
+    document.getElementById('flow-editing-id').value = id;
+    document.getElementById('flow-editor-title').textContent = 'Edit Flow: ' + f.name;
+    renderStages();
+    document.getElementById('flow-editor').style.display = 'block';
+    document.getElementById('flow-editor').scrollIntoView({behavior:'smooth'});
+  } catch(e) { toast('Error loading flow: ' + e.message, 'error'); }
+}
+
+function closeFlowEditor() {
+  document.getElementById('flow-editor').style.display = 'none';
+  _flowStages = [];
+  _editingFlowId = null;
+}
+
+function renderStages() {
+  const el = document.getElementById('flow-stages');
+  el.innerHTML = _flowStages.map((s, i) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px;position:relative">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:24px;height:24px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#000;flex-shrink:0">${i+1}</div>
+        <input value="${s.name||''}" onchange="_flowStages[${i}].name=this.value"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;font-weight:600;outline:none"
+          placeholder="Stage name"/>
+        <button onclick="removeStage(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px" title="Remove stage">✕</button>
+      </div>
+      <div class="form-row" style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--muted)">AGENT SCRIPT</label>
+        <textarea onchange="_flowStages[${i}].script=this.value" rows="2"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:8px;color:var(--text);font-size:12px;resize:vertical;outline:none;font-family:var(--font)"
+          placeholder="What the agent says at this stage...">${s.script||''}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:10px;color:var(--teal);font-family:var(--mono)">✓ POSITIVE KEYWORDS</label>
+          <input value="${s.keywords_yes||''}" onchange="_flowStages[${i}].keywords_yes=this.value"
+            style="width:100%;background:var(--bg3);border:1px solid rgba(0,210,150,0.2);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:11px;outline:none;margin-top:4px"
+            placeholder="yes,हाँ,okay,interested"/>
+          <label style="font-size:10px;color:var(--teal);font-family:var(--mono);margin-top:6px;display:block">→ THEN GO TO</label>
+          <select onchange="_flowStages[${i}].next_on_yes=this.value"
+            style="width:100%;background:var(--bg3);border:1px solid rgba(0,210,150,0.2);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:11px;outline:none;margin-top:4px">
+            ${['',..._flowStages.map(st=>st.id),'end'].map(v=>`<option value="${v}" ${s.next_on_yes===v?'selected':''}>${v||'(next stage)'}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--red);font-family:var(--mono)">✗ NEGATIVE KEYWORDS</label>
+          <input value="${s.keywords_no||''}" onchange="_flowStages[${i}].keywords_no=this.value"
+            style="width:100%;background:var(--bg3);border:1px solid rgba(255,69,96,0.2);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:11px;outline:none;margin-top:4px"
+            placeholder="no,नहीं,busy,not interested"/>
+          <label style="font-size:10px;color:var(--red);font-family:var(--mono);margin-top:6px;display:block">→ THEN GO TO</label>
+          <select onchange="_flowStages[${i}].next_on_no=this.value"
+            style="width:100%;background:var(--bg3);border:1px solid rgba(255,69,96,0.2);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:11px;outline:none;margin-top:4px">
+            ${['',..._flowStages.map(st=>st.id),'end'].map(v=>`<option value="${v}" ${s.next_on_no===v?'selected':''}>${v||'(next stage)'}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function addStage() {
+  const newId = 'stage_' + Date.now();
+  _flowStages.push({ id: newId, name: 'New Stage', script: '', next_on_yes: '', next_on_no: '', keywords_yes: '', keywords_no: '' });
+  renderStages();
+}
+
+function removeStage(i) {
+  _flowStages.splice(i, 1);
+  renderStages();
+}
+
+async function saveFlow() {
+  const name = document.getElementById('flow-name').value.trim();
+  if (!name) { toast('Flow name required', 'error'); return; }
+  const body = {
+    name,
+    description: document.getElementById('flow-desc').value.trim(),
+    flow_json: JSON.stringify(_flowStages),
+    is_active: 0,
+  };
+  try {
+    const id = document.getElementById('flow-editing-id').value;
+    if (id) {
+      await apiFetch(`/api/flows/${id}`, { method:'PUT', body: JSON.stringify(body) });
+      toast('Flow updated ✓', 'success');
+    } else {
+      await apiFetch('/api/flows', { method:'POST', body: JSON.stringify(body) });
+      toast('Flow created ✓', 'success');
+    }
+    closeFlowEditor();
+    loadFlows();
+  } catch(e) { toast('Save failed: ' + e.message, 'error'); }
+}
+
+async function deleteFlow(id) {
+  if (!confirm('Delete this flow?')) return;
+  try {
+    await apiFetch(`/api/flows/${id}`, { method:'DELETE' });
+    toast('Flow deleted', 'success');
+    loadFlows();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 </script>

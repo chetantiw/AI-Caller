@@ -381,7 +381,10 @@ async def _post_call(
         )
         logger.info(f"[Tenant {tenant_id}] DB updated: call_db_id={call_db_id} | {analysis}")
 
-        tdb.log_usage(tenant_id, minutes=round(duration_sec / 60, 2))
+        # Bill by minute pulse (ceiling): 1-60 sec = 1 min, 61-120 sec = 2 min, etc.
+        import math
+        billed_minutes = max(1, math.ceil(duration_sec / 60))
+        tdb.log_usage(tenant_id, minutes=billed_minutes)
 
         # CRM webhook — fire-and-forget
         # ── Fire webhook (non-blocking) ──────────────────

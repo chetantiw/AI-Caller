@@ -211,19 +211,15 @@ def update_tenant_config(tenant_id: int, **kwargs):
 
 def log_usage(tenant_id: int, minutes: float, errors: int = 0):
     with get_conn() as conn:
-        # Upsert today's usage log
+        # Upsert today's usage log (single statement — no double-counting)
         conn.execute("""
             INSERT INTO usage_logs (tenant_id, date, calls_made, minutes_used, api_errors)
             VALUES (?, date('now'), 1, ?, ?)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT(tenant_id, date) DO UPDATE SET
+                calls_made   = calls_made   + 1,
+                minutes_used = minutes_used + excluded.minutes_used,
+                api_errors   = api_errors   + excluded.api_errors
         """, (tenant_id, minutes, errors))
-        conn.execute("""
-            UPDATE usage_logs
-            SET calls_made   = calls_made + 1,
-                minutes_used = minutes_used + ?,
-                api_errors   = api_errors + ?
-            WHERE tenant_id=? AND date=date('now')
-        """, (minutes, errors, tenant_id))
 
         # Update tenant totals
         conn.execute("""
@@ -347,9 +343,13 @@ def check_quota(tenant_id: int) -> dict:
 def get_tenant_usage(tenant_id: int, days: int = 30) -> list:
     with get_conn() as conn:
         return [dict(r) for r in conn.execute("""
-            SELECT date, calls_made, minutes_used, api_errors
+            SELECT date,
+                   SUM(calls_made)   AS calls_made,
+                   ROUND(SUM(minutes_used),2) AS minutes_used,
+                   SUM(api_errors)   AS api_errors
             FROM usage_logs
             WHERE tenant_id=? AND date >= date('now', ?)
+            GROUP BY date
             ORDER BY date ASC
         """, (tenant_id, f'-{days} days')).fetchall()]
 

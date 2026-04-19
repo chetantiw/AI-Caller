@@ -1395,15 +1395,108 @@ async def test_call(request: Request):
         raise HTTPException(status_code=500, detail="Call failed")
 
 
+# ── FLOW BUILDER ───────────────────────────────────────────────
+
+@router.get("/flows")
+async def list_flows(request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id,name,description,is_active,created_at FROM call_flows WHERE tenant_id=? ORDER BY id DESC",
+            (tid,)
+        ).fetchall()
+    return {"flows": [dict(r) for r in rows]}
+
+@router.post("/flows")
+async def create_flow(request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    body = await request.json()
+    name = body.get("name","").strip()
+    if not name:
+        raise HTTPException(400, "name required")
+    flow_json = body.get("flow_json", "{}")
+    import json as _json
+    try: _json.loads(flow_json)
+    except: raise HTTPException(400, "Invalid flow_json")
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO call_flows (tenant_id,name,description,flow_json) VALUES (?,?,?,?)",
+            (tid, name, body.get("description",""), flow_json)
+        )
+        conn.commit()
+        flow_id = cur.lastrowid
+    return {"id": flow_id, "message": "Flow created"}
+
+@router.put("/flows/{flow_id}")
+async def update_flow(flow_id: int, request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    body = await request.json()
+    import json as _json
+    flow_json = body.get("flow_json")
+    if flow_json:
+        try: _json.loads(flow_json)
+        except: raise HTTPException(400, "Invalid flow_json")
+    with db.get_conn() as conn:
+        conn.execute(
+            """UPDATE call_flows SET name=COALESCE(?,name),
+               description=COALESCE(?,description),
+               flow_json=COALESCE(?,flow_json),
+               is_active=COALESCE(?,is_active),
+               updated_at=datetime('now')
+               WHERE id=? AND tenant_id=?""",
+            (body.get("name"), body.get("description"), flow_json,
+             body.get("is_active"), flow_id, tid)
+        )
+        conn.commit()
+    return {"message": "Flow updated"}
+
+@router.delete("/flows/{flow_id}")
+async def delete_flow(flow_id: int, request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM call_flows WHERE id=? AND tenant_id=?", (flow_id, tid))
+        conn.commit()
+    return {"message": "Flow deleted"}
+
+@router.get("/flows/{flow_id}")
+async def get_flow(flow_id: int, request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM call_flows WHERE id=? AND tenant_id=?", (flow_id, tid)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Flow not found")
+    return {"flow": dict(row)}
+
+
 # ═══════════════════════════════════════════════════════
 # ANALYTICS
 # ═══════════════════════════════════════════════════════
 
 @router.get("/analytics/daily")
-async def daily_stats(request: Request, days: int = 14, campaign_id: int = None):
+async def daily_stats(request: Request, days: int = 14, campaign_id: int = None, format: str = None):
     user = get_current_user(request)
     data = db.get_daily_call_stats(days=days, tenant_id=user["tenant_id"], campaign_id=campaign_id)
-    return {"days": days, "campaign_id": campaign_id, "data": data}
+    if format == "csv":
+        import io, csv as _csv
+        from fastapi.responses import StreamingResponse
+        buf = io.StringIO()
+        w = _csv.DictWriter(buf, fieldnames=["date","total","answered","interested","demos","not_interested"])
+        w.writeheader()
+        w.writerows(data)
+        buf.seek(0)
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=analytics_{days}d.csv"}
+        )
+    return {"days": days, "campaign_id": campaign_id, "data": data, "daily": data}
 
 
 @router.get("/analytics/funnel")

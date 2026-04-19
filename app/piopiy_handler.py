@@ -91,8 +91,6 @@ def make_outbound_call(
 
 ) -> str:
 
-    print(f"DEBUG: make_outbound_call called with to_number={to_number}, metadata={metadata}")  # DEBUG
-
     """
 
     Trigger an outbound PIOPIY AI agent call.

@@ -523,9 +523,9 @@ def verify_user(username: str, password: str) -> Optional[dict]:
 
         row = conn.execute(
 
-            "SELECT * FROM users WHERE username=? AND password_hash=?",
+            "SELECT * FROM users WHERE (username=? OR email=?) AND password_hash=?",
 
-            (username, _hash(password))
+            (username, username, _hash(password))
 
         ).fetchone()
 
@@ -1525,7 +1525,9 @@ def get_daily_call_stats(days: int = 14, tenant_id: int = None, campaign_id: int
 
                 SUM(CASE WHEN sentiment='interested'  THEN 1 ELSE 0 END)   AS interested,
 
-                SUM(CASE WHEN sentiment='demo_booked' THEN 1 ELSE 0 END)   AS demos
+                SUM(CASE WHEN sentiment='demo_booked'    THEN 1 ELSE 0 END)   AS demos,
+
+                SUM(CASE WHEN sentiment='not_interested' THEN 1 ELSE 0 END)   AS not_interested
 
             FROM calls
 

@@ -1156,103 +1156,232 @@ async function openTenantDetail(id) {
     const data = await res.json();
     const t = data.tenant; const c = data.config || {};
     document.getElementById('detail-title').textContent = t.name;
+    const cfgTabs = ['agent','speech','llm','telephony','notify','webhook'];
     document.getElementById('detail-body').innerHTML = `
-      <div style="display:flex;gap:10px;margin-bottom:20px">
+      <!-- Status bar -->
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:20px">
         <span class="badge ${t.status}">${t.status}</span>
         <span class="badge ${t.plan}">${t.plan}</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Calls: ${t.calls_used}/${t.calls_limit}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">📞 ${t.calls_used}/${t.calls_limit} calls &nbsp;·&nbsp; ⏱ ${(t.minutes_used||0).toFixed(1)} min used</span>
       </div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--orange)">🤖 Agent Configuration</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Agent Name</label><input id="cfg-agent-name" value="${c.agent_name||'Aira'}"/></div>
-        <div class="form-group"><label>Voice</label>
-          <select id="cfg-voice">
-            ${['anushka','meera','pavithra','maitreyi'].map(v=>`<option value="${v}" ${c.agent_voice===v?'selected':''}>${v}</option>`).join('')}
-          </select>
+
+      <!-- Tab nav -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:4px">
+        ${[['agent','🤖 Agent'],['speech','🎙 Speech'],['llm','🧠 LLM'],['telephony','📞 Telephony'],['notify','🔔 Notify'],['webhook','🔗 Webhook']].map(([k,label])=>`
+          <button id="ctab-${k}" onclick="switchCfgTab('${k}')"
+            style="flex:1;padding:7px 6px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:all .18s;white-space:nowrap;
+              background:${k==='agent'?'var(--orange)':'transparent'};color:${k==='agent'?'#000':'var(--muted)'}">
+            ${label}
+          </button>`).join('')}
+      </div>
+
+      <!-- TAB: Agent -->
+      <div id="cpanel-agent">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0"><label>Agent Name</label><input id="cfg-agent-name" value="${c.agent_name||'Aira'}"/></div>
+          <div class="form-group" style="margin:0"><label>Voice</label>
+            <select id="cfg-voice">
+              ${['anushka','meera','pavithra','maitreyi','priya','neha','kavya','simran'].map(v=>`<option value="${v}" ${c.agent_voice===v?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Greeting Template</label><input id="cfg-greeting" placeholder="Hello {name}! I'm {agent} from {company}…" value="${c.greeting_template||''}"/></div>
+        <div class="form-group"><label>System Prompt</label><textarea id="cfg-prompt" style="min-height:140px">${c.system_prompt||''}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="margin:0"><label>Language</label>
+            <select id="cfg-lang">
+              <option value="hindi" ${(c.agent_language||'hindi')==='hindi'?'selected':''}>Hindi</option>
+              <option value="english" ${c.agent_language==='english'?'selected':''}>English</option>
+              <option value="hinglish" ${c.agent_language==='hinglish'?'selected':''}>Hinglish</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div class="form-group"><label>System Prompt</label><textarea id="cfg-prompt">${c.system_prompt||''}</textarea></div>
-      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">🔌 API Keys & Services</div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Speech</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Sarvam API Key</label><input id="cfg-sarvam" placeholder="sk_..." value="${c.sarvam_api_key||''}"/></div>
-        <div class="form-group"><label>ElevenLabs API Key</label><input id="cfg-elevenlabs" placeholder="xi-..." value="${c.elevenlabs_api_key||''}"/></div>
-        <div class="form-group"><label>ElevenLabs Voice ID</label><input id="cfg-elevenlabs-voice" placeholder="TX3LPaxmHKxFdv7VOQHJ" value="${c.elevenlabs_voice_id||''}"/></div>
-        <div class="form-group"><label>ElevenLabs Model</label>
-          <select id="cfg-elevenlabs-model">
-            <option value="eleven_flash_v2_5" ${c.elevenlabs_model==='eleven_flash_v2_5'?'selected':''}>eleven_flash_v2_5 (fastest)</option>
-            <option value="eleven_turbo_v2_5" ${c.elevenlabs_model==='eleven_turbo_v2_5'?'selected':''}>eleven_turbo_v2_5</option>
-            <option value="eleven_multilingual_v2" ${c.elevenlabs_model==='eleven_multilingual_v2'?'selected':''}>eleven_multilingual_v2 (best)</option>
-          </select>
+
+      <!-- TAB: Speech -->
+      <div id="cpanel-speech" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
+          <div class="form-group" style="margin:0"><label>STT Provider</label>
+            <select id="cfg-stt">
+              <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam (Hindi recommended)</option>
+              <option value="elevenlabs" ${c.stt_provider==='elevenlabs'?'selected':''}>ElevenLabs</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0"><label>TTS Provider</label>
+            <select id="cfg-tts">
+              <option value="sarvam" ${(c.tts_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam</option>
+              <option value="elevenlabs" ${(c.tts_provider||'')==='elevenlabs'?'selected':''}>ElevenLabs</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group"><label>STT Provider</label>
-          <select id="cfg-stt">
-            <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam (recommended for Hindi)</option>
-            <option value="elevenlabs" ${c.stt_provider==='elevenlabs'?'selected':''}>ElevenLabs</option>
-          </select>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🟢 Sarvam AI</div>
+          <div class="form-group" style="margin:0"><label>Sarvam API Key</label>
+            <div style="position:relative">
+              <input id="cfg-sarvam" type="password" placeholder="sk_live_…" value="${c.sarvam_api_key||''}" style="padding-right:40px"/>
+              <button onclick="togglePwd('cfg-sarvam')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+            </div>
+          </div>
         </div>
-        <div class="form-group"><label>TTS Provider</label>
-          <select id="cfg-tts">
-            <option value="sarvam" ${(c.tts_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam</option>
-            <option value="elevenlabs" ${(c.tts_provider||'elevenlabs')==='elevenlabs'?'selected':''}>ElevenLabs (recommended)</option>
-          </select>
-        </div>
-      </div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">LLM</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Groq API Key</label><input id="cfg-groq" placeholder="gsk_..." value="${c.groq_api_key||''}"/></div>
-        <div class="form-group"><label>xAI API Key (Grok)</label><input id="cfg-xai" placeholder="xai-..." value="${c.xai_api_key||''}"/></div>
-        <div class="form-group"><label>OpenAI API Key</label><input id="cfg-openai" placeholder="sk-..." value="${c.openai_api_key||''}"/></div>
-        <div class="form-group"><label>LLM Provider</label>
-          <select id="cfg-llm-provider">
-            <option value="groq" ${(c.llm_provider||'groq')==='groq'?'selected':''}>Groq (Llama 3.3)</option>
-            <option value="grok" ${c.llm_provider==='grok'?'selected':''}>xAI — Grok</option>
-            <option value="openai" ${c.llm_provider==='openai'?'selected':''}>OpenAI</option>
-          </select>
-        </div>
-        <div class="form-group"><label>LLM Model <span style="color:var(--muted);font-weight:400">(optional override)</span></label><input id="cfg-llm-model" placeholder="e.g. grok-4-1-fast / llama-3.3-70b-versatile" value="${c.llm_model||''}"/></div>
-      </div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Telephony</div>
-      <div class="form-grid">
-        <div class="form-group"><label>PIOPIY Agent ID</label><input id="cfg-piopiy-id" value="${c.piopiy_agent_id||''}"/></div>
-        <div class="form-group"><label>PIOPIY Agent Token</label><input id="cfg-piopiy-token" type="password" placeholder="Paste new token (leave blank to keep)"/></div>
-        <div class="form-group"><label>PIOPIY Phone Number</label><input id="cfg-piopiy-num" value="${c.piopiy_number||''}"/></div>
-      </div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Notifications</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Telegram Bot Token</label><input id="cfg-tg-token" value="${c.telegram_bot_token||''}"/></div>
-        <div class="form-group"><label>Telegram Chat ID</label><input id="cfg-tg-chat" value="${c.telegram_chat_id||''}"/></div>
-        <div class="form-group"><label>WhatsApp API Key</label><input id="cfg-wa-token" value="${c.whatsapp_api_key||''}"/></div>
-        <div class="form-group"><label>WhatsApp Number ID</label><input id="cfg-wa-num" value="${c.whatsapp_number||''}"/></div>
-      </div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Webhook</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Webhook URL</label><input id="cfg-webhook-url" value="${c.webhook_url||''}"/></div>
-        <div class="form-group"><label>Webhook Events</label>
-          <select id="cfg-webhook-events">
-            <option value="call_completed" ${(c.webhook_events||'call_completed')==='call_completed'?'selected':''}>All completed calls</option>
-            <option value="interested" ${c.webhook_events==='interested'?'selected':''}>Interested only</option>
-            <option value="demo_booked" ${c.webhook_events==='demo_booked'?'selected':''}>Demo booked only</option>
-          </select>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ ElevenLabs</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>API Key</label>
+              <div style="position:relative">
+                <input id="cfg-elevenlabs" type="password" placeholder="sk_…" value="${c.elevenlabs_api_key||''}" style="padding-right:40px"/>
+                <button onclick="togglePwd('cfg-elevenlabs')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+              </div>
+            </div>
+            <div class="form-group" style="margin:0"><label>Voice ID</label><input id="cfg-elevenlabs-voice" placeholder="TX3LPaxmHKxFdv7VOQHJ" value="${c.elevenlabs_voice_id||''}"/></div>
+            <div class="form-group" style="margin:0;grid-column:span 2"><label>Model</label>
+              <select id="cfg-elevenlabs-model">
+                <option value="eleven_flash_v2_5" ${(c.elevenlabs_model||'eleven_flash_v2_5')==='eleven_flash_v2_5'?'selected':''}>eleven_flash_v2_5 — fastest</option>
+                <option value="eleven_turbo_v2_5" ${c.elevenlabs_model==='eleven_turbo_v2_5'?'selected':''}>eleven_turbo_v2_5</option>
+                <option value="eleven_multilingual_v2" ${c.elevenlabs_model==='eleven_multilingual_v2'?'selected':''}>eleven_multilingual_v2 — best quality</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
-      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">📋 30-Day Usage</div>
-      <div class="usage-bars" id="usage-bars-${id}">
-        ${(data.usage||[]).slice(-14).map(u=>`
-          <div class="usage-bar-wrap">
-            <div class="usage-bar" style="height:${Math.max(2, Math.round((u.calls_made/Math.max(...(data.usage||[{calls_made:1}]).map(x=>x.calls_made)))*50))}px"></div>
-            <div class="usage-bar-label">${(u.date||'').slice(5)}</div>
-          </div>`).join('')}
-      </div>`;
+
+      <!-- TAB: LLM -->
+      <div id="cpanel-llm" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0"><label>LLM Provider</label>
+            <select id="cfg-llm-provider">
+              <option value="groq"   ${(c.llm_provider||'groq')==='groq'  ?'selected':''}>Groq — Llama 3.3</option>
+              <option value="grok"   ${c.llm_provider==='grok'  ?'selected':''}>xAI — Grok</option>
+              <option value="openai" ${c.llm_provider==='openai'?'selected':''}>OpenAI</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Model Override <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+            <input id="cfg-llm-model" placeholder="e.g. grok-3-mini / llama-3.3-70b-versatile" value="${c.llm_model||''}"/>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ Groq</div>
+          <div class="form-group" style="margin:0"><label>Groq API Key</label>
+            <div style="position:relative">
+              <input id="cfg-groq" type="password" placeholder="gsk_…" value="${c.groq_api_key||''}" style="padding-right:40px"/>
+              <button onclick="togglePwd('cfg-groq')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+            </div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">✦ xAI Grok</div>
+          <div class="form-group" style="margin:0"><label>xAI API Key</label>
+            <div style="position:relative">
+              <input id="cfg-xai" type="password" placeholder="xai-…" value="${c.xai_api_key||''}" style="padding-right:40px"/>
+              <button onclick="togglePwd('cfg-xai')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+            </div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🟢 OpenAI</div>
+          <div class="form-group" style="margin:0"><label>OpenAI API Key</label>
+            <div style="position:relative">
+              <input id="cfg-openai" type="password" placeholder="sk-…" value="${c.openai_api_key||''}" style="padding-right:40px"/>
+              <button onclick="togglePwd('cfg-openai')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Telephony -->
+      <div id="cpanel-telephony" style="display:none">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">📡 PIOPIY / TeleCMI</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>Agent ID</label><input id="cfg-piopiy-id" placeholder="uuid…" value="${c.piopiy_agent_id||''}"/></div>
+            <div class="form-group" style="margin:0"><label>Phone Number</label><input id="cfg-piopiy-num" placeholder="+91XXXXXXXXXX" value="${c.piopiy_number||''}"/></div>
+            <div class="form-group" style="margin:0;grid-column:span 2"><label>Agent Token <span style="color:var(--muted);font-weight:400;text-transform:none">(leave blank to keep existing)</span></label>
+              <div style="position:relative">
+                <input id="cfg-piopiy-token" type="password" placeholder="Paste new token…" style="padding-right:40px"/>
+                <button onclick="togglePwd('cfg-piopiy-token')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Notifications -->
+      <div id="cpanel-notify" style="display:none">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">✈️ Telegram</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>Bot Token</label>
+              <div style="position:relative">
+                <input id="cfg-tg-token" type="password" placeholder="1234567890:AAF…" value="${c.telegram_bot_token||''}" style="padding-right:40px"/>
+                <button onclick="togglePwd('cfg-tg-token')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+              </div>
+            </div>
+            <div class="form-group" style="margin:0"><label>Chat ID</label><input id="cfg-tg-chat" placeholder="-100XXXXXXXXX" value="${c.telegram_chat_id||''}"/></div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">💬 WhatsApp</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>API Key</label>
+              <div style="position:relative">
+                <input id="cfg-wa-token" type="password" placeholder="…" value="${c.whatsapp_api_key||''}" style="padding-right:40px"/>
+                <button onclick="togglePwd('cfg-wa-token')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+              </div>
+            </div>
+            <div class="form-group" style="margin:0"><label>Number ID</label><input id="cfg-wa-num" placeholder="+91XXXXXXXXXX" value="${c.whatsapp_number||''}"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Webhook -->
+      <div id="cpanel-webhook" style="display:none">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">🔗 CRM / Webhook</div>
+          <div class="form-group"><label>Endpoint URL</label><input id="cfg-webhook-url" placeholder="https://your-crm.com/webhook" value="${c.webhook_url||''}"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>Fire on</label>
+              <select id="cfg-webhook-events">
+                <option value="call_completed" ${(c.webhook_events||'call_completed')==='call_completed'?'selected':''}>All completed calls</option>
+                <option value="interested"     ${c.webhook_events==='interested'    ?'selected':''}>Interested leads only</option>
+                <option value="demo_booked"    ${c.webhook_events==='demo_booked'   ?'selected':''}>Demo booked only</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0"><label>Secret / Bearer Token</label>
+              <div style="position:relative">
+                <input id="cfg-webhook-secret" type="password" placeholder="Leave blank to keep" value="${c.webhook_secret||''}" style="padding-right:40px"/>
+                <button onclick="togglePwd('cfg-webhook-secret')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   } catch(e) { document.getElementById('detail-body').innerHTML = '<div style="color:var(--red);padding:20px">Error loading tenant details</div>'; }
 }
- 
+
+function switchCfgTab(tab) {
+  ['agent','speech','llm','telephony','notify','webhook'].forEach(t => {
+    const btn = document.getElementById('ctab-' + t);
+    const panel = document.getElementById('cpanel-' + t);
+    const active = t === tab;
+    if (btn) { btn.style.background = active ? 'var(--orange)' : 'transparent'; btn.style.color = active ? '#000' : 'var(--muted)'; }
+    if (panel) panel.style.display = active ? 'block' : 'none';
+  });
+}
+
+function togglePwd(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
 async function saveConfig() {
   if (!editingTenantId) return;
   const tok = document.getElementById('cfg-piopiy-token')?.value.trim();
   const updates = {
     agent_name:           document.getElementById('cfg-agent-name')?.value || undefined,
     agent_voice:          document.getElementById('cfg-voice')?.value || undefined,
+    agent_language:       document.getElementById('cfg-lang')?.value || undefined,
+    greeting_template:    document.getElementById('cfg-greeting')?.value || undefined,
     system_prompt:        document.getElementById('cfg-prompt')?.value || undefined,
     // Speech
     sarvam_api_key:       document.getElementById('cfg-sarvam')?.value || undefined,
@@ -1278,6 +1407,7 @@ async function saveConfig() {
     // Webhook
     webhook_url:          document.getElementById('cfg-webhook-url')?.value || undefined,
     webhook_events:       document.getElementById('cfg-webhook-events')?.value || undefined,
+    webhook_secret:       document.getElementById('cfg-webhook-secret')?.value || undefined,
   };
   if (tok) updates.piopiy_agent_token = tok;
 
