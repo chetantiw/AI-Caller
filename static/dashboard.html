@@ -1748,161 +1748,83 @@ tr:hover td { background: var(--teal-dim); }
 
           <!-- Right column -->
           <div>
-            <!-- API Key Status -->
+            <!-- TELEPHONY TOGGLE -->
             <div class="card" style="margin-bottom:20px;">
               <div class="card-header">
-                <div class="card-title"><span class="dot"></span> API Key Status</div>
+                <div class="card-title"><span class="dot"></span> Telephony Provider</div>
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)" id="tel-status-label">Loading…</span>
               </div>
-              <div class="card-body" id="apikey-panel">
-                <div style="color:var(--muted);font-size:12px">Checking…</div>
+              <div class="card-body">
+                <div style="display:flex;gap:10px;margin-bottom:16px;">
+                  <div id="tel-piopiy" onclick="switchTelephony('piopiy')"
+                    style="flex:1;border-radius:var(--r);border:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:all 0.2s;background:var(--bg2);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                      <span style="font-size:13px;font-weight:600;color:var(--text)">PIOPIY</span>
+                      <span id="tel-piopiy-badge" class="status-pill" style="font-size:9px;padding:2px 8px;">standby</span>
+                    </div>
+                    <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">TeleCMI · AI Agent</div>
+                    <div id="tel-piopiy-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
+                  </div>
+                  <div id="tel-exotel" onclick="switchTelephony('exotel')"
+                    style="flex:1;border-radius:var(--r);border:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:all 0.2s;background:var(--bg2);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                      <span style="font-size:13px;font-weight:600;color:var(--text)">Exotel</span>
+                      <span id="tel-exotel-badge" class="status-pill" style="font-size:9px;padding:2px 8px;">standby</span>
+                    </div>
+                    <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">Exotel · WebSocket</div>
+                    <div id="tel-exotel-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--muted);font-family:var(--mono);border-top:1px solid var(--border);padding-top:10px;">
+                  Switch is instant — no restart required. Admin only.
+                </div>
               </div>
             </div>
 
             <!-- CSV Upload -->
-
-
-            <!-- TELEPHONY TOGGLE -->
-
-            <div class="card" style="margin-bottom:20px;">
-
-              <div class="card-header">
-
-                <div class="card-title"><span class="dot"></span> Telephony Provider</div>
-
-                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)" id="tel-status-label">Loading…</span>
-
-              </div>
-
-              <div class="card-body">
-
-                <div style="display:flex;gap:10px;margin-bottom:16px;">
-
-                  <div id="tel-piopiy" onclick="switchTelephony('piopiy')"
-
-                    style="flex:1;border-radius:var(--r);border:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:all 0.2s;background:var(--bg2);">
-
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-
-                      <span style="font-size:13px;font-weight:600;color:var(--text)">PIOPIY</span>
-
-                      <span id="tel-piopiy-badge" class="status-pill" style="font-size:9px;padding:2px 8px;">standby</span>
-
-                    </div>
-
-                    <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">TeleCMI · AI Agent</div>
-
-                    <div id="tel-piopiy-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
-
-                  </div>
-
-                  <div id="tel-exotel" onclick="switchTelephony('exotel')"
-
-                    style="flex:1;border-radius:var(--r);border:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:all 0.2s;background:var(--bg2);">
-
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-
-                      <span style="font-size:13px;font-weight:600;color:var(--text)">Exotel</span>
-
-                      <span id="tel-exotel-badge" class="status-pill" style="font-size:9px;padding:2px 8px;">standby</span>
-
-                    </div>
-
-                    <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">Exotel · WebSocket</div>
-
-                    <div id="tel-exotel-num" style="font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">—</div>
-
-                  </div>
-
-                </div>
-
-                <div style="font-size:11px;color:var(--muted);font-family:var(--mono);border-top:1px solid var(--border);padding-top:10px;">
-
-                  Switch is instant — no restart required. Admin only.
-
-                </div>
-
-              </div>
-
-            </div>
-
-
             <div class="card">
               <div class="card-header">
                 <div class="card-title"><span class="dot"></span> Upload Contact List</div>
               </div>
               <div class="card-body">
-
-                <!-- Tabs: CSV vs Excel -->
                 <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;">
                   <button id="tab-csv-btn"
                     style="padding:6px 18px;font-size:12px;border:none;cursor:pointer;background:var(--teal);color:#fff;font-weight:600;"
-                    onclick="switchUploadTab('csv')">📋 CSV</button>
+                    onclick="switchUploadTab('csv')">&#128203; CSV</button>
                   <button id="tab-excel-btn"
                     style="padding:6px 18px;font-size:12px;border:none;cursor:pointer;background:var(--card-bg);color:var(--muted);font-weight:500;"
-                    onclick="switchUploadTab('excel')">📊 Excel (.xlsx)</button>
+                    onclick="switchUploadTab('excel')">&#128202; Excel (.xlsx)</button>
                 </div>
-
-                <!-- CSV upload -->
                 <div id="upload-panel-csv">
                   <div class="upload-zone" onclick="document.getElementById('csv-upload').click()">
-                    <div class="upload-icon">📋</div>
+                    <div class="upload-icon">&#128203;</div>
                     <div class="upload-title">Drop CSV file here</div>
                     <div class="upload-sub">Columns: name, phone — company, designation, language are optional</div>
                     <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)"/>
                   </div>
                 </div>
-
-                <!-- Excel upload -->
                 <div id="upload-panel-excel" style="display:none;">
                   <div class="upload-zone" onclick="document.getElementById('excel-upload').click()">
-                    <div class="upload-icon">📊</div>
+                    <div class="upload-icon">&#128202;</div>
                     <div class="upload-title">Drop Excel file here</div>
                     <div class="upload-sub">Only <strong>name</strong> and <strong>phone</strong> columns are required — all others are optional</div>
                     <input type="file" id="excel-upload" accept=".xlsx,.xls" onchange="handleExcelUpload(event)"/>
                   </div>
                   <div style="margin-top:10px;padding:10px 12px;background:var(--surface2,#f9fafb);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.7;">
-                    💡 <strong>Tip:</strong> Phone numbers in Excel are often auto-converted to numbers.
+                    &#128161; <strong>Tip:</strong> Phone numbers in Excel are often auto-converted to numbers.
                     To avoid this: select the phone column → Format Cells → <strong>Text</strong> → enter numbers.
                     <br>Or simply upload — the system auto-corrects numeric/scientific notation.
                   </div>
                 </div>
-
-                <!-- Shared status + controls -->
                 <div id="upload-preview" style="margin-top:12px; display:none;">
                   <div style="font-size:11px; font-family:var(--mono); color:var(--teal); margin-bottom:8px;" id="upload-info"></div>
                 </div>
                 <div style="margin-top:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                  <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">⬇ Download CSV Template</button>
+                  <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">&#11015; Download CSV Template</button>
                   <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
                     <input type="checkbox" id="csv-force" style="cursor:pointer;accent-color:var(--teal)"/>
                     Replace existing contacts (re-import same list)
                   </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-            <!-- CRM Webhook Integration -->
-            <div class="card" data-feature="crm_webhook" style="margin-top:20px;position:relative">
-              <div class="card-header">
-                <div class="card-title"><span class="dot"></span> CRM Webhook Integration</div>
-                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">POST on call complete</span>
-              </div>
-              <div class="card-body">
-                <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
-                  Send call outcome, summary, and lead data to your CRM or automation tool after every call.
-                </p>
-                <div class="form-row">
-                  <label>Webhook URL</label>
-                  <input type="url" id="crm-webhook-url" placeholder="https://hooks.zapier.com/hooks/catch/…"/>
-                </div>
-                <div class="form-row" style="margin-top:12px">
-                  <label>Secret Header <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-                  <input type="password" id="crm-webhook-secret" placeholder="X-Webhook-Secret value"/>
-                </div>
-                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-                  <button class="btn btn-outline btn-sm" onclick="testCrmWebhook()">🧪 Test</button>
-                  <button class="btn btn-primary btn-sm" onclick="saveCrmWebhook()">Save Webhook</button>
                 </div>
               </div>
             </div>
@@ -2027,17 +1949,13 @@ tr:hover td { background: var(--teal-dim); }
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
               📞 Call Config
             </button>
-            <button id="acct-tab-keys" onclick="switchAcctTab('keys')"
-              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
-              🔑 API Keys
-            </button>
             <button id="acct-tab-faq" onclick="switchAcctTab('faq')"
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
               📚 FAQ / Training
             </button>
-            <button id="acct-tab-integrations" onclick="switchAcctTab('integrations')"
+            <button id="acct-tab-webhook" onclick="switchAcctTab('webhook')"
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
-              🔗 Integrations
+              🔗 Webhook
             </button>
           </div>
 
@@ -2106,297 +2024,6 @@ tr:hover td { background: var(--teal-dim); }
             </div>
           </div>
 
-          <!-- API KEYS TAB -->
-          <div id="acct-panel-keys" style="display:none">
-            <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Bring your own API keys. Keys are masked after saving. Leave a key field blank to keep the existing saved value.</p>
-
-            <!-- ── LLM ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 🧠 Language Model (LLM)</div></div>
-              <div class="card-body">
-                <div class="form-grid">
-                  <div class="form-row">
-                    <label>Provider</label>
-                    <select id="ac-llm-provider" onchange="onLlmProviderChange()">
-                      <option value="groq">Groq — Llama 3.3 (fast, free tier)</option>
-                      <option value="grok">xAI — Grok 3 / Grok 3 Mini</option>
-                      <option value="openai">OpenAI — GPT-4o / GPT-4o mini</option>
-                      <option value="anthropic">Anthropic — Claude Haiku / Sonnet</option>
-                      <option value="gemini">Google — Gemini 1.5 Flash / 2.0</option>
-                    </select>
-                  </div>
-                  <div class="form-row" id="llm-model-row">
-                    <label>Model <span style="color:var(--muted);font-weight:400">(optional override)</span></label>
-                    <input id="ac-llm-model" placeholder="e.g. llama-3.3-70b-versatile"/>
-                  </div>
-                </div>
-                <div id="llm-key-groq" class="llm-key-section" style="margin-top:12px">
-                  <div class="form-row"><label>Groq API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-groq" placeholder="gsk_••••••••" style="flex:1"/>
-                      <span id="ac-groq-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-grok" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>xAI API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-xai" placeholder="xai-••••••••" style="flex:1"/>
-                      <span id="ac-xai-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row" style="margin-top:8px">
-                    <label>Model <span style="color:var(--muted);font-weight:400">(default: grok-3-mini)</span></label>
-                    <select id="ac-grok-model" style="width:100%">
-                      <option value="grok-4-1-fast">grok-4.1-fast (recommended)</option>
-                      <option value="grok-3-mini">grok-3-mini (fast, cost-effective)</option>
-                      <option value="grok-3">grok-3 (most capable)</option>
-                      <option value="grok-beta">grok-beta</option>
-                    </select>
-                  </div>
-                </div>
-                <div id="llm-key-openai" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>OpenAI API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-openai" placeholder="sk-••••••••" style="flex:1"/>
-                      <span id="ac-openai-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-anthropic" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>Anthropic API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-anthropic" placeholder="sk-ant-••••••••" style="flex:1"/>
-                      <span id="ac-anthropic-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-                <div id="llm-key-gemini" class="llm-key-section" style="display:none;margin-top:12px">
-                  <div class="form-row"><label>Google Gemini API Key</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-gemini" placeholder="AIza••••••••" style="flex:1"/>
-                      <span id="ac-gemini-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Speech Engine ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header">
-                <div class="card-title"><span class="dot"></span> 🎙 Speech Engine</div>
-                <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">
-                  STT and TTS configured independently
-                </span>
-              </div>
-              <div class="card-body">
-
-                <!-- ── API Keys (shared) ── -->
-                <div class="form-grid" style="margin-bottom:18px">
-                  <div class="form-row">
-                    <label>Sarvam API Key
-                      <span style="color:var(--muted);font-weight:400"> — used for STT and/or TTS</span>
-                    </label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-sarvam" placeholder="Leave blank to keep saved key" style="flex:1"/>
-                      <span id="ac-sarvam-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <label>ElevenLabs API Key
-                      <span style="color:var(--muted);font-weight:400"> — used for STT and/or TTS</span>
-                    </label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-elevenlabs" placeholder="Leave blank to keep saved key" style="flex:1"/>
-                      <span id="ac-elevenlabs-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- ── STT selector ── -->
-                <div style="margin-bottom:20px">
-                  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
-                              letter-spacing:.06em;margin-bottom:8px">
-                    🎤 Speech-to-Text (STT) — who listens
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                    <div id="stt-card-sarvam" onclick="selectStt('sarvam')"
-                      style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;
-                             cursor:pointer;transition:all .2s">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                        <span style="font-weight:600">Sarvam AI</span>
-                        <span id="stt-badge-sarvam" style="font-size:10px;font-family:var(--mono);
-                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
-                          color:var(--teal);display:none">active</span>
-                      </div>
-                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
-                        saarika:v2.5 · Best for Hindi &amp; Indian languages
-                      </div>
-                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Recommended for India/UAE</div>
-                    </div>
-                    <div id="stt-card-elevenlabs" onclick="selectStt('elevenlabs')"
-                      style="border-radius:var(--r);border:1px solid var(--border);padding:14px;
-                             cursor:pointer;transition:all .2s">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                        <span style="font-weight:600">ElevenLabs</span>
-                        <span id="stt-badge-elevenlabs" style="font-size:10px;font-family:var(--mono);
-                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
-                          color:var(--teal);display:none">active</span>
-                      </div>
-                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
-                        Realtime STT · Multilingual
-                      </div>
-                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Requires ElevenLabs key</div>
-                    </div>
-                  </div>
-                  <input type="hidden" id="ac-stt-provider" value="sarvam"/>
-                </div>
-
-                <!-- ── TTS selector ── -->
-                <div style="margin-bottom:16px">
-                  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
-                              letter-spacing:.06em;margin-bottom:8px">
-                    🔊 Text-to-Speech (TTS) — who speaks
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-                    <div id="tts-card-sarvam" onclick="selectTts('sarvam')"
-                      style="border-radius:var(--r);border:1px solid var(--border);padding:14px;
-                             cursor:pointer;transition:all .2s">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                        <span style="font-weight:600">Sarvam AI</span>
-                        <span id="tts-badge-sarvam" style="font-size:10px;font-family:var(--mono);
-                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
-                          color:var(--teal);display:none">active</span>
-                      </div>
-                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
-                        bulbul:v2 · Natural Indian voices
-                      </div>
-                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Requires Sarvam key</div>
-                    </div>
-                    <div id="tts-card-elevenlabs" onclick="selectTts('elevenlabs')"
-                      style="border-radius:var(--r);border:1px solid var(--border2);padding:14px;
-                             cursor:pointer;transition:all .2s">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                        <span style="font-weight:600">ElevenLabs</span>
-                        <span id="tts-badge-elevenlabs" style="font-size:10px;font-family:var(--mono);
-                          padding:2px 8px;border-radius:10px;background:rgba(0,210,150,0.15);
-                          color:var(--teal);display:none">active</span>
-                      </div>
-                      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">
-                        eleven_flash_v2_5 · Ultra-realistic voice
-                      </div>
-                      <div style="font-size:10px;color:var(--muted);margin-top:4px">Recommended for best quality</div>
-                    </div>
-                  </div>
-                  <input type="hidden" id="ac-tts-provider" value="elevenlabs"/>
-
-                  <!-- ElevenLabs voice config -->
-                  <div id="tts-elevenlabs-config" style="background:var(--bg2);border:1px solid var(--border);
-                       border-radius:var(--r);padding:14px">
-                    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
-                      ElevenLabs Voice Configuration
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                      <div class="form-row">
-                        <label>Voice ID</label>
-                        <input id="ac-elevenlabs-voice" placeholder="e.g. TX3LPaxmHKxFdv7VOQHJ" style="font-family:var(--mono);font-size:12px"/>
-                      </div>
-                      <div class="form-row">
-                        <label>Model</label>
-                        <select id="ac-elevenlabs-model">
-                          <option value="eleven_flash_v2_5">eleven_flash_v2_5 — fastest (recommended)</option>
-                          <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 — balanced</option>
-                          <option value="eleven_multilingual_v2">eleven_multilingual_v2 — highest quality</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div style="font-size:10px;color:var(--muted);margin-top:8px">
-                      Popular voices: Aria <code>9BWtsMINqrJLrRacOk9x</code> ·
-                      Charlotte <code>XB0fDUnXU5powFXDhCwa</code> ·
-                      Liam <code>TX3LPaxmHKxFdv7VOQHJ</code>
-                    </div>
-                  </div>
-
-                  <!-- Sarvam voice config -->
-                  <div id="tts-sarvam-config" style="display:none;background:var(--bg2);
-                       border:1px solid var(--border);border-radius:var(--r);padding:14px">
-                    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
-                      Sarvam Voice Selection
-                    </div>
-                    <div class="form-row">
-                      <label>Voice</label>
-                      <select id="ac-voice">
-                        <option value="anushka">Anushka (Female)</option>
-                        <option value="priya">Priya (Female)</option>
-                        <option value="kavya">Kavya (Female)</option>
-                        <option value="manisha">Manisha (Female)</option>
-                        <option value="vidya">Vidya (Female)</option>
-                        <option value="abhilash">Abhilash (Male)</option>
-                        <option value="karun">Karun (Male)</option>
-                        <option value="hitesh">Hitesh (Male)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Active pipeline summary -->
-                <div id="speech-pipeline-summary" style="background:rgba(0,210,150,0.06);
-                     border:1px solid rgba(0,210,150,0.2);border-radius:var(--r);
-                     padding:10px 14px;font-size:12px;font-family:var(--mono);color:var(--teal)">
-                  Pipeline: <span id="pipeline-label">Sarvam STT → Groq LLM → ElevenLabs TTS</span>
-                </div>
-
-              </div>
-            </div>
-
-            <!-- ── Telephony ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 📞 Telephony — PIOPIY</div></div>
-              <div class="card-body">
-                <div class="form-grid">
-                  <div class="form-row"><label>Agent ID</label><input id="ac-piopiy-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/></div>
-                  <div class="form-row">
-                    <label>Agent Token <span id="ac-piopiy-token-badge" class="key-badge" style="display:none">Set</span></label>
-                    <input id="ac-piopiy-token" type="password" placeholder="Paste JWT token from PIOPIY dashboard" autocomplete="new-password"/>
-                  </div>
-                  <div class="form-row"><label>Phone Number <span style="color:var(--muted);font-weight:400">(with country code, e.g. 917943446866)</span></label><input id="ac-piopiy-num" placeholder="917943446727"/></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Messaging ── -->
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><span class="dot"></span> 💬 Messaging & Notifications</div></div>
-              <div class="card-body">
-                <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">📱 Telegram</div>
-                <div class="form-grid" style="margin-bottom:20px">
-                  <div class="form-row"><label>Bot Token</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-tg-token" placeholder="8471256641:AAF••••" style="flex:1"/>
-                      <span id="ac-tg-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row"><label>Chat ID</label><input id="ac-tg-chat" placeholder="-1001234567890"/></div>
-                </div>
-                <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">💚 WhatsApp (Meta Cloud API)</div>
-                <div class="form-grid">
-                  <div class="form-row"><label>Access Token</label>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <input type="password" id="ac-wa-token" placeholder="EAAxxxxxx••••" style="flex:1"/>
-                      <span id="ac-wa-badge" class="key-badge">Not Set</span>
-                    </div>
-                  </div>
-                  <div class="form-row"><label>Phone Number ID</label><input id="ac-wa-number" placeholder="107765489012345"/></div>
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex;justify-content:flex-end">
-              <button class="btn btn-primary" onclick="saveAcctKeys()">💾 Save All Settings</button>
-            </div>
-          </div>
-
           <!-- FAQ TRAINING TAB -->
           <div id="acct-panel-faq" style="display:none">
 
@@ -2449,61 +2076,53 @@ tr:hover td { background: var(--teal-dim); }
             </div>
           </div>
 
-          <!-- INTEGRATIONS TAB -->
-          <div id="acct-panel-integrations" style="display:none">
-
-            <!-- Webhook card -->
-            <div class="card" style="margin-bottom:20px">
+          <!-- WEBHOOK TAB -->
+          <div id="acct-panel-webhook" style="display:none">
+            <div class="card">
               <div class="card-header">
-                <div class="card-title"><span class="dot"></span> 🔗 Webhook</div>
-                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">POST on call events</span>
+                <div class="card-title"><span class="dot"></span> CRM Webhook Integration</div>
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">POST on call complete</span>
               </div>
               <div class="card-body">
-                <p style="font-size:12px;color:var(--muted);margin-bottom:18px">
-                  DialBot will send a JSON payload to your endpoint after each selected event.
+                <p style="font-size:12px;color:var(--muted);margin-bottom:20px">
+                  Send call outcome, summary, and lead data to your CRM or automation tool automatically after every call.
                 </p>
                 <div class="form-grid">
                   <div class="form-row" style="grid-column:1/-1">
-                    <label>Endpoint URL</label>
-                    <input type="url" id="wh-url" placeholder="https://hooks.zapier.com/hooks/catch/…"/>
+                    <label>Webhook URL *</label>
+                    <input type="url" id="webhook-url" placeholder="https://hooks.zapier.com/hooks/catch/…"/>
                   </div>
                   <div class="form-row">
-                    <label>Trigger Event</label>
+                    <label>Events</label>
                     <select id="webhook-events">
                       <option value="all">All Events</option>
-                      <option value="call_completed">call_completed</option>
-                      <option value="interested">interested</option>
-                      <option value="demo_booked">demo_booked</option>
+                      <option value="call_completed">Call Completed Only</option>
+                      <option value="interested">Interested Only</option>
                     </select>
                   </div>
                   <div class="form-row">
-                    <label>Secret <span style="color:var(--muted);font-weight:400">(X-Webhook-Secret header)</span></label>
-                    <input type="password" id="webhook-secret" placeholder="Leave blank to keep existing"/>
+                    <label>Secret Header <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                    <input type="password" id="webhook-secret" placeholder="Set new secret (leave blank to keep existing)"/>
                   </div>
                 </div>
-                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
-                  <button class="btn btn-outline btn-sm" onclick="testWebhook()">🧪 Send Test</button>
-                  <button class="btn btn-primary btn-sm" onclick="saveWebhookConfig()">Save Webhook</button>
+                <div style="display:flex;gap:10px;margin-top:20px">
+                  <button class="btn btn-outline" onclick="testWebhook()">🧪 Test Delivery</button>
+                  <button class="btn btn-primary" onclick="saveWebhookConfig()">Save Webhook</button>
                 </div>
               </div>
             </div>
 
-            <!-- Recent Deliveries -->
-            <div class="card">
+            <!-- Recent deliveries -->
+            <div class="card" style="margin-top:16px">
               <div class="card-header">
                 <div class="card-title"><span class="dot"></span> Recent Deliveries</div>
                 <button class="btn btn-ghost btn-sm" onclick="loadWebhookLogs()">↻ Refresh</button>
               </div>
               <div class="card-body" style="padding:0">
-                <div class="table-wrap">
-                  <table>
+                <div style="overflow-x:auto">
+                  <table class="data-table">
                     <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Event</th>
-                        <th>Status</th>
-                        <th>URL</th>
-                      </tr>
+                      <tr><th>Time</th><th>Event</th><th>Status</th><th>Endpoint</th></tr>
                     </thead>
                     <tbody id="webhook-logs-tbody">
                       <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No deliveries yet.</td></tr>
@@ -2512,8 +2131,7 @@ tr:hover td { background: var(--teal-dim); }
                 </div>
               </div>
             </div>
-
-          </div><!-- /acct-panel-integrations -->
+          </div>
 
           </div><!-- /tab panels min-height wrapper -->
 
@@ -2615,6 +2233,19 @@ tr:hover td { background: var(--teal-dim); }
     </div><!-- /content -->
   </main>
 </div><!-- /app -->
+
+<!-- Campaign Analytics Modal -->
+<div class="modal-overlay" id="modal-campaign-analytics">
+  <div class="modal" style="max-width:640px;width:95vw">
+    <div class="modal-header">
+      <h3>📊 <span id="ca-title">Campaign Analytics</span></h3>
+      <button class="modal-close" onclick="closeModal('modal-campaign-analytics')">✕</button>
+    </div>
+    <div class="modal-body" id="ca-body">
+      <div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>
+    </div>
+  </div>
+</div>
 
 <!-- TAG LEAD MODAL -->
 <div id="tag-lead-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center">
@@ -3418,6 +3049,8 @@ function renderCampaigns(campaigns) {
         <div class="campaign-meta">
           ${total} contacts · ${done} called · ${answered} answered · ${demos} demos
           · Created: ${c.created_at ? c.created_at.slice(0,10) : ''}
+          ${c.max_retries > 0 ? `· <span style="color:var(--amber);font-weight:600">↻ Retry ×${c.max_retries}</span>` : ''}
+          ${(c.retry_pending||0) > 0 ? `· <span style="color:var(--amber)">⏳ ${c.retry_pending} pending retry</span>` : ''}
         </div>
       </div>
       <div class="progress-wrap">
@@ -3431,6 +3064,7 @@ function renderCampaigns(campaigns) {
         ${c.status === 'running' ? '● ' : ''}${c.status}
       </div>
       <div class="campaign-actions">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openCampaignAnalytics(${c.id},'${c.name.replace(/'/g,'')}')" title="Analytics">📊</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditCampaign(${c.id})" title="Edit Campaign">✏️ Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="openSchedule(${c.id}, '${c.name.replace(/'/g,'')}')" title="Schedule">🕐 Schedule</button>
         ${actions}
@@ -3568,7 +3202,12 @@ async function createCampaign() {
   try {
     const res = await apiFetch('/api/campaigns', {
       method: 'POST',
-      body: JSON.stringify({ name, lead_group, description: notes }),
+      body: JSON.stringify({
+        name,
+        lead_group,
+        description: notes,
+        max_retries: parseInt(document.getElementById('camp-retry')?.value) || 0,
+      }),
     });
 
     if (res.leads_assigned === 0) {
@@ -4737,33 +4376,6 @@ async function loadSettings() {
     const statusEl = document.getElementById('prompt-status');
     if (statusEl) statusEl.textContent = 'Could not load settings: ' + e.message;
   }
-
-  // API Key Status panel — use tenant keys
-  try {
-    const keys = await apiFetch('/api/tenant/api-keys');
-    const kPanel = document.getElementById('apikey-panel');
-    if (kPanel) {
-      kPanel.innerHTML = [
-        ['Sarvam API Key',     keys.sarvam_set,      'STT (saarika:v2.5) + TTS (bulbul:v2)'],
-        ['ElevenLabs API Key', keys.elevenlabs_set,  'TTS alternative — faster, more natural voice'],
-        ['Groq API Key',       keys.groq_set,        'LLM (llama-3.3-70b-versatile)'],
-        ['Telegram Alerts',    keys.telegram_set,    'Call completion notifications'],
-      ].map(([k, v, desc]) => `
-        <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-            <span class="config-key">${k}</span>
-            <span class="config-badge ${v ? 'ok' : 'err'}">${v ? '✓ Set' : '✗ Missing'}</span>
-          </div>
-          <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${desc}</span>
-        </div>`).join('') + `
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;color:var(--muted)">
-          Manage keys in <a href="#" onclick="showPage('account',null);switchAcctTab('keys');return false;" style="color:var(--teal)">Account Settings → API Keys</a>
-        </div>`;
-    }
-  } catch(e) {
-    const kPanel = document.getElementById('apikey-panel');
-    if (kPanel) kPanel.innerHTML = `<div style="color:var(--red);font-size:12px">Could not load API key status: ${e.message}</div>`;
-  }
 }
 
 async function savePrompt() {
@@ -5449,16 +5061,15 @@ async function cancelSchedule() {
 // ACCOUNT SETTINGS
 // ══════════════════════════════════════
 function switchAcctTab(name) {
-  ['profile','call','keys','faq','integrations'].forEach(t => {
+  ['profile','call','faq','webhook'].forEach(t => {
     const btn   = document.getElementById('acct-tab-' + t);
     const panel = document.getElementById('acct-panel-' + t);
     const active = t === name;
     if (btn)   { btn.style.background = active ? 'var(--orange)' : 'transparent'; btn.style.color = active ? '#000' : 'var(--muted)'; }
     if (panel) panel.style.display  = active ? 'block' : 'none';
   });
-  if (name === 'faq')          loadFaq();
-  if (name === 'integrations') { loadWebhookConfig(); loadWebhookLogs(); }
-  if (name === 'keys') {} // usage stats moved to Billing & Usage page
+  if (name === 'faq')     loadFaq();
+  if (name === 'webhook') { loadWebhookConfig(); loadWebhookLogs(); }
 }
 
 async function loadWebhookConfig() {
@@ -5855,108 +5466,8 @@ async function loadAccountSettings() {
     document.getElementById('ac-voice').value        = c.agent_voice      || 'anushka';
     document.getElementById('ac-greeting').value     = c.greeting_template|| '';
   } catch(e) { console.error('loadAccountSettings', e); }
-
-  try {
-    const res = await fetch('/api/tenant/api-keys', { headers: { 'Authorization': `Bearer ${authToken}` } });
-    if (!res.ok) return;
-    const d = await res.json();
-
-    // LLM
-    const prov = d.llm_provider || 'groq';
-    document.getElementById('ac-llm-provider').value = prov;
-    document.getElementById('ac-llm-model').value    = d.llm_model || '';
-    onLlmProviderChange();
-    setKeyBadge('ac-groq-badge',      d.groq_set);
-    setKeyBadge('ac-xai-badge',       d.xai_set);
-    setKeyBadge('ac-openai-badge',    d.openai_set);
-    setKeyBadge('ac-anthropic-badge', d.anthropic_set);
-    setKeyBadge('ac-gemini-badge',    d.gemini_set);
-    if (prov === 'grok' && d.llm_model) {
-      const gm = document.getElementById('ac-grok-model');
-      if (gm) gm.value = d.llm_model;
-    }
-
-    // Speech
-    selectStt(d.stt_provider || 'sarvam');
-    selectTts(d.tts_provider || 'elevenlabs');
-    setKeyBadge('ac-sarvam-badge',      d.sarvam_set);
-    setKeyBadge('ac-elevenlabs-badge',  d.elevenlabs_set);
-    document.getElementById('ac-elevenlabs-voice').value = d.elevenlabs_voice_id || '';
-    if (d.elevenlabs_model) document.getElementById('ac-elevenlabs-model').value = d.elevenlabs_model;
-
-    // Telephony
-    document.getElementById('ac-piopiy-id').value     = d.piopiy_agent_id || '';
-    document.getElementById('ac-piopiy-num').value    = d.piopiy_number    || '';
-    // Token: show masked value if set, leave blank if not (user must re-enter to change)
-    if (d.piopiy_token_set) {
-      document.getElementById('ac-piopiy-token').placeholder = d.piopiy_agent_token || '••••••••••••••••••••';
-    }
-    setKeyBadge('ac-piopiy-token-badge', d.piopiy_token_set);
-
-    // Messaging
-    document.getElementById('ac-tg-chat').value  = d.telegram_chat_id || '';
-    document.getElementById('ac-wa-number').value = d.whatsapp_number  || '';
-    setKeyBadge('ac-tg-badge',  d.telegram_set);
-    setKeyBadge('ac-wa-badge',  d.whatsapp_set);
-  } catch(e) { console.error('loadAccountSettings keys', e); }
 }
 
-function setKeyBadge(id, isSet) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent      = isSet ? '✓ Set' : 'Not Set';
-  el.style.background = isSet ? 'rgba(0,210,150,0.15)' : 'rgba(90,122,138,0.2)';
-  el.style.color      = isSet ? 'var(--teal)' : 'var(--muted)';
-}
-// keep old name as alias for other callers
-function setAcctBadge(id, isSet) { setKeyBadge(id, isSet); }
-
-function onLlmProviderChange() {
-  const prov = document.getElementById('ac-llm-provider').value;
-  document.querySelectorAll('.llm-key-section').forEach(el => el.style.display = 'none');
-  const target = document.getElementById('llm-key-' + prov);
-  if (target) target.style.display = 'block';
-  // Hide generic model text field for grok (it has its own model dropdown inside llm-key-grok)
-  const modelRow = document.getElementById('llm-model-row');
-  if (modelRow) modelRow.style.display = prov === 'grok' ? 'none' : '';
-}
-
-function selectStt(prov) {
-  document.getElementById('ac-stt-provider').value = prov;
-  ['sarvam','elevenlabs'].forEach(p => {
-    const card  = document.getElementById('stt-card-' + p);
-    const badge = document.getElementById('stt-badge-' + p);
-    const active = p === prov;
-    card.style.borderColor = active ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-    card.style.background  = active ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
-    badge.style.display    = active ? 'inline' : 'none';
-  });
-  _updatePipelineLabel();
-}
-
-function selectTts(prov) {
-  document.getElementById('ac-tts-provider').value = prov;
-  ['sarvam','elevenlabs'].forEach(p => {
-    const card  = document.getElementById('tts-card-' + p);
-    const badge = document.getElementById('tts-badge-' + p);
-    const active = p === prov;
-    card.style.borderColor = active ? 'rgba(0,210,150,0.4)' : 'rgba(0,210,150,0.12)';
-    card.style.background  = active ? 'rgba(0,210,150,0.07)' : 'var(--bg2)';
-    badge.style.display    = active ? 'inline' : 'none';
-  });
-  document.getElementById('tts-elevenlabs-config').style.display = prov === 'elevenlabs' ? 'block' : 'none';
-  document.getElementById('tts-sarvam-config').style.display     = prov === 'sarvam'     ? 'block' : 'none';
-  _updatePipelineLabel();
-}
-
-function _updatePipelineLabel() {
-  const stt = document.getElementById('ac-stt-provider').value;
-  const tts = document.getElementById('ac-tts-provider').value;
-  const sttLabel = stt === 'sarvam' ? 'Sarvam STT' : 'ElevenLabs STT';
-  const ttsLabel = tts === 'elevenlabs' ? 'ElevenLabs TTS' : 'Sarvam TTS';
-  document.getElementById('pipeline-label').textContent =
-    `${sttLabel}  →  Groq LLM  →  ${ttsLabel}`;
-}
 
 async function saveAcctProfile() {
   const body = {
@@ -6007,73 +5518,6 @@ async function saveAcctCallConfig() {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) showAcctAlert('✅ Call configuration saved.');
-    else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
-  } catch (err) {
-    showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
-  }
-}
-
-async function saveAcctKeys() {
-  const body = {
-    // LLM — always send provider + model selections
-    llm_provider: document.getElementById('ac-llm-provider').value,
-    llm_model:    document.getElementById('ac-llm-model').value.trim(),
-    stt_provider: document.getElementById('ac-stt-provider').value,
-    tts_provider: document.getElementById('ac-tts-provider').value,
-    // PIOPIY Telephony
-    piopiy_agent_id:    document.getElementById('ac-piopiy-id').value.trim(),
-    piopiy_number:      document.getElementById('ac-piopiy-num').value.trim(),
-    // Token: only send if user typed a new value (blank = keep existing)
-    ...(document.getElementById('ac-piopiy-token').value.trim()
-      ? { piopiy_agent_token: document.getElementById('ac-piopiy-token').value.trim() }
-      : {}),
-    // Telegram chat id (non-secret)
-    telegram_chat_id: document.getElementById('ac-tg-chat').value.trim(),
-    // WhatsApp number (non-secret)
-    whatsapp_number: document.getElementById('ac-wa-number').value.trim(),
-  };
-
-  // Only send secret keys if the user typed something (blank = keep existing)
-  // Send selected grok model alongside provider
-  if (document.getElementById('ac-llm-provider').value === 'grok') {
-    const grokModel = document.getElementById('ac-grok-model')?.value;
-    if (grokModel) body.llm_model = grokModel;
-  }
-
-  const secrets = [
-    ['ac-groq',      'groq_api_key'],
-    ['ac-xai',       'xai_api_key'],
-    ['ac-openai',    'openai_api_key'],
-    ['ac-anthropic', 'anthropic_api_key'],
-    ['ac-gemini',    'gemini_api_key'],
-    ['ac-sarvam',    'sarvam_api_key'],
-    ['ac-elevenlabs','elevenlabs_api_key'],
-    ['ac-tg-token',  'telegram_bot_token'],
-    ['ac-wa-token',  'whatsapp_api_key'],
-  ];
-  secrets.forEach(([elId, field]) => {
-    const v = document.getElementById(elId)?.value?.trim();
-    if (v) body[field] = v;
-  });
-
-  // ElevenLabs voice ID + model (non-secret)
-  const evid = document.getElementById('ac-elevenlabs-voice').value.trim();
-  if (evid) body.elevenlabs_voice_id = evid;
-  body.elevenlabs_model = document.getElementById('ac-elevenlabs-model').value;
-
-  try {
-    const res = await fetch('/api/tenant/api-keys', {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      const sttLabel = body.stt_provider === 'elevenlabs' ? 'ElevenLabs STT' : 'Sarvam STT';
-      const ttsLabel = body.tts_provider === 'elevenlabs' ? 'ElevenLabs TTS' : 'Sarvam TTS';
-      showAcctAlert(`✅ Settings saved. Pipeline: ${sttLabel} → ${ttsLabel}`);
-      loadAccountSettings();
-    }
     else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
   } catch (err) {
     showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
@@ -6396,6 +5840,103 @@ function previewAcctPrompt() {
 }
 
 // (duplicate block removed — canonical implementations above)
+
+// ════════════════════════════════════════
+// CAMPAIGN ANALYTICS MODAL
+// ════════════════════════════════════════
+async function openCampaignAnalytics(id, name) {
+  document.getElementById('ca-title').textContent = name;
+  document.getElementById('ca-body').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>';
+  openModal('modal-campaign-analytics');
+
+  try {
+    const d = await apiFetch(`/api/campaigns/${id}/analytics`);
+    const s = d.summary || {};
+    const total    = s.total_calls  || 0;
+    const answered = s.answered     || 0;
+    const interest = s.interested   || 0;
+    const demos    = s.demos        || 0;
+    const avgDur   = s.avg_duration ? Math.round(s.avg_duration) + 's' : '—';
+    const ansRate  = total > 0 ? Math.round((answered / total) * 100) : 0;
+    const intRate  = answered > 0 ? Math.round((interest / answered) * 100) : 0;
+    const demoRate = answered > 0 ? Math.round((demos / answered) * 100) : 0;
+
+    // Daily bar chart — max 14 days
+    const daily = (d.daily || []).slice(-14);
+    const maxCalls = Math.max(...daily.map(r => r.calls || 0), 1);
+    const barChart = daily.length ? `
+      <div style="display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px">
+        ${daily.map(r => {
+          const h = Math.max(4, Math.round(((r.calls||0) / maxCalls) * 56));
+          const ansH = Math.max(0, Math.round(((r.answered||0) / maxCalls) * 56));
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="${r.date}: ${r.calls} calls, ${r.answered} answered">
+            <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:56px;gap:1px">
+              <div style="width:100%;height:${ansH}px;background:var(--teal);border-radius:2px 2px 0 0;opacity:0.9"></div>
+              <div style="width:100%;height:${Math.max(0,h-ansH)}px;background:var(--bg3);border-radius:${ansH?'0':'2px 2px'} 0 0"></div>
+            </div>
+            <div style="font-size:8px;color:var(--muted);font-family:var(--mono);transform:rotate(-45deg);transform-origin:top left;margin-top:4px;white-space:nowrap">
+              ${(r.date||'').slice(5)}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--muted)">
+        <span><span style="display:inline-block;width:8px;height:8px;background:var(--teal);border-radius:1px;margin-right:3px"></span>Answered</span>
+        <span><span style="display:inline-block;width:8px;height:8px;background:var(--bg3);border-radius:1px;margin-right:3px"></span>No Answer</span>
+      </div>` : '<div style="color:var(--muted);font-size:12px">No daily data yet</div>';
+
+    // Sentiment breakdown
+    const sentiments = d.sentiments || [];
+    const sentTotal = sentiments.reduce((a,b) => a + (b.count||0), 0);
+    const sentColors = { interested:'var(--teal)', demo_booked:'var(--blue)',
+                         neutral:'var(--muted)', rejected:'var(--red)' };
+    const sentRows = sentiments.map(s => {
+      const pct = sentTotal > 0 ? Math.round((s.count / sentTotal) * 100) : 0;
+      const col = sentColors[s.sentiment] || 'var(--muted)';
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:80px;font-size:11px;color:${col};font-weight:500;text-transform:capitalize">${s.sentiment||'unknown'}</div>
+        <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:3px"></div>
+        </div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);width:45px;text-align:right">${s.count} (${pct}%)</div>
+      </div>`;
+    }).join('') || '<div style="color:var(--muted);font-size:12px">No sentiment data yet</div>';
+
+    document.getElementById('ca-body').innerHTML = `
+      <!-- 4 stat tiles -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        ${[
+          ['Total Calls',  total,    'var(--text)'],
+          ['Answered',     \`\${answered} <span style="font-size:11px;color:var(--muted)">(\${ansRate}%)</span>\`, 'var(--teal)'],
+          ['Interested',   \`\${interest} <span style="font-size:11px;color:var(--muted)">(\${intRate}%)</span>\`, 'var(--blue)'],
+          ['Demos Booked', \`\${demos} <span style="font-size:11px;color:var(--muted)">(\${demoRate}%)</span>\`, 'var(--amber)'],
+        ].map(([label, val, color]) => \`
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;text-align:center">
+            <div style="font-size:20px;font-weight:700;color:\${color};font-family:var(--mono)">\${val}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">\${label}</div>
+          </div>\`).join('')}
+      </div>
+
+      <!-- Daily trend -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
+          Daily Trend <span style="font-weight:400">· avg \${avgDur} / call</span>
+        </div>
+        \${barChart}
+      </div>
+
+      <!-- Sentiment breakdown -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Sentiment Breakdown</div>
+        \${sentRows}
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('ca-body').innerHTML =
+      `<div style="color:var(--red);padding:20px;font-size:13px">Error loading analytics: ${e.message}</div>`;
+  }
+}
 
 </script>
 

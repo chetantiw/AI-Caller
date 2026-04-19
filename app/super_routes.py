@@ -83,22 +83,42 @@ class UpdateTenantStatusRequest(BaseModel):
 
 
 class UpdateTenantConfigRequest(BaseModel):
-    agent_name:         Optional[str] = None
-    agent_language:     Optional[str] = None
-    agent_voice:        Optional[str] = None
-    system_prompt:      Optional[str] = None
-    greeting_template:  Optional[str] = None
-    piopiy_agent_id:    Optional[str] = None
-    piopiy_agent_token: Optional[str] = None
-    piopiy_number:      Optional[str] = None
-    sarvam_api_key:     Optional[str] = None
-    groq_api_key:       Optional[str] = None
-    exotel_sid:         Optional[str] = None
-    exotel_api_key:     Optional[str] = None
-    exotel_api_token:   Optional[str] = None
-    exotel_number:      Optional[str] = None
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id:   Optional[str] = None
+    # Agent
+    agent_name:           Optional[str] = None
+    agent_language:       Optional[str] = None
+    agent_voice:          Optional[str] = None
+    system_prompt:        Optional[str] = None
+    greeting_template:    Optional[str] = None
+    # Speech
+    sarvam_api_key:       Optional[str] = None
+    elevenlabs_api_key:   Optional[str] = None
+    elevenlabs_voice_id:  Optional[str] = None
+    elevenlabs_model:     Optional[str] = None
+    stt_provider:         Optional[str] = None
+    tts_provider:         Optional[str] = None
+    # LLM
+    groq_api_key:         Optional[str] = None
+    xai_api_key:          Optional[str] = None
+    openai_api_key:       Optional[str] = None
+    llm_provider:         Optional[str] = None
+    llm_model:            Optional[str] = None
+    # Telephony
+    piopiy_agent_id:      Optional[str] = None
+    piopiy_agent_token:   Optional[str] = None
+    piopiy_number:        Optional[str] = None
+    exotel_sid:           Optional[str] = None
+    exotel_api_key:       Optional[str] = None
+    exotel_api_token:     Optional[str] = None
+    exotel_number:        Optional[str] = None
+    # Notifications
+    telegram_bot_token:   Optional[str] = None
+    telegram_chat_id:     Optional[str] = None
+    whatsapp_api_key:     Optional[str] = None
+    whatsapp_number:      Optional[str] = None
+    # Webhook
+    webhook_url:          Optional[str] = None
+    webhook_events:       Optional[str] = None
+    webhook_secret:       Optional[str] = None
 
 
 # ─────────────────────────────────────────

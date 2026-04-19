@@ -1172,14 +1172,69 @@ async function openTenantDetail(id) {
         </div>
       </div>
       <div class="form-group"><label>System Prompt</label><textarea id="cfg-prompt">${c.system_prompt||''}</textarea></div>
-      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">🔌 API Keys</div>
+      <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">🔌 API Keys & Services</div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Speech</div>
       <div class="form-grid">
         <div class="form-group"><label>Sarvam API Key</label><input id="cfg-sarvam" placeholder="sk_..." value="${c.sarvam_api_key||''}"/></div>
+        <div class="form-group"><label>ElevenLabs API Key</label><input id="cfg-elevenlabs" placeholder="xi-..." value="${c.elevenlabs_api_key||''}"/></div>
+        <div class="form-group"><label>ElevenLabs Voice ID</label><input id="cfg-elevenlabs-voice" placeholder="TX3LPaxmHKxFdv7VOQHJ" value="${c.elevenlabs_voice_id||''}"/></div>
+        <div class="form-group"><label>ElevenLabs Model</label>
+          <select id="cfg-elevenlabs-model">
+            <option value="eleven_flash_v2_5" ${c.elevenlabs_model==='eleven_flash_v2_5'?'selected':''}>eleven_flash_v2_5 (fastest)</option>
+            <option value="eleven_turbo_v2_5" ${c.elevenlabs_model==='eleven_turbo_v2_5'?'selected':''}>eleven_turbo_v2_5</option>
+            <option value="eleven_multilingual_v2" ${c.elevenlabs_model==='eleven_multilingual_v2'?'selected':''}>eleven_multilingual_v2 (best)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>STT Provider</label>
+          <select id="cfg-stt">
+            <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam (recommended for Hindi)</option>
+            <option value="elevenlabs" ${c.stt_provider==='elevenlabs'?'selected':''}>ElevenLabs</option>
+          </select>
+        </div>
+        <div class="form-group"><label>TTS Provider</label>
+          <select id="cfg-tts">
+            <option value="sarvam" ${(c.tts_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam</option>
+            <option value="elevenlabs" ${(c.tts_provider||'elevenlabs')==='elevenlabs'?'selected':''}>ElevenLabs (recommended)</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">LLM</div>
+      <div class="form-grid">
         <div class="form-group"><label>Groq API Key</label><input id="cfg-groq" placeholder="gsk_..." value="${c.groq_api_key||''}"/></div>
+        <div class="form-group"><label>xAI API Key (Grok)</label><input id="cfg-xai" placeholder="xai-..." value="${c.xai_api_key||''}"/></div>
+        <div class="form-group"><label>OpenAI API Key</label><input id="cfg-openai" placeholder="sk-..." value="${c.openai_api_key||''}"/></div>
+        <div class="form-group"><label>LLM Provider</label>
+          <select id="cfg-llm-provider">
+            <option value="groq" ${(c.llm_provider||'groq')==='groq'?'selected':''}>Groq (Llama 3.3)</option>
+            <option value="grok" ${c.llm_provider==='grok'?'selected':''}>xAI — Grok</option>
+            <option value="openai" ${c.llm_provider==='openai'?'selected':''}>OpenAI</option>
+          </select>
+        </div>
+        <div class="form-group"><label>LLM Model <span style="color:var(--muted);font-weight:400">(optional override)</span></label><input id="cfg-llm-model" placeholder="e.g. grok-4-1-fast / llama-3.3-70b-versatile" value="${c.llm_model||''}"/></div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Telephony</div>
+      <div class="form-grid">
         <div class="form-group"><label>PIOPIY Agent ID</label><input id="cfg-piopiy-id" value="${c.piopiy_agent_id||''}"/></div>
-        <div class="form-group"><label>PIOPIY Number</label><input id="cfg-piopiy-num" value="${c.piopiy_number||''}"/></div>
+        <div class="form-group"><label>PIOPIY Agent Token</label><input id="cfg-piopiy-token" type="password" placeholder="Paste new token (leave blank to keep)"/></div>
+        <div class="form-group"><label>PIOPIY Phone Number</label><input id="cfg-piopiy-num" value="${c.piopiy_number||''}"/></div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Notifications</div>
+      <div class="form-grid">
         <div class="form-group"><label>Telegram Bot Token</label><input id="cfg-tg-token" value="${c.telegram_bot_token||''}"/></div>
         <div class="form-group"><label>Telegram Chat ID</label><input id="cfg-tg-chat" value="${c.telegram_chat_id||''}"/></div>
+        <div class="form-group"><label>WhatsApp API Key</label><input id="cfg-wa-token" value="${c.whatsapp_api_key||''}"/></div>
+        <div class="form-group"><label>WhatsApp Number ID</label><input id="cfg-wa-num" value="${c.whatsapp_number||''}"/></div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">Webhook</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Webhook URL</label><input id="cfg-webhook-url" value="${c.webhook_url||''}"/></div>
+        <div class="form-group"><label>Webhook Events</label>
+          <select id="cfg-webhook-events">
+            <option value="call_completed" ${(c.webhook_events||'call_completed')==='call_completed'?'selected':''}>All completed calls</option>
+            <option value="interested" ${c.webhook_events==='interested'?'selected':''}>Interested only</option>
+            <option value="demo_booked" ${c.webhook_events==='demo_booked'?'selected':''}>Demo booked only</option>
+          </select>
+        </div>
       </div>
       <div style="font-size:13px;font-weight:600;margin:16px 0 14px;color:var(--orange)">📋 30-Day Usage</div>
       <div class="usage-bars" id="usage-bars-${id}">
@@ -1194,22 +1249,52 @@ async function openTenantDetail(id) {
  
 async function saveConfig() {
   if (!editingTenantId) return;
+  const tok = document.getElementById('cfg-piopiy-token')?.value.trim();
   const updates = {
-    agent_name:         document.getElementById('cfg-agent-name')?.value || undefined,
-    agent_voice:        document.getElementById('cfg-voice')?.value || undefined,
-    system_prompt:      document.getElementById('cfg-prompt')?.value || undefined,
-    sarvam_api_key:     document.getElementById('cfg-sarvam')?.value || undefined,
-    groq_api_key:       document.getElementById('cfg-groq')?.value || undefined,
-    piopiy_agent_id:    document.getElementById('cfg-piopiy-id')?.value || undefined,
-    piopiy_number:      document.getElementById('cfg-piopiy-num')?.value || undefined,
-    telegram_bot_token: document.getElementById('cfg-tg-token')?.value || undefined,
-    telegram_chat_id:   document.getElementById('cfg-tg-chat')?.value || undefined,
+    agent_name:           document.getElementById('cfg-agent-name')?.value || undefined,
+    agent_voice:          document.getElementById('cfg-voice')?.value || undefined,
+    system_prompt:        document.getElementById('cfg-prompt')?.value || undefined,
+    // Speech
+    sarvam_api_key:       document.getElementById('cfg-sarvam')?.value || undefined,
+    elevenlabs_api_key:   document.getElementById('cfg-elevenlabs')?.value || undefined,
+    elevenlabs_voice_id:  document.getElementById('cfg-elevenlabs-voice')?.value || undefined,
+    elevenlabs_model:     document.getElementById('cfg-elevenlabs-model')?.value || undefined,
+    stt_provider:         document.getElementById('cfg-stt')?.value || undefined,
+    tts_provider:         document.getElementById('cfg-tts')?.value || undefined,
+    // LLM
+    groq_api_key:         document.getElementById('cfg-groq')?.value || undefined,
+    xai_api_key:          document.getElementById('cfg-xai')?.value || undefined,
+    openai_api_key:       document.getElementById('cfg-openai')?.value || undefined,
+    llm_provider:         document.getElementById('cfg-llm-provider')?.value || undefined,
+    llm_model:            document.getElementById('cfg-llm-model')?.value || undefined,
+    // Telephony
+    piopiy_agent_id:      document.getElementById('cfg-piopiy-id')?.value || undefined,
+    piopiy_number:        document.getElementById('cfg-piopiy-num')?.value || undefined,
+    // Notifications
+    telegram_bot_token:   document.getElementById('cfg-tg-token')?.value || undefined,
+    telegram_chat_id:     document.getElementById('cfg-tg-chat')?.value || undefined,
+    whatsapp_api_key:     document.getElementById('cfg-wa-token')?.value || undefined,
+    whatsapp_number:      document.getElementById('cfg-wa-num')?.value || undefined,
+    // Webhook
+    webhook_url:          document.getElementById('cfg-webhook-url')?.value || undefined,
+    webhook_events:       document.getElementById('cfg-webhook-events')?.value || undefined,
   };
+  if (tok) updates.piopiy_agent_token = tok;
+
+  // Strip undefined
+  Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+
   const res = await fetch(`${API}/tenants/${editingTenantId}/config`, {
-    method:'PUT', headers: authHeaders(), body: JSON.stringify(updates)
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify(updates)
   });
-  if (res.ok) { closeModal('modal-tenant-detail'); alert('Config saved!'); }
-  else { alert('Error saving config'); }
+  if (res.ok) {
+    closeModal('modal-tenant-detail');
+    alert('✅ Config saved!');
+    loadTenants();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert('Error: ' + (d.detail || 'Save failed'));
+  }
 }
  
 // ── ADDON MINUTES ─────────────────────────────────────────────

@@ -418,11 +418,11 @@ def test_api_routes():
 
     # Superadmin login
     try:
-        r = requests.post(f"{BASE}/super/api/login",
+        r = requests.post(f"{BASE}/super/api/auth/login",
                           json={"username": "superadmin", "password": "superadmin123"}, timeout=5)
         if r.status_code == 200:
             super_token = r.json().get("token")
-            ok("POST /super/api/login")
+            ok("POST /super/api/auth/login")
             super_headers = {"Authorization": f"Bearer {super_token}"}
 
             # Super routes
@@ -516,23 +516,50 @@ def test_static_files():
     if os.path.exists(dash_path):
         content = open(dash_path).read()
         checks = [
+            # Core structure — always present
             ("plan-badge",            "Plan badge element"),
             ("modal-upgrade",         "Upgrade modal"),
             ("modal-tag-lead",        "Lead tag modal"),
             ("page-billing",          "Billing page"),
-            ("acct-panel-integrations", "Integrations tab"),
+            ("nav-billing",           "Billing nav item"),
+            ("modal-campaign-analytics", "Campaign analytics modal"),
+
+            # JS functions — always present
             ("loadPlanFeatures",      "loadPlanFeatures() function"),
             ("applyFeatureGates",     "applyFeatureGates() function"),
-            ("selectStt",             "STT selector function"),
-            ("selectTts",             "TTS selector function"),
             ("loadBillingPage",       "loadBillingPage() function"),
-            ("saveWebhookConfig",     "saveWebhookConfig() function"),
             ("openTagModal",          "openTagModal() function"),
-            ("ac-stt-provider",       "STT provider hidden input"),
-            ("ac-tts-provider",       "TTS provider hidden input"),
-            ("nav-billing",           "Billing nav item"),
-            ("wh-url",                "Webhook URL input"),
+            ("openCampaignAnalytics", "openCampaignAnalytics() function"),
+            ("saveWebhookConfig",     "saveWebhookConfig() function"),
+
+            # Superadmin-only elements — NOT expected in client dashboard
+            # acct-panel-integrations → moved to super_dashboard.html
+            # selectStt / selectTts   → moved to super_dashboard.html
+            # ac-stt-provider         → moved to super_dashboard.html
+            # ac-tts-provider         → moved to super_dashboard.html
+            # wh-url                  → moved to super_dashboard.html
         ]
+    # Verify superadmin dashboard has the config fields moved from client
+    super_path = "/root/ai-caller-env/ai-caller/static/super_dashboard.html"
+    if os.path.exists(super_path):
+        super_content = open(super_path).read()
+        super_checks = [
+            ("cfg-stt",           "STT provider selector (superadmin)"),
+            ("cfg-tts",           "TTS provider selector (superadmin)"),
+            ("cfg-elevenlabs",    "ElevenLabs key field (superadmin)"),
+            ("cfg-sarvam",        "Sarvam key field (superadmin)"),
+            ("cfg-piopiy-id",     "PIOPIY agent ID field (superadmin)"),
+            ("cfg-webhook-url",   "Webhook URL field (superadmin)"),
+            ("openAddonModal",    "Addon grant modal (superadmin)"),
+        ]
+    for selector, label in super_checks:
+        if selector in super_content:
+            ok(f"super_dashboard.html: {label}")
+        else:
+            fail(f"super_dashboard.html: {label}", f"'{selector}' not found — was it moved correctly?")
+
+
+
         for selector, label in checks:
             if selector in content:
                 ok(f"dashboard.html: {label}")
