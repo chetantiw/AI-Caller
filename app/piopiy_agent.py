@@ -156,11 +156,12 @@ async def create_session(
 
     tts = SarvamTTSService(
         api_key=os.getenv("SARVAM_API_KEY"),
-        model="bulbul:v2",
+        model="bulbul:v3",
         voice_id="anushka",
         params=SarvamTTSService.InputParams(
             language=Language.HI,
-            pace=1.1,
+            pace=0.9,
+            temperature=0.4,
         ),
     )
 
@@ -171,17 +172,18 @@ async def create_session(
         idle_timeout_secs=120,
     )
 
+    VAD_CONFIG = {
+        "stop_secs":  0.4,   # stop listening after 0.4s silence (was default ~0.8s)
+        "start_secs": 0.1,   # detect speech start faster
+        "confidence": 0.7,   # sensitivity — higher = more responsive to soft speech
+    }
+
     try:
         await voice_agent.Action(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad={
-                "confidence": 0.55,   # lower = detects speech sooner (default 0.7)
-                "start_secs": 0.1,    # 100ms to confirm speech start (default 0.2)
-                "stop_secs": 0.6,     # end-of-turn silence window (default 0.8)
-                "min_volume": 0.72,   # higher = rejects quiet background noise (default 0.6)
-            },
+            vad=VAD_CONFIG,
             allow_interruptions=True,
             interruption_strategy=VADUserTurnStartStrategy(),  # trigger on VAD, not word count
         )
