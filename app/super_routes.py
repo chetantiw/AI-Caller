@@ -246,7 +246,7 @@ async def update_tenant(tenant_id: int, req: UpdateTenantRequest,
         raise HTTPException(status_code=400, detail="No fields to update")
     if "status" in updates and updates["status"] not in ("active", "suspended", "expired"):
         raise HTTPException(status_code=400, detail="Invalid status value")
-    if "plan" in updates and updates["plan"] not in ("starter", "growth", "enterprise"):
+    if "plan" in updates and updates["plan"] not in ("starter", "growth", "pro", "enterprise"):
         raise HTTPException(status_code=400, detail="Invalid plan value")
     tdb.update_tenant(tenant_id, **updates)
     return {"message": "Tenant updated successfully"}
@@ -392,6 +392,12 @@ class UpdateQuotaRequest(BaseModel):
     groq_daily_limit: Optional[int]   = None
 
 
+class AddonRequest(BaseModel):
+    minutes:    int
+    amount_inr: float = 0.0
+    notes:      Optional[str] = ""
+
+
 @router.get("/api/quotas")
 async def get_all_quotas(auth=Depends(verify_super_token)):
     """All tenants with full service usage today + quota config."""
@@ -456,6 +462,54 @@ async def get_all_quotas(auth=Depends(verify_super_token)):
                                 else ("warning" if calls_pct >= 80 else "ok"),
         })
     return {"date": "today", "tenants": result}
+
+
+@router.post("/api/tenants/{tenant_id}/addon")
+async def grant_addon_minutes(tenant_id: int, req: AddonRequest,
+                              auth=Depends(verify_super_token)):
+    """Grant add-on minutes to a tenant and notify via platform Telegram."""
+    tenant = tdb.get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if req.minutes <= 0:
+        raise HTTPException(status_code=400, detail="minutes must be positive")
+
+    new_limit = tdb.create_addon_purchase(
+        tenant_id  = tenant_id,
+        minutes    = req.minutes,
+        amount_inr = req.amount_inr,
+        notes      = req.notes or "",
+    )
+
+    # Notify via platform tenant 1's Telegram config
+    try:
+        cfg = tdb.get_tenant_config(1) or {}
+        bot_token = cfg.get("telegram_bot_token", "")
+        chat_id   = cfg.get("telegram_chat_id", "")
+        if bot_token and chat_id:
+            msg = (
+                f"➕ <b>Add-on Minutes Granted</b>\n\n"
+                f"🏢 Tenant: <b>{tenant['name']}</b> (ID {tenant_id})\n"
+                f"⏱ Minutes Added: <b>{req.minutes:,}</b>\n"
+                f"💰 Amount: ₹{req.amount_inr:,.2f}\n"
+                f"📊 New Limit: <b>{new_limit:,}</b> calls\n"
+                f"📝 Notes: {req.notes or '—'}"
+            )
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            async with aiohttp.ClientSession() as session:
+                await session.post(url, json={
+                    "chat_id": chat_id, "text": msg, "parse_mode": "HTML"
+                }, timeout=aiohttp.ClientTimeout(total=5))
+    except Exception:
+        pass  # Telegram failure must never block the response
+
+    return {
+        "ok":              True,
+        "tenant_id":       tenant_id,
+        "minutes_granted": req.minutes,
+        "new_calls_limit": new_limit,
+        "message":         f"Granted {req.minutes} minutes to {tenant.get('name')}",
+    }
 
 
 @router.put("/api/tenants/{tenant_id}/quota")

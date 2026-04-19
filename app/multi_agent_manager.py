@@ -149,40 +149,89 @@ async def _validate_elevenlabs_voice(api_key: str, voice_id: str) -> str:
         return voice_id
 
 
+_XAI_BASE_URL = "https://api.x.ai/v1"
+_XAI_DEFAULT_MODEL = "grok-4-1-fast"
+_GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
+
+def _build_llm(tenant_config: dict, tenant_id: int = 1) -> _ContextCommittingGroqLLM:
+    """Build the LLM service based on llm_provider in tenant config.
+
+    Supports: groq (default), grok (xAI), openai, anthropic, gemini.
+    xAI Grok uses the OpenAI-compatible endpoint via GroqLLMService base_url override.
+    Falls back to Groq on any config error.
+    """
+    provider  = (tenant_config.get("llm_provider") or "groq").lower().strip()
+    llm_model = (tenant_config.get("llm_model") or "").strip()
+    groq_key  = (tenant_config.get("groq_api_key") or "").strip()
+    xai_key   = (tenant_config.get("xai_api_key")  or "").strip()
+
+    if provider == "grok" and xai_key:
+        model = llm_model or _XAI_DEFAULT_MODEL
+        logger.info(f"[LLM] Using xAI Grok | model={model} | tenant={tenant_id}")
+        return _ContextCommittingGroqLLM(
+            tenant_id=tenant_id,
+            api_key=xai_key,
+            base_url=_XAI_BASE_URL,
+            model=model,
+        )
+
+    # Default / fallback: Groq
+    if provider != "groq":
+        logger.warning(
+            f"[LLM] Provider '{provider}' not yet wired or key missing — falling back to Groq"
+        )
+    model = llm_model or _GROQ_DEFAULT_MODEL
+    logger.info(f"[LLM] Using Groq | model={model} | tenant={tenant_id}")
+    return _ContextCommittingGroqLLM(
+        tenant_id=tenant_id,
+        api_key=groq_key,
+        model=model,
+    )
+
+
 def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     """
-    Builds STT + TTS independently based on stt_provider / tts_provider.
+    Build STT + TTS services independently.
 
-    STT options:  'sarvam' (default, best for Hindi) | 'elevenlabs'
-    TTS options:  'elevenlabs' (default, best quality) | 'sarvam'
+    STT: stt_provider field  → 'sarvam' (default) | 'elevenlabs'
+    TTS: tts_provider field  → 'sarvam' (default) | 'elevenlabs'
 
-    Each side falls back gracefully if the required API key is missing.
+    Falls back gracefully when the required key is missing or init fails.
+    Legacy speech_provider field respected as fallback if new fields are absent.
     """
-    sarvam_key   = (tenant_config.get("sarvam_api_key")      or "").strip()
-    labs_key     = (tenant_config.get("elevenlabs_api_key")   or "").strip()
-    labs_voice   = (tenant_config.get("elevenlabs_voice_id")  or "").strip()
-    call_lang    = (tenant_config.get("call_language")        or "hi").lower()
-    stt_prov     = (tenant_config.get("stt_provider")         or "sarvam").lower()
-    tts_prov     = (tenant_config.get("tts_provider")         or "elevenlabs").lower()
+    sarvam_key   = (tenant_config.get("sarvam_api_key")     or "").strip()
+    labs_key     = (tenant_config.get("elevenlabs_api_key")  or "").strip()
+    labs_voice   = (tenant_config.get("elevenlabs_voice_id") or "").strip()
+    labs_model   = (tenant_config.get("elevenlabs_model")    or "eleven_flash_v2_5").strip()
+    call_lang    = (tenant_config.get("call_language")       or "hi").lower()
     sarvam_voice = _safe_voice(tenant_config.get("agent_voice") or "")
+
+    old_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
+    stt_prov     = (tenant_config.get("stt_provider") or old_provider).lower()
+    tts_prov     = (tenant_config.get("tts_provider") or old_provider).lower()
 
     stt_lang = Language.HI_IN if "hi" in call_lang else Language.EN_IN
 
     # ── STT ──────────────────────────────────────────────────────
     if stt_prov == "elevenlabs" and labs_key:
-        stt = ElevenLabsRealtimeSTTService(api_key=labs_key)
-        stt_label = "ElevenLabs STT"
+        try:
+            stt       = ElevenLabsRealtimeSTTService(api_key=labs_key)
+            stt_label = "ElevenLabs STT"
+        except Exception as e:
+            logger.warning(f"[STT] ElevenLabs init failed ({e}) — falling back to Sarvam")
+            stt = SarvamSTTService(
+                api_key=sarvam_key, model="saarika:v2.5",
+                params=SarvamSTTService.InputParams(
+                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True),
+            )
+            stt_label = "Sarvam STT (fallback)"
     else:
         if stt_prov == "elevenlabs" and not labs_key:
-            logger.warning("[STT] ElevenLabs selected but no api_key — falling back to Sarvam")
+            logger.warning("[STT] ElevenLabs selected but api_key not set — using Sarvam")
         stt = SarvamSTTService(
-            api_key=sarvam_key,
-            model="saarika:v2.5",
+            api_key=sarvam_key, model="saarika:v2.5",
             params=SarvamSTTService.InputParams(
-                language=stt_lang,
-                vad_signals=True,
-                high_vad_sensitivity=True,
-            ),
+                language=stt_lang, vad_signals=True, high_vad_sensitivity=True),
         )
         stt_label = f"Sarvam STT ({stt_lang})"
 
@@ -191,28 +240,26 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         if not labs_voice:
             labs_voice = _ELEVENLABS_DEFAULT_VOICE
             logger.info("[TTS] elevenlabs_voice_id not set — using default voice")
-        tts = _TrackingElevenLabsTTS(
-            tenant_id=tenant_id or 1,
-            api_key=labs_key,
-            voice_id=labs_voice,
-            model="eleven_flash_v2_5",
-            params=ElevenLabsTTSService.InputParams(
-                language=Language.HI,
-                stability=0.45,
-                similarity_boost=0.80,
-                style=0.20,
-                use_speaker_boost=True,
-                speed=0.95,
-            ),
-        )
-        tts_label = f"ElevenLabs TTS (voice={labs_voice[:8]}…)"
+        try:
+            tts = ElevenLabsTTSService(
+                api_key=labs_key, voice_id=labs_voice, model=labs_model,
+                params=ElevenLabsTTSService.InputParams(
+                    stability=0.45, similarity_boost=0.80,
+                    style=0.20, use_speaker_boost=True, speed=0.95),
+            )
+            tts_label = f"ElevenLabs TTS (model={labs_model}, voice={labs_voice[:8]}…)"
+        except Exception as e:
+            logger.warning(f"[TTS] ElevenLabs init failed ({e}) — falling back to Sarvam")
+            tts = SarvamTTSService(
+                api_key=sarvam_key, model="bulbul:v2", voice_id=sarvam_voice,
+                params=SarvamTTSService.InputParams(language=Language.HI, pace=0.92),
+            )
+            tts_label = "Sarvam TTS (fallback)"
     else:
         if tts_prov == "elevenlabs" and not labs_key:
-            logger.warning("[TTS] ElevenLabs selected but no api_key — falling back to Sarvam")
+            logger.warning("[TTS] ElevenLabs selected but api_key not set — using Sarvam")
         tts = SarvamTTSService(
-            api_key=sarvam_key,
-            model="bulbul:v2",
-            voice_id=sarvam_voice,
+            api_key=sarvam_key, model="bulbul:v2", voice_id=sarvam_voice,
             params=SarvamTTSService.InputParams(language=Language.HI, pace=0.92),
         )
         tts_label = f"Sarvam TTS (voice={sarvam_voice})"
@@ -349,8 +396,8 @@ async def _post_call(
                 "outcome":      outcome,
                 "sentiment":    sentiment,
                 "summary":      summary,
-                "transcript":   transcript_text,
-                "campaign_id":  lead_obj.get("campaign_id") if lead_obj else None,
+                "transcript":   full_transcript,
+                "campaign_id":  None,
                 "lead_id":      lead_id_db,
             }))
         except Exception:
@@ -581,11 +628,7 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 tenant_config["elevenlabs_voice_id"] = _validated_voice
 
         stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
-        llm = _ContextCommittingGroqLLM(
-            tenant_id=tenant_id,
-            api_key=groq_key,
-            model="llama-3.3-70b-versatile",
-        )
+        llm = _build_llm(tenant_config, tenant_id=tenant_id)
 
         voice_agent = VoiceAgent(
             instructions=system_prompt,
@@ -808,11 +851,7 @@ def make_platform_create_session():
                 tenant_config["elevenlabs_voice_id"] = _validated_voice
 
         stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
-        llm = _ContextCommittingGroqLLM(
-            tenant_id=tenant_id,
-            api_key=groq_key,
-            model="llama-3.3-70b-versatile",
-        )
+        llm = _build_llm(tenant_config, tenant_id=tenant_id)
 
         voice_agent = VoiceAgent(
             instructions=system_prompt,

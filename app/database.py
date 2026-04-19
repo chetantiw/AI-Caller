@@ -356,6 +356,7 @@ def init_db():
             "ALTER TABLE tenant_configs ADD COLUMN llm_provider TEXT DEFAULT 'groq'",
             "ALTER TABLE tenant_configs ADD COLUMN llm_model TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN openai_api_key TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN xai_api_key TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN anthropic_api_key TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN gemini_api_key TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN speech_provider TEXT DEFAULT 'sarvam'",
@@ -1501,11 +1502,14 @@ def get_calls_today() -> int:
 
 
 
-def get_daily_call_stats(days: int = 14, tenant_id: int = None) -> list:
+def get_daily_call_stats(days: int = 14, tenant_id: int = None, campaign_id: int = None) -> list:
 
-    tid = " AND tenant_id=?" if tenant_id is not None else ""
+    filters = " AND tenant_id=?" if tenant_id is not None else ""
+    params  = [f"-{days} days"] + ([tenant_id] if tenant_id is not None else [])
 
-    params = [f"-{days} days"] + ([tenant_id] if tenant_id is not None else [])
+    if campaign_id is not None:
+        filters += " AND campaign_id=?"
+        params.append(campaign_id)
 
     with get_conn() as conn:
 
@@ -1525,7 +1529,7 @@ def get_daily_call_stats(days: int = 14, tenant_id: int = None) -> list:
 
             FROM calls
 
-            WHERE started_at >= date('now', ?){tid}
+            WHERE started_at >= date('now', ?){filters}
 
             GROUP BY date(started_at)
 

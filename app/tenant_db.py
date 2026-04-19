@@ -69,6 +69,33 @@ def get_tenant(tenant_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
+def create_addon_purchase(tenant_id: int, minutes: int, amount_inr: float,
+                          notes: str = "") -> int:
+    """Insert addon_purchases row, increment calls_limit, return new limit."""
+    with get_conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS addon_purchases (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id   INTEGER NOT NULL,
+                minutes     INTEGER NOT NULL,
+                amount_inr  REAL    NOT NULL DEFAULT 0,
+                notes       TEXT,
+                granted_at  TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "INSERT INTO addon_purchases (tenant_id, minutes, amount_inr, notes) VALUES (?,?,?,?)",
+            (tenant_id, minutes, amount_inr, notes),
+        )
+        conn.execute(
+            "UPDATE tenants SET calls_limit = calls_limit + ? WHERE id = ?",
+            (minutes, tenant_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT calls_limit FROM tenants WHERE id=?", (tenant_id,)).fetchone()
+        return row["calls_limit"] if row else 0
+
+
 def get_tenant_by_slug(slug: str) -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute(
@@ -152,7 +179,7 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'company_website', 'call_language', 'call_guidelines', 'setup_complete',
         # LLM provider & keys
         'llm_provider', 'llm_model',
-        'openai_api_key', 'anthropic_api_key', 'gemini_api_key',
+        'openai_api_key', 'xai_api_key', 'anthropic_api_key', 'gemini_api_key',
         # Speech provider & ElevenLabs
         'speech_provider', 'elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model',
         'stt_provider', 'tts_provider',

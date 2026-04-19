@@ -148,20 +148,25 @@ input:focus,select:focus{outline:none;border-color:#6c63ff;box-shadow:0 0 0 3px 
     <div class="form-page" id="page3">
       <div class="form-group">
         <label>Choose Your Plan</label>
-        <div class="plan-grid">
-          <div class="plan-card" id="plan-free" onclick="selectPlan('free')">
-            <div class="plan-name">Free</div>
-            <div class="plan-calls">100 calls/mo</div>
-            <div class="plan-price">₹0</div>
-          </div>
+        <div class="plan-grid" style="grid-template-columns:1fr 1fr">
           <div class="plan-card selected" id="plan-starter" onclick="selectPlan('starter')">
             <div class="plan-name">Starter ⭐</div>
-            <div class="plan-calls">500 calls/mo</div>
+            <div class="plan-calls">1,000 calls/mo</div>
             <div class="plan-price">₹2,999/mo</div>
           </div>
+          <div class="plan-card" id="plan-growth" onclick="selectPlan('growth')">
+            <div class="plan-name">Growth 🚀</div>
+            <div class="plan-calls">2,500 calls/mo</div>
+            <div class="plan-price">₹5,999/mo</div>
+          </div>
+          <div class="plan-card" id="plan-pro" onclick="selectPlan('pro')">
+            <div class="plan-name">Pro 💎</div>
+            <div class="plan-calls">5,000 calls/mo</div>
+            <div class="plan-price">₹9,999/mo</div>
+          </div>
           <div class="plan-card" id="plan-enterprise" onclick="selectPlan('enterprise')">
-            <div class="plan-name">Enterprise</div>
-            <div class="plan-calls">Unlimited</div>
+            <div class="plan-name">Enterprise 🏢</div>
+            <div class="plan-calls">10,000+ calls/mo</div>
             <div class="plan-price">Custom</div>
           </div>
         </div>
@@ -245,6 +250,8 @@ function goPage3() {
   goPage(3);
 }
 
+const PLAN_LIMITS = { starter: 1000, growth: 2500, pro: 5000, enterprise: 10000 };
+
 function selectPlan(plan) {
   selectedPlan = plan;
   document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
@@ -266,6 +273,7 @@ async function submitSignup() {
     company_products: document.getElementById('company_products').value.trim(),
     call_language:    document.getElementById('call_language').value,
     plan:             selectedPlan,
+    calls_limit:      PLAN_LIMITS[selectedPlan] || 1000,
   };
 
   try {

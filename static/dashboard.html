@@ -1313,7 +1313,9 @@ tr:hover td { background: var(--teal-dim); }
       <div>
         <h2>Dial<span>Bot</span></h2>
         <div class="version">AI Calling Platform</div>
-        <span id="plan-badge" style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.5px;text-transform:uppercase;">Starter</span>
+        <div id="plan-badge-wrap" style="margin-top:6px;text-align:center;display:none">
+          <span id="plan-badge" style="display:inline-block;font-size:10px;font-weight:600;padding:2px 10px;border-radius:12px;letter-spacing:.04em;font-family:var(--mono);text-transform:uppercase">Starter</span>
+        </div>
       </div>
     </div>
 
@@ -1353,8 +1355,11 @@ tr:hover td { background: var(--teal-dim); }
       <div class="nav-item" onclick="showPage('account', this)">
         <span class="icon">⚙</span> Account Settings
       </div>
-      <div class="nav-item" onclick="showPage('billing', this)">
+      <div class="nav-item" id="nav-billing" onclick="showPage('billing', this)">
         <span class="icon">💳</span> Billing & Usage
+      </div>
+      <div class="nav-item" id="nav-flow" data-feature="flow_builder" style="position:relative" onclick="showPage('billing', this)">
+        <span class="icon">◇</span> Flow Builder
       </div>
     </div>
 
@@ -1616,7 +1621,7 @@ tr:hover td { background: var(--teal-dim); }
         </div>
 
         <!-- Row 2: best time-to-call heatmap -->
-        <div class="card" style="margin-bottom:20px;">
+        <div class="card" data-feature="detailed_analytics" style="margin-bottom:20px;">
           <div class="card-header">
             <div class="card-title"><span class="dot"></span> Best Time to Call — Hourly Heatmap (last 30 days)</div>
             <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">darker = more calls answered</span>
@@ -1876,6 +1881,32 @@ tr:hover td { background: var(--teal-dim); }
               </div>
             </div>
           </div>
+
+            <!-- CRM Webhook Integration -->
+            <div class="card" data-feature="crm_webhook" style="margin-top:20px;position:relative">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> CRM Webhook Integration</div>
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">POST on call complete</span>
+              </div>
+              <div class="card-body">
+                <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
+                  Send call outcome, summary, and lead data to your CRM or automation tool after every call.
+                </p>
+                <div class="form-row">
+                  <label>Webhook URL</label>
+                  <input type="url" id="crm-webhook-url" placeholder="https://hooks.zapier.com/hooks/catch/…"/>
+                </div>
+                <div class="form-row" style="margin-top:12px">
+                  <label>Secret Header <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                  <input type="password" id="crm-webhook-secret" placeholder="X-Webhook-Secret value"/>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+                  <button class="btn btn-outline btn-sm" onclick="testCrmWebhook()">🧪 Test</button>
+                  <button class="btn btn-primary btn-sm" onclick="saveCrmWebhook()">Save Webhook</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2004,9 +2035,16 @@ tr:hover td { background: var(--teal-dim); }
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
               📚 FAQ / Training
             </button>
+            <button id="acct-tab-integrations" onclick="switchAcctTab('integrations')"
+              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
+              🔗 Integrations
+            </button>
           </div>
 
           <div id="acct-alert" style="display:none;padding:10px 14px;border-radius:var(--r2);font-size:13px;margin-bottom:16px;"></div>
+
+          <!-- TAB PANELS — min-height prevents card from jumping when switching tabs -->
+          <div style="min-height:600px">
 
           <!-- COMPANY PROFILE TAB -->
           <div id="acct-panel-profile">
@@ -2072,17 +2110,6 @@ tr:hover td { background: var(--teal-dim); }
           <div id="acct-panel-keys" style="display:none">
             <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Bring your own API keys. Keys are masked after saving. Leave a key field blank to keep the existing saved value.</p>
 
-            <!-- ── Minutes Usage ── -->
-            <div class="card" style="margin-bottom:16px" id="usage-summary-card">
-              <div class="card-header">
-                <div class="card-title"><span class="dot"></span> ⏱ Your Plan Usage</div>
-                <button class="btn btn-ghost btn-sm" onclick="loadUsageSummary()">↻ Refresh</button>
-              </div>
-              <div class="card-body" id="usage-summary-body">
-                <div style="font-size:12px;color:var(--muted);text-align:center;padding:12px">Loading…</div>
-              </div>
-            </div>
-
             <!-- ── LLM ── -->
             <div class="card" style="margin-bottom:16px">
               <div class="card-header"><div class="card-title"><span class="dot"></span> 🧠 Language Model (LLM)</div></div>
@@ -2092,12 +2119,13 @@ tr:hover td { background: var(--teal-dim); }
                     <label>Provider</label>
                     <select id="ac-llm-provider" onchange="onLlmProviderChange()">
                       <option value="groq">Groq — Llama 3.3 (fast, free tier)</option>
+                      <option value="grok">xAI — Grok 3 / Grok 3 Mini</option>
                       <option value="openai">OpenAI — GPT-4o / GPT-4o mini</option>
                       <option value="anthropic">Anthropic — Claude Haiku / Sonnet</option>
                       <option value="gemini">Google — Gemini 1.5 Flash / 2.0</option>
                     </select>
                   </div>
-                  <div class="form-row">
+                  <div class="form-row" id="llm-model-row">
                     <label>Model <span style="color:var(--muted);font-weight:400">(optional override)</span></label>
                     <input id="ac-llm-model" placeholder="e.g. llama-3.3-70b-versatile"/>
                   </div>
@@ -2108,6 +2136,23 @@ tr:hover td { background: var(--teal-dim); }
                       <input type="password" id="ac-groq" placeholder="gsk_••••••••" style="flex:1"/>
                       <span id="ac-groq-badge" class="key-badge">Not Set</span>
                     </div>
+                  </div>
+                </div>
+                <div id="llm-key-grok" class="llm-key-section" style="display:none;margin-top:12px">
+                  <div class="form-row"><label>xAI API Key</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <input type="password" id="ac-xai" placeholder="xai-••••••••" style="flex:1"/>
+                      <span id="ac-xai-badge" class="key-badge">Not Set</span>
+                    </div>
+                  </div>
+                  <div class="form-row" style="margin-top:8px">
+                    <label>Model <span style="color:var(--muted);font-weight:400">(default: grok-3-mini)</span></label>
+                    <select id="ac-grok-model" style="width:100%">
+                      <option value="grok-4-1-fast">grok-4.1-fast (recommended)</option>
+                      <option value="grok-3-mini">grok-3-mini (fast, cost-effective)</option>
+                      <option value="grok-3">grok-3 (most capable)</option>
+                      <option value="grok-beta">grok-beta</option>
+                    </select>
                   </div>
                 </div>
                 <div id="llm-key-openai" class="llm-key-section" style="display:none;margin-top:12px">
@@ -2403,6 +2448,74 @@ tr:hover td { background: var(--teal-dim); }
               </pre>
             </div>
           </div>
+
+          <!-- INTEGRATIONS TAB -->
+          <div id="acct-panel-integrations" style="display:none">
+
+            <!-- Webhook card -->
+            <div class="card" style="margin-bottom:20px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 🔗 Webhook</div>
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">POST on call events</span>
+              </div>
+              <div class="card-body">
+                <p style="font-size:12px;color:var(--muted);margin-bottom:18px">
+                  DialBot will send a JSON payload to your endpoint after each selected event.
+                </p>
+                <div class="form-grid">
+                  <div class="form-row" style="grid-column:1/-1">
+                    <label>Endpoint URL</label>
+                    <input type="url" id="wh-url" placeholder="https://hooks.zapier.com/hooks/catch/…"/>
+                  </div>
+                  <div class="form-row">
+                    <label>Trigger Event</label>
+                    <select id="webhook-events">
+                      <option value="all">All Events</option>
+                      <option value="call_completed">call_completed</option>
+                      <option value="interested">interested</option>
+                      <option value="demo_booked">demo_booked</option>
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <label>Secret <span style="color:var(--muted);font-weight:400">(X-Webhook-Secret header)</span></label>
+                    <input type="password" id="webhook-secret" placeholder="Leave blank to keep existing"/>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+                  <button class="btn btn-outline btn-sm" onclick="testWebhook()">🧪 Send Test</button>
+                  <button class="btn btn-primary btn-sm" onclick="saveWebhookConfig()">Save Webhook</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Deliveries -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> Recent Deliveries</div>
+                <button class="btn btn-ghost btn-sm" onclick="loadWebhookLogs()">↻ Refresh</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th>URL</th>
+                      </tr>
+                    </thead>
+                    <tbody id="webhook-logs-tbody">
+                      <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No deliveries yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /acct-panel-integrations -->
+
+          </div><!-- /tab panels min-height wrapper -->
 
         </div>
       </div>
@@ -2903,6 +3016,69 @@ MuTech Automation"></textarea>
   </div>
 </div>
 
+<!-- Tag Lead Modal (call logs) -->
+<div class="modal-overlay" id="modal-tag-lead">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3>🏷 Tag Lead</h3>
+      <button class="modal-close" onclick="closeModal('modal-tag-lead')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:16px" id="tag-modal-lead-name">—</div>
+      <div class="form-row">
+        <label>Status</label>
+        <select id="tag-modal-status" onchange="onTagModalStatusChange()">
+          <option value="interested">Interested</option>
+          <option value="callback">Callback Requested</option>
+          <option value="not_interested">Not Interested</option>
+          <option value="demo_booked">Demo Booked</option>
+        </select>
+      </div>
+      <div id="tag-modal-callback-row" style="display:none;margin-top:14px">
+        <div class="form-row">
+          <label>Callback Date &amp; Time</label>
+          <input type="datetime-local" id="tag-callback-at"
+            style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                   color:var(--text);padding:8px 10px;font-size:12px;width:100%;box-sizing:border-box"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-tag-lead')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLeadTag()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upgrade / Feature Gate Modal -->
+<div class="modal-overlay" id="modal-upgrade">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h3>🔒 Feature Locked</h3>
+      <button class="modal-close" onclick="closeModal('modal-upgrade')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        You are on the <strong id="upgrade-current-plan" style="color:var(--text)">—</strong> plan.
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px" id="upgrade-feature-label">—</div>
+        <div style="font-size:12px;color:var(--muted)" id="upgrade-feature-desc">This feature is not included in your current plan.</div>
+      </div>
+      <div style="font-size:13px;color:var(--text)">
+        Unlock this feature by upgrading to the
+        <strong id="upgrade-target-plan" style="color:var(--teal)">—</strong> plan or above.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-upgrade')">Close</button>
+      <a id="upgrade-contact-link" href="mailto:sales@dialbot.ai" class="btn btn-primary" style="text-decoration:none">
+        Contact Us to Upgrade
+      </a>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toast"></div>
 
@@ -2926,6 +3102,14 @@ async function apiFetch(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
   const res = await fetch(API + path, { ...opts, headers: { ...headers, ...(opts.headers||{}) } });
+  if (res.status === 402) {
+    const data = await res.json().catch(() => ({}));
+    const detail  = data.detail || {};
+    const feature = typeof detail === 'object' ? (detail.code || '') : '';
+    const message = typeof detail === 'object' ? (detail.message || '') : String(detail);
+    showUpgradeModal(feature || 'unknown');
+    throw new Error(message || 'Plan limit reached');
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -2957,6 +3141,7 @@ async function doLogin() {
 
     showApp();
     initDashboard();
+    loadPlanFeatures();
     toast('Welcome back, ' + data.name.split(' ')[0] + '! 👋', 'success');
   } catch (err) {
     document.getElementById('login-error').style.display = 'block';
@@ -3016,10 +3201,12 @@ function doLogout() {
       // Defer initDashboard until DOM is ready
       document.addEventListener('DOMContentLoaded', () => {
         initDashboard();
+        loadPlanFeatures();
       });
       // If DOMContentLoaded already fired
       if (document.readyState !== 'loading') {
         initDashboard();
+        loadPlanFeatures();
       }
     } catch(e) {
       localStorage.removeItem('mutech_token');
@@ -3090,6 +3277,23 @@ async function loadRecentCalls() {
   } catch(e) { console.error('Calls error:', e); }
 }
 
+// Convert a UTC datetime string from the server to the browser's local timezone.
+// SQLite datetime('now') returns 'YYYY-MM-DD HH:MM:SS' without tz info — treat as UTC.
+function toLocalDT(utcStr, mode) {
+  if (!utcStr || utcStr === '—') return '—';
+  const s = utcStr.trim();
+  // Append Z only if there's no tz offset already
+  const iso = s.replace(' ', 'T') + (s.includes('+') || s.endsWith('Z') ? '' : 'Z');
+  const d = new Date(iso);
+  if (isNaN(d)) return s.slice(0, 16);
+  if (mode === 'time')     return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+  if (mode === 'timeshort')return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false});
+  // Default: date + time
+  const date = d.toLocaleDateString([], {year:'numeric', month:'2-digit', day:'2-digit'});
+  const time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false});
+  return `${date} ${time}`;
+}
+
 function renderCallFeed(calls) {
   const feed = document.getElementById('call-feed');
   if (!calls || calls.length === 0) {
@@ -3155,7 +3359,7 @@ async function loadSystemLog() {
     }
     // API returns newest first (DESC) — display as-is so latest is at top
     el.innerHTML = logs.map(l => {
-      const time = l.created_at ? l.created_at.slice(11,19) : '';
+      const time = l.created_at ? toLocalDT(l.created_at, 'time') : '';
       const color = l.level === 'error' ? 'var(--red)'
                   : l.level === 'warn'  ? 'var(--amber)'
                   : 'var(--muted)';
@@ -3713,7 +3917,7 @@ function renderCallHistory(calls) {
     const dur  = c.duration_sec
       ? Math.floor(c.duration_sec/60) + ':' + String(c.duration_sec%60).padStart(2,'0')
       : '—';
-    const time = c.started_at ? c.started_at.slice(11,16) : '—';
+    const time = c.started_at ? toLocalDT(c.started_at, 'timeshort') : '—';
     const summary = c.summary ? `<span title="${c.summary}" style="cursor:help">ℹ</span>` : '';
     return `
     <tr>
@@ -4047,7 +4251,7 @@ function renderCallLogsTable() {
     const dur  = c.duration_sec
       ? Math.floor(c.duration_sec/60) + ':' + String(c.duration_sec%60).padStart(2,'0')
       : '—';
-    const dt   = c.started_at ? c.started_at.replace('T',' ').slice(0,16) : '—';
+    const dt   = c.started_at ? toLocalDT(c.started_at) : '—';
     const sum  = c.summary ? c.summary.slice(0,60) + (c.summary.length > 60 ? '…' : '') : '—';
     const hasTranscript = !!c.summary; // if summary exists, call was analyzed
     const safeSum  = (c.summary||'').replace(/"/g,"'");
@@ -4071,7 +4275,7 @@ function renderCallLogsTable() {
           📄 ${c.summary ? 'Summary' : 'Detail'}
         </button>
         ${c.lead_id ? `<button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:11px;margin-left:4px"
-          onclick="openTagLead(${c.lead_id},'${safeName}')">🏷 Tag</button>` : ''}
+          onclick="openTagModal(${c.lead_id},'${safeName}','${c.sentiment||''}')">🏷 Tag</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -4650,6 +4854,68 @@ function toast(msg, type = 'success') {
 }
 
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// TAG MODAL (call logs — select-based)
+// ════════════════════════════════════════
+let _tagModalLeadId = null;
+
+function openTagModal(leadId, leadName, currentStatus) {
+  _tagModalLeadId = leadId;
+  document.getElementById('tag-modal-lead-name').textContent = leadName || `Lead #${leadId}`;
+
+  // Map sentiment values to select option values
+  const statusMap = {
+    interested:    'interested',
+    demo_booked:   'demo_booked',
+    rejected:      'not_interested',
+    not_interested:'not_interested',
+    callback:      'callback',
+  };
+  const sel = document.getElementById('tag-modal-status');
+  sel.value = statusMap[currentStatus] || 'interested';
+
+  // Reset callback row
+  document.getElementById('tag-modal-callback-row').style.display = sel.value === 'callback' ? 'block' : 'none';
+  if (sel.value === 'callback') {
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0);
+    document.getElementById('tag-callback-at').value = d.toISOString().slice(0, 16);
+  } else {
+    document.getElementById('tag-callback-at').value = '';
+  }
+
+  openModal('modal-tag-lead');
+}
+
+function onTagModalStatusChange() {
+  const val = document.getElementById('tag-modal-status').value;
+  const row = document.getElementById('tag-modal-callback-row');
+  row.style.display = val === 'callback' ? 'block' : 'none';
+  if (val === 'callback' && !document.getElementById('tag-callback-at').value) {
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0);
+    document.getElementById('tag-callback-at').value = d.toISOString().slice(0, 16);
+  }
+}
+
+async function saveLeadTag() {
+  if (!_tagModalLeadId) return;
+  const status = document.getElementById('tag-modal-status').value;
+  const body   = { status, notes: 'Tagged from call log' };
+  if (status === 'callback') {
+    const cbAt = document.getElementById('tag-callback-at').value;
+    if (!cbAt) { toast('Please pick a callback date/time', 'error'); return; }
+    body.callback_at = cbAt;
+  }
+  try {
+    await apiFetch(`/api/leads/${_tagModalLeadId}`, { method: 'PUT', body: JSON.stringify(body) });
+    toast(`✅ Lead tagged as ${status.replace(/_/g,' ')}`);
+    closeModal('modal-tag-lead');
+    loadCallLogs();
+  } catch(e) {
+    toast('Failed to save tag: ' + (e.message || 'error'), 'error');
+  }
+}
+
+// ════════════════════════════════════════
 // TAG LEAD MODAL
 // ════════════════════════════════════════
 let _tagLeadId   = null;
@@ -4726,6 +4992,29 @@ let _billingUsageRows = [];
 let _billingUsagePage = 0;
 const BILLING_PAGE_SIZE = 7;
 
+const loadBillingPage = () => loadBilling(); // alias used by showPage
+
+function requestAddon() {
+  const plan  = _planFeatures?.plan || 'starter';
+  const used  = _planFeatures?.calls_used  || 0;
+  const limit = _planFeatures?.calls_limit || 0;
+  window.open(
+    `mailto:sales@dialbot.ai?subject=Add-on%20Minutes%20Request&body=Hi%2C%20I%20am%20on%20the%20${plan}%20plan%20(${used}%2F${limit}%20calls%20used)%20and%20would%20like%20to%20purchase%20additional%20minutes.%20Please%20advise%20on%20pricing.`,
+    '_blank'
+  );
+}
+
+function requestUpgrade() {
+  const plan = _planFeatures?.plan || 'starter';
+  const map  = { starter: 'Growth', growth: 'Pro', pro: 'Enterprise', enterprise: 'Custom' };
+  const next = map[plan] || 'Enterprise';
+  window.open(
+    `mailto:sales@dialbot.ai?subject=Upgrade%20Request%20-%20${plan}%20to%20${next}&body=Hi%2C%20I%20would%20like%20to%20upgrade%20my%20DialBot%20account%20from%20${plan}%20to%20${next}%20plan.`,
+    '_blank'
+  );
+}
+
+const toggleCallbackField = () => onTagModalStatusChange(); // alias for tag modal
 async function loadBilling() {
   try {
     const d = await apiFetch('/api/tenant/billing');
@@ -4942,6 +5231,8 @@ function renderPlanBadge() {
     badge.style.background = (colors[plan] || '#1D9E75') + '20';
     badge.style.color = colors[plan] || '#1D9E75';
   }
+  const wrap = document.getElementById('plan-badge-wrap');
+  if (wrap) wrap.style.display = 'block';
 }
 
 function applyFeatureGates() {
@@ -4969,20 +5260,41 @@ function applyFeatureGates() {
 
 function showUpgradeModal(feature, currentPlan) {
   const labels = {
-    crm_webhook:         'CRM Integration',
+    crm_webhook:         'CRM Webhook Integration',
     lead_tagging:        'Lead Tagging',
     smart_retry:         'Smart Retry',
     flow_builder:        'Flow Builder',
-    multi_language:      'Multi-Language',
-    detailed_analytics:  'Detailed Analytics',
-    role_based_access:   'Role-Based Access',
-    campaign_analytics:  'Analytics',
+    multi_language:      'Multi-Language Support',
+    detailed_analytics:  'Detailed Analytics & Heatmap',
+    role_based_access:   'Role-Based Access Control',
+    campaign_analytics:  'Campaign Analytics',
     api_access:          'API Access',
   };
+  const descs = {
+    crm_webhook:         'Automatically push call outcomes, summaries, and lead data to your CRM or automation tool via webhook.',
+    lead_tagging:        'Tag and segment leads based on call outcomes and sentiment for smarter follow-up.',
+    smart_retry:         'Automatically retry unanswered calls on a configurable schedule.',
+    flow_builder:        'Build visual conversation flows and multi-step call sequences with a drag-and-drop editor.',
+    multi_language:      'Support callers in multiple languages within the same campaign.',
+    detailed_analytics:  'Access advanced analytics including hourly heatmaps, conversion funnels, and trend breakdowns.',
+    role_based_access:   'Manage team members with fine-grained role and permission controls.',
+    campaign_analytics:  'View per-campaign analytics, outcomes, and performance over time.',
+    api_access:          'Access the DialBot API to build custom integrations and automations.',
+  };
+  const plan = currentPlan || (_planFeatures?.plan) || 'starter';
   const upgrades = { starter: 'Growth', growth: 'Pro', pro: 'Enterprise' };
-  const nextPlan  = upgrades[currentPlan] || 'Enterprise';
+  const nextPlan  = upgrades[plan] || 'Enterprise';
   const featLabel = labels[feature] || feature;
-  toast(`🔒 ${featLabel} is available on the ${nextPlan} plan. Contact your admin to upgrade.`, 'info');
+  const featDesc  = descs[feature]  || 'This feature is not included in your current plan.';
+
+  document.getElementById('upgrade-current-plan').textContent  = plan.charAt(0).toUpperCase() + plan.slice(1);
+  document.getElementById('upgrade-feature-label').textContent = featLabel;
+  document.getElementById('upgrade-feature-desc').textContent  = featDesc;
+  document.getElementById('upgrade-target-plan').textContent   = nextPlan;
+  document.getElementById('upgrade-contact-link').href =
+    `mailto:sales@dialbot.ai?subject=Upgrade%20to%20${encodeURIComponent(nextPlan)}%20Plan&body=Hi%2C%20I%20would%20like%20to%20upgrade%20my%20DialBot%20plan%20to%20unlock%20${encodeURIComponent(featLabel)}.`;
+
+  openModal('modal-upgrade');
 }
 
 
@@ -5137,15 +5449,74 @@ async function cancelSchedule() {
 // ACCOUNT SETTINGS
 // ══════════════════════════════════════
 function switchAcctTab(name) {
-  ['profile','call','keys','faq'].forEach(t => {
+  ['profile','call','keys','faq','integrations'].forEach(t => {
     const btn   = document.getElementById('acct-tab-' + t);
     const panel = document.getElementById('acct-panel-' + t);
     const active = t === name;
     if (btn)   { btn.style.background = active ? 'var(--orange)' : 'transparent'; btn.style.color = active ? '#000' : 'var(--muted)'; }
     if (panel) panel.style.display  = active ? 'block' : 'none';
   });
-  if (name === 'faq')  loadFaq();
-  if (name === 'keys') loadUsageSummary();
+  if (name === 'faq')          loadFaq();
+  if (name === 'integrations') { loadWebhookConfig(); loadWebhookLogs(); }
+  if (name === 'keys') {} // usage stats moved to Billing & Usage page
+}
+
+async function loadWebhookConfig() {
+  try {
+    const d = await apiFetch('/api/tenant/webhook');
+    document.getElementById('webhook-url').value    = d.url    || '';
+    document.getElementById('webhook-events').value = d.events || 'all';
+    // secret is never returned — leave field empty (placeholder explains)
+  } catch(e) { console.error('loadWebhookConfig', e); }
+}
+
+async function saveWebhookConfig() {
+  const url    = document.getElementById('webhook-url').value.trim();
+  const events = document.getElementById('webhook-events').value;
+  const secret = document.getElementById('webhook-secret').value;
+  if (!url) { toast('Endpoint URL is required', 'error'); return; }
+  try {
+    const body = { url, events };
+    if (secret) body.secret = secret;
+    await apiFetch('/api/tenant/webhook', { method: 'PUT', body: JSON.stringify(body) });
+    document.getElementById('webhook-secret').value = '';
+    toast('Webhook saved', 'success');
+    loadWebhookLogs();
+  } catch(e) { toast('Failed to save webhook: ' + e.message, 'error'); }
+}
+
+async function testWebhook() {
+  try {
+    const res = await apiFetch('/api/tenant/webhook/test', { method: 'POST' });
+    toast(res.message || 'Test delivery sent', 'success');
+    loadWebhookLogs();
+  } catch(e) { toast('Test failed: ' + e.message, 'error'); }
+}
+
+async function loadWebhookLogs() {
+  const tbody = document.getElementById('webhook-logs-tbody');
+  if (!tbody) return;
+  try {
+    const rows = await apiFetch('/api/tenant/webhook/logs');
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No deliveries yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.slice(0, 10).map(r => {
+      const ok    = r.status_code >= 200 && r.status_code < 300;
+      const color = ok ? 'var(--teal)' : 'var(--red)';
+      const time  = toLocalDT(r.created_at, 'timeshort') || r.created_at || '—';
+      const shortUrl = (r.url || '').replace(/^https?:\/\//, '').slice(0, 40);
+      return `<tr>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${time}</td>
+        <td style="font-family:var(--mono);font-size:11px">${r.event || '—'}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:${color};font-weight:600">${r.status_code || '—'}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)" title="${r.url || ''}">${shortUrl}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">Failed to load logs.</td></tr>';
+  }
 }
 
 // ════════════════════════════════════════
@@ -5496,9 +5867,14 @@ async function loadAccountSettings() {
     document.getElementById('ac-llm-model').value    = d.llm_model || '';
     onLlmProviderChange();
     setKeyBadge('ac-groq-badge',      d.groq_set);
+    setKeyBadge('ac-xai-badge',       d.xai_set);
     setKeyBadge('ac-openai-badge',    d.openai_set);
     setKeyBadge('ac-anthropic-badge', d.anthropic_set);
     setKeyBadge('ac-gemini-badge',    d.gemini_set);
+    if (prov === 'grok' && d.llm_model) {
+      const gm = document.getElementById('ac-grok-model');
+      if (gm) gm.value = d.llm_model;
+    }
 
     // Speech
     selectStt(d.stt_provider || 'sarvam');
@@ -5540,6 +5916,9 @@ function onLlmProviderChange() {
   document.querySelectorAll('.llm-key-section').forEach(el => el.style.display = 'none');
   const target = document.getElementById('llm-key-' + prov);
   if (target) target.style.display = 'block';
+  // Hide generic model text field for grok (it has its own model dropdown inside llm-key-grok)
+  const modelRow = document.getElementById('llm-model-row');
+  if (modelRow) modelRow.style.display = prov === 'grok' ? 'none' : '';
 }
 
 function selectStt(prov) {
@@ -5655,8 +6034,15 @@ async function saveAcctKeys() {
   };
 
   // Only send secret keys if the user typed something (blank = keep existing)
+  // Send selected grok model alongside provider
+  if (document.getElementById('ac-llm-provider').value === 'grok') {
+    const grokModel = document.getElementById('ac-grok-model')?.value;
+    if (grokModel) body.llm_model = grokModel;
+  }
+
   const secrets = [
     ['ac-groq',      'groq_api_key'],
+    ['ac-xai',       'xai_api_key'],
     ['ac-openai',    'openai_api_key'],
     ['ac-anthropic', 'anthropic_api_key'],
     ['ac-gemini',    'gemini_api_key'],
@@ -6008,6 +6394,9 @@ function previewAcctPrompt() {
   preview.textContent = `आप ${agent} हैं, ${name} की professional sales agent हैं।\n\nकंपनी: ${name}\nIndustry: ${industry}\nProducts/Services: ${products}\nWebsite: ${website}\n\n${langMap[lang]||langMap.hindi}\n\nCall Guidelines:\n${guide}\n\nहर जवाब में: पहले information दें, फिर customer से एक question पूछें।`;
   preview.style.display = 'block';
 }
+
+// (duplicate block removed — canonical implementations above)
+
 </script>
 
 <div class="modal-overlay" id="modal-schedule" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)">

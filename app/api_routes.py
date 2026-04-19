@@ -1400,30 +1400,84 @@ async def test_call(request: Request):
 # ═══════════════════════════════════════════════════════
 
 @router.get("/analytics/daily")
-async def daily_stats(request: Request, days: int = 14):
+async def daily_stats(request: Request, days: int = 14, campaign_id: int = None):
     user = get_current_user(request)
-    data = db.get_daily_call_stats(days=days, tenant_id=user["tenant_id"])
-    return {"days": days, "data": data}
+    data = db.get_daily_call_stats(days=days, tenant_id=user["tenant_id"], campaign_id=campaign_id)
+    return {"days": days, "campaign_id": campaign_id, "data": data}
 
 
 @router.get("/analytics/funnel")
-async def funnel_stats(request: Request):
+async def funnel_stats(request: Request, campaign_id: int = None):
     user = get_current_user(request)
     tid  = user["tenant_id"]
     with db.get_conn() as conn:
-        def cq(sql): return conn.execute(sql + " AND tenant_id=?", (tid,)).fetchone()[0]
-        total      = cq("SELECT COUNT(*) FROM calls WHERE 1=1")
-        answered   = cq("SELECT COUNT(*) FROM calls WHERE outcome='answered'")
-        interested = cq("SELECT COUNT(*) FROM calls WHERE sentiment IN ('interested','demo_booked')")
-        demos      = cq("SELECT COUNT(*) FROM calls WHERE sentiment='demo_booked'")
+        base_params = [tid]
+        base_filter = " AND tenant_id=?"
+        if campaign_id is not None:
+            base_filter += " AND campaign_id=?"
+            base_params.append(campaign_id)
+
+        def cq(extra_sql):
+            sql    = "SELECT COUNT(*) FROM calls WHERE 1=1" + base_filter + extra_sql
+            params = base_params[:]
+            return conn.execute(sql, params).fetchone()[0]
+
+        total      = cq("")
+        answered   = cq(" AND outcome='answered'")
+        interested = cq(" AND sentiment IN ('interested','demo_booked')")
+        demos      = cq(" AND sentiment='demo_booked'")
 
     return {
+        "campaign_id": campaign_id,
         "funnel": [
             {"stage": "Total Calls", "count": total,      "pct": 100},
             {"stage": "Answered",    "count": answered,   "pct": round(answered/total*100,1)    if total else 0},
             {"stage": "Interested",  "count": interested, "pct": round(interested/total*100,1)  if total else 0},
             {"stage": "Demo Booked", "count": demos,      "pct": round(demos/total*100,1)       if total else 0},
         ]
+    }
+
+
+@router.get("/campaigns/{campaign_id}/analytics")
+async def campaign_analytics(campaign_id: int, request: Request):
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    with db.get_conn() as conn:
+        outcomes = [dict(r) for r in conn.execute("""
+            SELECT outcome, COUNT(*) as count
+            FROM calls WHERE campaign_id=? AND tenant_id=?
+            GROUP BY outcome
+        """, (campaign_id, tid)).fetchall()]
+
+        sentiments = [dict(r) for r in conn.execute("""
+            SELECT sentiment, COUNT(*) as count
+            FROM calls WHERE campaign_id=? AND tenant_id=?
+            GROUP BY sentiment
+        """, (campaign_id, tid)).fetchall()]
+
+        daily = [dict(r) for r in conn.execute("""
+            SELECT date(started_at) as date, COUNT(*) as calls,
+                   SUM(CASE WHEN outcome='answered' THEN 1 ELSE 0 END) as answered,
+                   SUM(CASE WHEN sentiment='demo_booked' THEN 1 ELSE 0 END) as demos
+            FROM calls WHERE campaign_id=? AND tenant_id=?
+            GROUP BY date(started_at) ORDER BY date ASC
+        """, (campaign_id, tid)).fetchall()]
+
+        summary = dict(conn.execute("""
+            SELECT COUNT(*) as total_calls,
+                   SUM(CASE WHEN outcome='answered' THEN 1 ELSE 0 END) as answered,
+                   SUM(CASE WHEN sentiment='interested' THEN 1 ELSE 0 END) as interested,
+                   SUM(CASE WHEN sentiment='demo_booked' THEN 1 ELSE 0 END) as demos,
+                   AVG(CASE WHEN duration_sec > 0 THEN duration_sec END) as avg_duration
+            FROM calls WHERE campaign_id=? AND tenant_id=?
+        """, (campaign_id, tid)).fetchone())
+
+    return {
+        "campaign_id": campaign_id,
+        "summary":     summary,
+        "outcomes":    outcomes,
+        "sentiments":  sentiments,
+        "daily":       daily,
     }
 
 
@@ -1591,7 +1645,8 @@ PIPELINE_PATH = os.path.join(os.path.dirname(__file__), 'exotel_pipeline.py')
 async def get_prompt():
     """Read current SYSTEM_PROMPT from the pipeline file."""
     try:
-        src = open(PIPELINE_PATH).read()
+        with open(PIPELINE_PATH) as _f:
+            src = _f.read()
         import re
         m = re.search(r'SYSTEM_PROMPT\s*=\s*"""(.*?)"""', src, re.DOTALL)
         if m:
@@ -1609,7 +1664,8 @@ async def save_prompt(request: Request):
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     try:
-        src = open(PIPELINE_PATH).read()
+        with open(PIPELINE_PATH) as _f:
+            src = _f.read()
         import re
         new_src = re.sub(
             r'(SYSTEM_PROMPT\s*=\s*""").*?(""")',
@@ -1617,7 +1673,8 @@ async def save_prompt(request: Request):
             src,
             flags=re.DOTALL
         )
-        open(PIPELINE_PATH, 'w').write(new_src)
+        with open(PIPELINE_PATH, 'w') as _f:
+            _f.write(new_src)
         db.add_log("✏️ System prompt updated via dashboard")
         return {"message": "Prompt saved. Restart service to apply."}
     except Exception as e:
@@ -1697,7 +1754,8 @@ async def save_config(request: Request):
     try:
         if env_updates:
             # Read current .env
-            lines = open(env_path).readlines()
+            with open(env_path) as _f:
+                lines = _f.readlines()
             for key, val in env_updates.items():
                 found = False
                 for i, line in enumerate(lines):
@@ -1707,7 +1765,8 @@ async def save_config(request: Request):
                         break
                 if not found:
                     lines.append(f"{key}={val}\n")
-            open(env_path, 'w').writelines(lines)
+            with open(env_path, 'w') as _f:
+                _f.writelines(lines)
 
             # Reload into current process
             for key, val in env_updates.items():
@@ -2074,7 +2133,7 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
     saveable_fields = (
         # LLM
         "llm_provider", "llm_model",
-        "groq_api_key", "openai_api_key", "anthropic_api_key", "gemini_api_key",
+        "groq_api_key", "xai_api_key", "openai_api_key", "anthropic_api_key", "gemini_api_key",
         # Speech
         "speech_provider", "stt_provider", "tts_provider",
         "sarvam_api_key",
@@ -2289,10 +2348,12 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "llm_provider":        config.get("llm_provider", "groq"),
         "llm_model":           config.get("llm_model", ""),
         "groq_api_key":        mask(config.get("groq_api_key", "")),
+        "xai_api_key":         mask(config.get("xai_api_key", "")),
         "openai_api_key":      mask(config.get("openai_api_key", "")),
         "anthropic_api_key":   mask(config.get("anthropic_api_key", "")),
         "gemini_api_key":      mask(config.get("gemini_api_key", "")),
         "groq_set":            bool(config.get("groq_api_key")),
+        "xai_set":             bool(config.get("xai_api_key")),
         "openai_set":          bool(config.get("openai_api_key")),
         "anthropic_set":       bool(config.get("anthropic_api_key")),
         "gemini_set":          bool(config.get("gemini_api_key")),

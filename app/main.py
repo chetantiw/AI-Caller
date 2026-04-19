@@ -230,18 +230,26 @@ async def dashboard():
 
 @app.get("/super")
 async def super_admin_dashboard():
-    from fastapi.responses import FileResponse
-    return FileResponse("static/super_dashboard.html")
+    _path = os.path.join(_static_dir, "super_dashboard.html")
+    if os.path.exists(_path):
+        return FileResponse(_path)
+    return JSONResponse({"error": "super_dashboard.html not found"}, status_code=404)
 
 
 @app.get("/settings")
 async def tenant_settings_page():
-    return FileResponse("static/tenant_settings.html")
+    _path = os.path.join(_static_dir, "tenant_settings.html")
+    if os.path.exists(_path):
+        return FileResponse(_path)
+    return JSONResponse({"error": "tenant_settings.html not found"}, status_code=404)
 
 
 @app.get("/signup")
 async def signup_page():
-    return FileResponse("static/signup.html")
+    _path = os.path.join(_static_dir, "signup.html")
+    if os.path.exists(_path):
+        return FileResponse(_path)
+    return JSONResponse({"error": "signup.html not found"}, status_code=404)
 
 
 
