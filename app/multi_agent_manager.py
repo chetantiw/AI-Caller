@@ -86,7 +86,10 @@ class _ContextCommittingGroqLLM(GroqLLMService):
             if self._response_buf and self._llm_context is not None:
                 text = "".join(self._response_buf).strip()
                 if text:
-                    self._llm_context.add_message({"role": "assistant", "content": text})
+                    msgs = self._llm_context.get_messages()
+                    last = msgs[-1] if msgs else {}
+                    if not (last.get("role") == "assistant" and last.get("content", "").strip() == text):
+                        self._llm_context.add_message({"role": "assistant", "content": text})
             self._response_buf = []
         await super().push_frame(frame, direction)
 
