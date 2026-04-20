@@ -91,6 +91,7 @@ class UpdateTenantConfigRequest(BaseModel):
     greeting_template:    Optional[str] = None
     # Speech
     sarvam_api_key:       Optional[str] = None
+    deepgram_api_key:     Optional[str] = None
     elevenlabs_api_key:   Optional[str] = None
     elevenlabs_voice_id:  Optional[str] = None
     elevenlabs_model:     Optional[str] = None
@@ -309,7 +310,10 @@ async def get_tenant_config(tenant_id: int, auth=Depends(verify_super_token)):
 @router.put("/api/tenants/{tenant_id}/config")
 async def update_tenant_config(tenant_id: int, req: UpdateTenantConfigRequest,
                                 auth=Depends(verify_super_token)):
-    updates = {k: v for k, v in req.dict().items() if v is not None}
+    updates = {
+        k: v for k, v in req.dict().items()
+        if v is not None and not (isinstance(v, str) and "••••••••" in v)
+    }
     tdb.update_tenant_config(tenant_id, **updates)
     return {"message": "Config updated successfully"}
 

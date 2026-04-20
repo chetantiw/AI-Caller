@@ -29,8 +29,6 @@ from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
 from piopiy.services.elevenlabs.stt import ElevenLabsRealtimeSTTService
-from piopiy.services.deepgram.stt import DeepgramSTTService
-from deepgram import LiveOptions
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
 from piopiy.frames.frames import (
@@ -193,36 +191,28 @@ def _build_llm(tenant_config: dict, tenant_id: int = 1) -> _ContextCommittingGro
 
 def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     """
-    Build STT + TTS services independently.
-
-    STT: stt_provider field  → 'sarvam' (default) | 'elevenlabs'
-    TTS: tts_provider field  → 'sarvam' (default) | 'elevenlabs'
-
-    Falls back gracefully when the required key is missing or init fails.
-    Legacy speech_provider field respected as fallback if new fields are absent.
+    Build STT and TTS independently.
+    STT: sarvam (saarika:v2.5 default) | sarvam_v3 (saaras:v3) | deepgram (Nova-3)
+    TTS: sarvam bulbul v2/v3 (default) | elevenlabs
     """
+    tid          = tenant_config.get("tenant_id", tenant_id or "?")
     sarvam_key   = (tenant_config.get("sarvam_api_key")     or "").strip()
-    labs_key     = (tenant_config.get("elevenlabs_api_key")  or "").strip()
+    deepgram_key = (tenant_config.get("deepgram_api_key")   or os.getenv("DEEPGRAM_API_KEY") or "").strip()
+    labs_key     = (tenant_config.get("elevenlabs_api_key") or "").strip()
     labs_voice   = (tenant_config.get("elevenlabs_voice_id") or "").strip()
-    labs_model   = (tenant_config.get("elevenlabs_model")    or "eleven_flash_v2_5").strip()
-    call_lang    = (tenant_config.get("call_language")       or "hi").lower()
-    old_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
-    stt_prov     = (tenant_config.get("stt_provider") or old_provider).lower()
-    tts_prov     = (tenant_config.get("tts_provider") or old_provider).lower()
+    stt_provider = (tenant_config.get("stt_provider") or "sarvam").lower()
+    speech_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
 
-    stt_lang = Language.HI_IN if "hi" in call_lang else Language.EN_IN
-
-    # ── STT ──────────────────────────────────────────────────────
-    deepgram_key = (tenant_config.get("deepgram_api_key") or os.getenv("DEEPGRAM_API_KEY") or "").strip()
-
-    if stt_prov == "deepgram" and deepgram_key:
+    # ── STT ─────────────────────────────────────────────────────
+    if stt_provider == "deepgram" and deepgram_key:
         try:
-            dg_lang = "hi" if "hi" in call_lang else "en-IN"
-            stt = DeepgramSTTService(
+            from piopiy.services.deepgram.stt import DeepgramSTTService as _DG
+            from deepgram import LiveOptions as _LO
+            stt = _DG(
                 api_key=deepgram_key,
-                live_options=LiveOptions(
-                    model="nova-2-general",
-                    language=dg_lang,
+                live_options=_LO(
+                    model="nova-3-general",
+                    language="hi",
                     encoding="linear16",
                     channels=1,
                     interim_results=True,
@@ -231,116 +221,90 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
                     endpointing=300,
                 ),
             )
-            stt_label = f"Deepgram STT (nova-2-general, lang={dg_lang})"
+            stt_label = "Deepgram nova-3"
         except Exception as e:
-            logger.warning(f"[STT] Deepgram init failed ({e}) — falling back to Sarvam")
+            logger.warning(f"[T{tid}][STT] Deepgram init failed ({e}) — falling back to Sarvam")
             stt = SarvamSTTService(
                 api_key=sarvam_key, model="saarika:v2.5",
                 params=SarvamSTTService.InputParams(
-                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
+                    language=Language.HI_IN, vad_signals=True,
+                    high_vad_sensitivity=True, mode="codemix"),
             )
-            stt_label = "Sarvam STT (fallback)"
-    elif stt_prov == "deepgram" and not deepgram_key:
-        logger.warning("[STT] Deepgram selected but DEEPGRAM_API_KEY not set — falling back to Sarvam")
-        stt = SarvamSTTService(
-            api_key=sarvam_key, model="saarika:v2.5",
-            params=SarvamSTTService.InputParams(
-                language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
-        )
-        stt_label = "Sarvam STT (fallback)"
-    elif stt_prov == "elevenlabs" and labs_key:
-        try:
-            stt       = ElevenLabsRealtimeSTTService(api_key=labs_key)
-            stt_label = "ElevenLabs STT"
-        except Exception as e:
-            logger.warning(f"[STT] ElevenLabs init failed ({e}) — falling back to Sarvam")
-            stt = SarvamSTTService(
-                api_key=sarvam_key, model="saarika:v2.5",
-                params=SarvamSTTService.InputParams(
-                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
-            )
-            stt_label = "Sarvam STT (fallback)"
-    else:
-        if stt_prov == "elevenlabs" and not labs_key:
-            logger.warning("[STT] ElevenLabs selected but api_key not set — using Sarvam")
-        stt = SarvamSTTService(
-            api_key=sarvam_key, model="saarika:v2.5",
-            params=SarvamSTTService.InputParams(
-                language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
-        )
-        stt_label = f"Sarvam STT ({stt_lang})"
+            stt_label = "Sarvam saarika:v2.5 (fallback)"
 
-    # ── TTS ──────────────────────────────────────────────────────
-    if tts_prov == "elevenlabs" and labs_key:
+    elif stt_provider == "sarvam_v3" and sarvam_key:
+        stt = SarvamSTTService(
+            api_key=sarvam_key, model="saaras:v3",
+            params=SarvamSTTService.InputParams(
+                language=Language.HI_IN, vad_signals=True,
+                high_vad_sensitivity=True, mode="codemix"),
+        )
+        stt_label = "Sarvam saaras:v3"
+
+    else:
+        if stt_provider == "deepgram" and not deepgram_key:
+            logger.warning(f"[T{tid}][STT] Deepgram selected but key not set — using Sarvam")
+        stt = SarvamSTTService(
+            api_key=sarvam_key, model="saarika:v2.5",
+            params=SarvamSTTService.InputParams(
+                language=Language.HI_IN, vad_signals=True,
+                high_vad_sensitivity=True, mode="codemix"),
+        )
+        stt_label = "Sarvam saarika:v2.5"
+
+    # ── TTS ─────────────────────────────────────────────────────
+    tts_model_ver = (tenant_config.get("tts_model") or "v3").lower()
+    tts_pace      = max(0.5, min(2.0, float(tenant_config.get("tts_pace") or 1.1)))
+    tts_temp      = max(0.1, min(1.0, float(tenant_config.get("tts_temperature") or 0.75)))
+
+    if speech_provider == "elevenlabs" and labs_key:
         if not labs_voice:
             labs_voice = _ELEVENLABS_DEFAULT_VOICE
-            logger.info("[TTS] elevenlabs_voice_id not set — using default voice")
         try:
             tts = ElevenLabsTTSService(
-                api_key=labs_key, voice_id=labs_voice, model=labs_model,
+                api_key=labs_key, voice_id=labs_voice, model="eleven_flash_v2_5",
                 params=ElevenLabsTTSService.InputParams(
-                    stability=0.45, similarity_boost=0.80,
-                    style=0.20, use_speaker_boost=True, speed=0.95),
+                    stability=0.5, similarity_boost=0.75,
+                    style=0.0, use_speaker_boost=True, speed=tts_pace),
             )
-            tts_label = f"ElevenLabs TTS (model={labs_model}, voice={labs_voice[:8]}…)"
+            tts_label = f"ElevenLabs flash | voice={labs_voice[:8]}…"
         except Exception as e:
-            logger.warning(f"[TTS] ElevenLabs init failed ({e}) — falling back to Sarvam")
-            _V3_VOICES = {
-                "aditya", "ritu", "priya", "neha", "rahul", "pooja", "rohan",
-                "simran", "kavya", "amit", "dev", "ishita", "shreya", "ratan",
-                "varun", "manan", "sumit", "roopa", "kabir", "aayan", "shubh",
-                "ashutosh", "advait", "amelia", "sophia",
-            }
-            _rv = (tenant_config.get("agent_voice") or "kavya").lower()
-            voice = _rv if _rv in _V3_VOICES else "kavya"
+            logger.warning(f"[T{tid}][TTS] ElevenLabs init failed ({e}) — falling back to Sarvam")
             tts = SarvamTTSService(
-                api_key=sarvam_key, model="bulbul:v3", voice_id=voice,
+                api_key=sarvam_key, model="bulbul:v3", voice_id="kavya",
                 params=SarvamTTSService.InputParams(
-                    language=Language.HI, pace=0.95, temperature=0.5,
+                    language=Language.HI, pace=tts_pace, temperature=tts_temp,
                     enable_preprocessing=True),
             )
-            tts_label = "Sarvam TTS bulbul:v3 (fallback)"
+            tts_label = "Sarvam bulbul:v3 (fallback)"
     else:
-        # ── Sarvam AI (default) ─────────────────────────────────────
-        tts_model_ver = (tenant_config.get("tts_model") or "v3").lower()
-        tts_pace      = float(tenant_config.get("tts_pace") or 1.1)
-        tts_temp      = float(tenant_config.get("tts_temperature") or 0.75)
-        tts_pace = max(0.5, min(2.0, tts_pace))
-        tts_temp = max(0.1, min(1.0, tts_temp))
-        tts_model_str = "bulbul:v3" if tts_model_ver == "v3" else "bulbul:v2"
-
-        _V3_VOICES = {
-            "kavya", "priya", "suhani", "ritu", "simran", "pooja",
-            "shubh", "ashutosh", "amit", "rahul", "ratan", "rohan",
-            "manan", "dev", "sunny", "sumit",
-        }
-        _V2_VOICES = {
-            "anushka", "manisha", "arya", "vidya",
-            "abhilash", "karun", "hitesh",
-        }
-
+        _V3 = {"kavya","priya","suhani","ritu","simran","pooja","shubh",
+               "ashutosh","amit","rahul","ratan","rohan","manan","dev",
+               "sunny","sumit","aditya","neha","ishita","shreya","varun",
+               "roopa","kabir","aayan","advait","amelia","sophia"}
+        _V2 = {"anushka","manisha","arya","vidya","abhilash","karun","hitesh"}
         raw_voice = (tenant_config.get("agent_voice") or "").lower()
-        if tts_model_ver == "v3":
-            tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
-            tts_params = SarvamTTSService.InputParams(
-                language=Language.HI, pace=tts_pace, temperature=tts_temp,
-                enable_preprocessing=True)
-        else:
-            tts_voice = raw_voice if raw_voice in _V2_VOICES else "anushka"
-            tts_params = SarvamTTSService.InputParams(
-                language=Language.HI, pace=tts_pace, pitch=0.0, loudness=1.2)
 
-        tts = SarvamTTSService(
-            api_key=sarvam_key,
-            model=tts_model_str,
-            voice_id=tts_voice,
-            params=tts_params,
-        )
-        logger.info(
-            f"[Speech Pipeline] {stt_label} → "
-            f"Sarvam TTS ({tts_model_str}, voice={tts_voice}, pace={tts_pace}, temp={tts_temp})"
-        )
-        return stt, tts
+        if tts_model_ver == "v3":
+            tts_voice = raw_voice if raw_voice in _V3 else "kavya"
+            tts = SarvamTTSService(
+                api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
+                params=SarvamTTSService.InputParams(
+                    language=Language.HI, pace=tts_pace, temperature=tts_temp,
+                    enable_preprocessing=True),
+            )
+        else:
+            tts_voice = raw_voice if raw_voice in _V2 else "anushka"
+            tts = SarvamTTSService(
+                api_key=sarvam_key, model="bulbul:v2", voice_id=tts_voice,
+                params=SarvamTTSService.InputParams(
+                    language=Language.HI, pace=tts_pace, pitch=0.0, loudness=1.2,
+                    enable_preprocessing=True),
+            )
+        tts_label = f"Sarvam bulbul:{tts_model_ver} | voice={tts_voice} | pace={tts_pace}"
+
+    logger.info(f"[T{tid}] STT: {stt_label} | TTS: {tts_label}")
+    return stt, tts
 
 # ── Logging ────────────────────────────────────────────────────
 from loguru import logger

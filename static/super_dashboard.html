@@ -1226,21 +1226,30 @@ async function openTenantDetail(id) {
 
       <!-- TAB: Speech -->
       <div id="cpanel-speech" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
-          <div class="form-group" style="margin:0"><label>STT Provider</label>
-            <select id="cfg-stt">
-              <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam saarika:v2.5 (Hindi)</option>
-              <option value="deepgram" ${c.stt_provider==='deepgram'?'selected':''}>Deepgram nova-2 ⚡ (streaming)</option>
-              <option value="elevenlabs" ${c.stt_provider==='elevenlabs'?'selected':''}>ElevenLabs</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0"><label>TTS Provider</label>
-            <select id="cfg-tts">
-              <option value="sarvam" ${(c.tts_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam</option>
-              <option value="elevenlabs" ${(c.tts_provider||'')==='elevenlabs'?'selected':''}>ElevenLabs</option>
-            </select>
+        <!-- STT Provider -->
+        <div style="margin-bottom:18px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🎤 STT Provider</div>
+          <select id="cfg-stt-provider" onchange="onSttProviderChange()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;margin-bottom:10px">
+            <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam saarika:v2.5 — Hindi, reliable (default)</option>
+            <option value="sarvam_v3" ${c.stt_provider==='sarvam_v3'?'selected':''}>Sarvam saaras:v3 — Hinglish codemix, better WER</option>
+            <option value="deepgram" ${c.stt_provider==='deepgram'?'selected':''}>Deepgram Nova-3 — &lt;300ms, streaming, multilingual</option>
+          </select>
+          <div id="cfg-deepgram-row" style="display:${c.stt_provider==='deepgram'?'block':'none'}">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Deepgram API Key</label>
+            <input type="password" id="cfg-deepgram-key" placeholder="${c.deepgram_api_key ? '••• key configured — paste to replace •••' : 'paste key…'}"
+              style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:var(--mono)"/>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Leave blank to keep existing key · nova-3-general · Hindi · streaming · ~300ms TTFB</div>
           </div>
         </div>
+        <!-- TTS Provider -->
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔊 TTS Provider</div>
+          <select id="cfg-tts" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px">
+            <option value="sarvam" ${(c.tts_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam bulbul (default)</option>
+            <option value="elevenlabs" ${(c.tts_provider||'')==='elevenlabs'?'selected':''}>ElevenLabs</option>
+          </select>
+        </div>
+        <!-- Sarvam Key -->
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:12px">
           <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🟢 Sarvam AI</div>
           <div class="form-group" style="margin:0"><label>Sarvam API Key</label>
@@ -1248,16 +1257,6 @@ async function openTenantDetail(id) {
               <input id="cfg-sarvam" type="password" placeholder="${c.sarvam_api_key ? '••• key configured — paste to replace •••' : 'sk_live_…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-sarvam')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:10px">
-          <div style="font-size:10px;font-weight:700;color:var(--teal,#0ea5e9);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ Deepgram</div>
-          <div class="form-group" style="margin:0"><label>Deepgram API Key</label>
-            <div style="position:relative">
-              <input id="cfg-deepgram" type="password" placeholder="${c.deepgram_api_key ? '••• key configured — paste to replace •••' : 'api_key_…'}" style="padding-right:40px"/>
-              <button onclick="togglePwd('cfg-deepgram')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px">nova-2-general · Hindi · streaming · ~100ms TTFB</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:10px">
@@ -1405,6 +1404,12 @@ function switchCfgTab(tab) {
   });
 }
 
+function onSttProviderChange() {
+  const v = document.getElementById('cfg-stt-provider')?.value;
+  const row = document.getElementById('cfg-deepgram-row');
+  if (row) row.style.display = v === 'deepgram' ? 'block' : 'none';
+}
+
 function togglePwd(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -1421,12 +1426,13 @@ async function saveConfig() {
     greeting_template:    document.getElementById('cfg-greeting')?.value || undefined,
     system_prompt:        document.getElementById('cfg-prompt')?.value || undefined,
     // Speech
+    stt_provider:         document.getElementById('cfg-stt-provider')?.value || undefined,
     sarvam_api_key:       document.getElementById('cfg-sarvam')?.value || undefined,
-    deepgram_api_key:     document.getElementById('cfg-deepgram')?.value || undefined,
+    ...(document.getElementById('cfg-deepgram-key')?.value?.trim()
+      ? { deepgram_api_key: document.getElementById('cfg-deepgram-key').value.trim() } : {}),
     elevenlabs_api_key:   document.getElementById('cfg-elevenlabs')?.value || undefined,
     elevenlabs_voice_id:  document.getElementById('cfg-elevenlabs-voice')?.value || undefined,
     elevenlabs_model:     document.getElementById('cfg-elevenlabs-model')?.value || undefined,
-    stt_provider:         document.getElementById('cfg-stt')?.value || undefined,
     tts_provider:         document.getElementById('cfg-tts')?.value || undefined,
     // LLM
     groq_api_key:         document.getElementById('cfg-groq')?.value || undefined,

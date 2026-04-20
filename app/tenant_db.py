@@ -181,12 +181,14 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'llm_provider', 'llm_model',
         'openai_api_key', 'xai_api_key', 'anthropic_api_key', 'gemini_api_key',
         # Speech provider & ElevenLabs
-        'speech_provider', 'elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model',
+        'speech_provider', 'sarvam_api_key', 'deepgram_api_key',
+        'elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model',
         'stt_provider', 'tts_provider',
         # WhatsApp
         'whatsapp_api_key', 'whatsapp_number',
         'faq_content',
         'webhook_url', 'webhook_secret', 'webhook_events',
+        'tts_model', 'tts_pace', 'tts_temperature',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
