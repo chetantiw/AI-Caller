@@ -158,14 +158,13 @@ async def create_session(
 
     tts = SarvamTTSService(
         api_key=os.getenv("SARVAM_API_KEY"),
-        model="bulbul:v3",
-        voice_id="kavya",
+        model="bulbul:v2",
+        voice_id="anushka",
         params=SarvamTTSService.InputParams(
             language=Language.HI,
-            pace=0.9,
-            temperature=0.4,
-            min_buffer_size=20,    # start audio sooner (default 50 chars)
-            max_chunk_length=80,   # smaller chunks = faster first audio (default 200)
+            pace=0.95,
+            loudness=1.2,
+            pitch=0.0,
         ),
     )
 

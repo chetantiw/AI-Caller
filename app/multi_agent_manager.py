@@ -204,16 +204,6 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     labs_voice   = (tenant_config.get("elevenlabs_voice_id") or "").strip()
     labs_model   = (tenant_config.get("elevenlabs_model")    or "eleven_flash_v2_5").strip()
     call_lang    = (tenant_config.get("call_language")       or "hi").lower()
-    _V3_VOICES = {
-        "aditya","ritu","ashutosh","priya","neha","rahul","pooja","rohan",
-        "simran","kavya","amit","dev","ishita","shreya","ratan","varun",
-        "manan","sumit","roopa","kabir","aayan","shubh","advait","anand",
-        "tanya","tarun","sunny","mani","gokul","vijay","shruti","suhani",
-        "mohit","kavitha","rehan","soham","rupali","niharika",
-    }
-    raw_voice = (tenant_config.get("agent_voice") or "kavya").lower()
-    tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
-
     old_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
     stt_prov     = (tenant_config.get("stt_provider") or old_provider).lower()
     tts_prov     = (tenant_config.get("tts_provider") or old_provider).lower()
@@ -258,24 +248,42 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts_label = f"ElevenLabs TTS (model={labs_model}, voice={labs_voice[:8]}…)"
         except Exception as e:
             logger.warning(f"[TTS] ElevenLabs init failed ({e}) — falling back to Sarvam")
+            voice = _safe_voice(tenant_config.get("agent_voice") or "")
             tts = SarvamTTSService(
-                api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
-                params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4, min_buffer_size=20, max_chunk_length=80),
+                api_key=sarvam_key, model="bulbul:v2", voice_id=voice,
+                params=SarvamTTSService.InputParams(
+                    language=Language.HI, pace=0.95, loudness=1.2, pitch=0.0),
             )
-            tts_label = "Sarvam TTS bulbul:v3 (fallback)"
+            tts_label = "Sarvam TTS bulbul:v2 (fallback)"
     else:
-        if tts_prov == "elevenlabs" and not labs_key:
-            logger.warning("[TTS] ElevenLabs selected but api_key not set — using Sarvam")
-        tts = SarvamTTSService(
-            api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
-            params=SarvamTTSService.InputParams(language=Language.HI, pace=0.9, temperature=0.4, min_buffer_size=20, max_chunk_length=80),
-        )
-        tts_label = f"Sarvam TTS (bulbul:v3, voice={tts_voice})"
+        # ── Sarvam AI (default) ─────────────────────────────────────
+        voice = _safe_voice(tenant_config.get("agent_voice") or "")
 
-    logger.info(
-        f"[Speech Pipeline] Sarvam STT (saarika:v2.5)  →  Sarvam TTS (bulbul:v3, voice={tts_voice})"
-    )
-    return stt, tts
+        stt = SarvamSTTService(
+            api_key=sarvam_key,
+            model="saarika:v2.5",
+            params=SarvamSTTService.InputParams(
+                language=stt_lang,
+                vad_signals=True,
+                high_vad_sensitivity=True,
+            ),
+        )
+        tts = SarvamTTSService(
+            api_key=sarvam_key,
+            model="bulbul:v2",
+            voice_id=voice,
+            params=SarvamTTSService.InputParams(
+                language=Language.HI,
+                pace=0.95,
+                loudness=1.2,
+                pitch=0.0,
+            ),
+        )
+        logger.info(
+            f"[Speech Pipeline] Sarvam STT (saarika:v2.5) → "
+            f"Sarvam TTS (bulbul:v2, voice={voice})"
+        )
+        return stt, tts
 
 # ── Logging ────────────────────────────────────────────────────
 from loguru import logger
@@ -1046,7 +1054,7 @@ async def main():
         logger.info(f"[Platform Agent] Adding dynamic fallback agent | agent_id={platform_agent_id[:8]}…")
         tasks.append(run_platform_agent())
     else:
-        logger.warning("[Platform Agent] PIOPIY_AGENT_ID not in .env — no platform fallback agent")
+        logger.warning("[Platform Agent] No PIOPIY Agent ID in DB (tenant 1 config) — no platform fallback agent. Set it in Super Admin → API Config.")
 
     if not tasks:
         logger.error("No agents to connect (no tenant credentials and no platform .env). Exiting.")
