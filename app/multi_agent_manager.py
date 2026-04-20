@@ -384,8 +384,17 @@ async def _post_call(
             agent_name = "Aira"
             logger.warning(f"[Tenant {tenant_id}] Agent name was male '{cfg.get('agent_name')}', changed to female 'Aira'")
 
-        transcript_lines = []
+        # Deduplicate consecutive messages with the same role+content (SDK double-fire bug)
+        deduped_conversation = []
         for m in conversation:
+            if not deduped_conversation or (
+                m.get("role") != deduped_conversation[-1].get("role") or
+                m.get("content", "").strip() != deduped_conversation[-1].get("content", "").strip()
+            ):
+                deduped_conversation.append(m)
+
+        transcript_lines = []
+        for m in deduped_conversation:
             role    = m.get("role", "").lower()
             content = m.get("content", "").strip()
             if content:
