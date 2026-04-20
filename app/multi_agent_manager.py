@@ -25,6 +25,8 @@ sys.path.insert(0, "/root/ai-caller-env/ai-caller")
 # ── piopiy-ai SDK ──────────────────────────────────────────────
 from piopiy.agent import Agent
 from piopiy.voice_agent import VoiceAgent
+from piopiy.adapters.schemas.tools_schema import ToolsSchema
+from piopiy.adapters.schemas.function_schema import FunctionSchema
 from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
@@ -75,6 +77,17 @@ class _ContextCommittingGroqLLM(GroqLLMService):
         if isinstance(frame, LLMContextFrame):
             self._llm_context = frame.context
             self._response_buf = []
+            # Strip consecutive duplicate messages before LLM sees the context
+            msgs = self._llm_context.get_messages()
+            cleaned = []
+            for m in msgs:
+                if (cleaned
+                        and cleaned[-1].get("role") == m.get("role")
+                        and cleaned[-1].get("content", "").strip() == m.get("content", "").strip()):
+                    continue
+                cleaned.append(m)
+            if len(cleaned) != len(msgs):
+                self._llm_context.set_messages(cleaned)
         await super().process_frame(frame, direction)
 
     async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
@@ -83,13 +96,6 @@ class _ContextCommittingGroqLLM(GroqLLMService):
         elif isinstance(frame, LLMTextFrame):
             self._response_buf.append(frame.text)
         elif isinstance(frame, LLMFullResponseEndFrame):
-            if self._response_buf and self._llm_context is not None:
-                text = "".join(self._response_buf).strip()
-                if text:
-                    msgs = self._llm_context.get_messages()
-                    last = msgs[-1] if msgs else {}
-                    if not (last.get("role") == "assistant" and last.get("content", "").strip() == text):
-                        self._llm_context.add_message({"role": "assistant", "content": text})
             self._response_buf = []
         await super().push_frame(frame, direction)
 
@@ -239,7 +245,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         stt = SarvamSTTService(
             api_key=sarvam_key, model="saaras:v3",
             params=SarvamSTTService.InputParams(
-                language=Language.HI_IN, vad_signals=True,
+                vad_signals=True,
                 high_vad_sensitivity=True, mode="codemix"),
         )
         stt_label = "Sarvam saaras:v3"
@@ -691,6 +697,17 @@ def make_create_session(tenant_id: int, initial_config: dict):
         )
 
         try:
+            _end_call_tool = FunctionSchema(
+                name="end_call",
+                description=(
+                    "Call this function to hang up and end the conversation. "
+                    "Use when: customer says goodbye / call khatam karo / band karo / "
+                    "DNC / number hatao / abusive / task complete / natural end."
+                ),
+                properties={},
+                required=[],
+            )
+            _tools = ToolsSchema(standard_tools=[_end_call_tool])
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
@@ -700,6 +717,7 @@ def make_create_session(tenant_id: int, initial_config: dict):
                     "min_volume": 0.5,
                 },
                 allow_interruptions=True,
+                tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:
@@ -914,6 +932,17 @@ def make_platform_create_session():
         )
 
         try:
+            _end_call_tool = FunctionSchema(
+                name="end_call",
+                description=(
+                    "Call this function to hang up and end the conversation. "
+                    "Use when: customer says goodbye / call khatam karo / band karo / "
+                    "DNC / number hatao / abusive / task complete / natural end."
+                ),
+                properties={},
+                required=[],
+            )
+            _tools = ToolsSchema(standard_tools=[_end_call_tool])
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
@@ -923,6 +952,7 @@ def make_platform_create_session():
                     "min_volume": 0.5,
                 },
                 allow_interruptions=True,
+                tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:

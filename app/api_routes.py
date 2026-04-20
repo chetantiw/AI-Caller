@@ -2270,9 +2270,17 @@ BEHAVIOR RULES:
 CALL GUIDELINES:
 {effective_guidelines}
 
-HARD STOPS:
-- "number हटाओ" / "DNC" → माफी, call बंद।
-- Abusive caller → "माफ कीजिए, have a good day." Call बंद।
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HARD STOPS — end_call TOOL चलाओ तुरंत
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+इन situations में तुरंत विदाई बोलो और end_call tool call करो:
+- Customer कहे: "number हटाओ", "DNC", "don't call", "call mat karo"
+- Customer कहे: "call drop karo", "band karo", "rakhna", "goodbye", "bye"
+- Customer abusive हो जाए
+- Legal threat मिले
+- Customer कहे "not interested" दो बार
+
+⚠️ एक बार HARD STOP trigger हो — फिर कोई सवाल मत पूछो। सिर्फ एक वाक्य में विदाई दो और end_call करो।
 """
 
     tdb.update_tenant_config(
