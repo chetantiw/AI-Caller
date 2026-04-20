@@ -148,6 +148,8 @@ async def create_session(
         params=SarvamSTTService.InputParams(
             language=Language.HI_IN,
             vad_signals=True,
+            high_vad_sensitivity=True,
+            mode="codemix",
         ),
     )
 
@@ -158,13 +160,12 @@ async def create_session(
 
     tts = SarvamTTSService(
         api_key=os.getenv("SARVAM_API_KEY"),
-        model="bulbul:v2",
-        voice_id="anushka",
+        model="bulbul:v3",
+        voice_id="kavya",
         params=SarvamTTSService.InputParams(
             language=Language.HI,
-            pace=0.95,
-            loudness=1.2,
-            pitch=0.0,
+            pace=1.1,
+            temperature=0.75,
         ),
     )
 
