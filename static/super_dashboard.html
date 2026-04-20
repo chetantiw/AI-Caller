@@ -1229,7 +1229,8 @@ async function openTenantDetail(id) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
           <div class="form-group" style="margin:0"><label>STT Provider</label>
             <select id="cfg-stt">
-              <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam (Hindi recommended)</option>
+              <option value="sarvam" ${(c.stt_provider||'sarvam')==='sarvam'?'selected':''}>Sarvam saarika:v2.5 (Hindi)</option>
+              <option value="deepgram" ${c.stt_provider==='deepgram'?'selected':''}>Deepgram nova-2 ⚡ (streaming)</option>
               <option value="elevenlabs" ${c.stt_provider==='elevenlabs'?'selected':''}>ElevenLabs</option>
             </select>
           </div>
@@ -1247,6 +1248,16 @@ async function openTenantDetail(id) {
               <input id="cfg-sarvam" type="password" placeholder="${c.sarvam_api_key ? '••• key configured — paste to replace •••' : 'sk_live_…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-sarvam')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--teal,#0ea5e9);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ Deepgram</div>
+          <div class="form-group" style="margin:0"><label>Deepgram API Key</label>
+            <div style="position:relative">
+              <input id="cfg-deepgram" type="password" placeholder="${c.deepgram_api_key ? '••• key configured — paste to replace •••' : 'api_key_…'}" style="padding-right:40px"/>
+              <button onclick="togglePwd('cfg-deepgram')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">nova-2-general · Hindi · streaming · ~100ms TTFB</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-top:10px">
@@ -1411,6 +1422,7 @@ async function saveConfig() {
     system_prompt:        document.getElementById('cfg-prompt')?.value || undefined,
     // Speech
     sarvam_api_key:       document.getElementById('cfg-sarvam')?.value || undefined,
+    deepgram_api_key:     document.getElementById('cfg-deepgram')?.value || undefined,
     elevenlabs_api_key:   document.getElementById('cfg-elevenlabs')?.value || undefined,
     elevenlabs_voice_id:  document.getElementById('cfg-elevenlabs-voice')?.value || undefined,
     elevenlabs_model:     document.getElementById('cfg-elevenlabs-model')?.value || undefined,
