@@ -25,8 +25,6 @@ sys.path.insert(0, "/root/ai-caller-env/ai-caller")
 # ── piopiy-ai SDK ──────────────────────────────────────────────
 from piopiy.agent import Agent
 from piopiy.voice_agent import VoiceAgent
-from piopiy.adapters.schemas.tools_schema import ToolsSchema
-from piopiy.adapters.schemas.function_schema import FunctionSchema
 from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
@@ -697,17 +695,6 @@ def make_create_session(tenant_id: int, initial_config: dict):
         )
 
         try:
-            _end_call_tool = FunctionSchema(
-                name="end_call",
-                description=(
-                    "Call this function to hang up and end the conversation. "
-                    "Use when: customer says goodbye / call khatam karo / band karo / "
-                    "DNC / number hatao / abusive / task complete / natural end."
-                ),
-                properties={},
-                required=[],
-            )
-            _tools = ToolsSchema(standard_tools=[_end_call_tool])
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
@@ -717,7 +704,6 @@ def make_create_session(tenant_id: int, initial_config: dict):
                     "min_volume": 0.5,
                 },
                 allow_interruptions=True,
-                tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:
@@ -932,17 +918,6 @@ def make_platform_create_session():
         )
 
         try:
-            _end_call_tool = FunctionSchema(
-                name="end_call",
-                description=(
-                    "Call this function to hang up and end the conversation. "
-                    "Use when: customer says goodbye / call khatam karo / band karo / "
-                    "DNC / number hatao / abusive / task complete / natural end."
-                ),
-                properties={},
-                required=[],
-            )
-            _tools = ToolsSchema(standard_tools=[_end_call_tool])
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
@@ -952,7 +927,6 @@ def make_platform_create_session():
                     "min_volume": 0.5,
                 },
                 allow_interruptions=True,
-                tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:

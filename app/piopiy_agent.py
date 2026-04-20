@@ -20,8 +20,6 @@ load_dotenv()
 # ── piopiy-ai SDK ─────────────────────────────────────────────
 from piopiy.agent import Agent
 from piopiy.voice_agent import VoiceAgent
-from piopiy.adapters.schemas.tools_schema import ToolsSchema
-from piopiy.adapters.schemas.function_schema import FunctionSchema
 from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.groq.llm import GroqLLMService
@@ -184,18 +182,6 @@ async def create_session(
         "min_volume": 0.5,
     }
 
-    _end_call_tool = FunctionSchema(
-        name="end_call",
-        description=(
-            "Call this function to hang up and end the conversation. "
-            "Use when: customer says goodbye / call khatam karo / band karo / "
-            "DNC / number hatao / abusive / task complete / natural end."
-        ),
-        properties={},
-        required=[],
-    )
-    _tools = ToolsSchema(standard_tools=[_end_call_tool])
-
     try:
         await voice_agent.Action(
             stt=stt,
@@ -204,7 +190,6 @@ async def create_session(
             vad=_vad,
             allow_interruptions=True,
             interruption_strategy=VADUserTurnStartStrategy(),
-            tools=_tools,
         )
         await voice_agent.start()
 
