@@ -2054,19 +2054,92 @@ tr:hover td { background: var(--teal-dim); }
               <div class="card-body">
                 <p style="font-size:12px;color:var(--muted);margin-bottom:20px">Customize how your AI agent sounds and introduces itself on calls.</p>
                 <div class="form-grid">
-                  <div class="form-row"><label>Agent Name</label><input id="ac-agent-name" placeholder="e.g. Aira"/></div>
-                  <div class="form-row"><label>Voice</label>
-                    <select id="ac-voice">
-                      <option value="anushka">Anushka (Female, Hindi)</option>
-                      <option value="meera">Meera (Female, Hindi)</option>
-                      <option value="arvind">Arvind (Male, Hindi)</option>
-                      <option value="amol">Amol (Male, Hindi)</option>
+                  <div class="form-row">
+                    <label>Agent Name</label>
+                    <input id="ac-agent-name" placeholder="e.g. Aira"/>
+                  </div>
+                  <div class="form-row">
+                    <label>Call Language</label>
+                    <select id="ac-language">
+                      <option value="hindi">Hindi</option>
+                      <option value="english">English</option>
+                      <option value="hinglish">Hinglish (Hindi + English)</option>
                     </select>
                   </div>
-                  <div class="form-row" style="grid-column:1/-1"><label>Custom Greeting <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-                    <textarea id="ac-greeting" rows="3" placeholder="नमस्ते {name} जी! मैं {agent} बोल रही हूँ {company} से। Use {name} for customer, {agent} for agent name, {company} for company."></textarea>
+                </div>
+
+                <!-- TTS Model selector -->
+                <div style="margin-bottom:16px">
+                  <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔊 Voice Model</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                    <div id="tts-model-v2" onclick="selectTtsModel('v2')"
+                      style="border-radius:var(--r);border:1px solid var(--border);padding:12px;cursor:pointer;transition:all .2s;background:var(--bg2)">
+                      <div style="font-weight:600;font-size:13px;margin-bottom:3px">Bulbul v2</div>
+                      <div style="font-size:11px;color:var(--muted)">Stable · sub-1s latency · classic voices</div>
+                    </div>
+                    <div id="tts-model-v3" onclick="selectTtsModel('v3')"
+                      style="border-radius:var(--r);border:1px solid rgba(0,210,150,0.4);padding:12px;cursor:pointer;transition:all .2s;background:rgba(0,210,150,0.05)">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                        <span style="font-weight:600;font-size:13px">Bulbul v3</span>
+                        <span style="font-size:9px;background:rgba(0,210,150,0.15);color:var(--teal);padding:1px 6px;border-radius:8px;font-family:var(--mono)">recommended</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--muted)">Natural · expressive · ~1.2s latency</div>
+                    </div>
+                  </div>
+                  <input type="hidden" id="ac-tts-model" value="v3"/>
+                </div>
+
+                <!-- Voice + Pace -->
+                <div class="form-grid" style="margin-bottom:16px">
+                  <div class="form-row">
+                    <label>Voice</label>
+                    <select id="ac-voice" onchange="updateVoicePreview()">
+                      <!-- populated by selectTtsModel() -->
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <label style="display:flex;justify-content:space-between">
+                      <span>Pace <span style="color:var(--muted);font-weight:400">(speed)</span></span>
+                      <span id="ac-pace-val" style="font-family:var(--mono);color:var(--teal);font-size:11px">1.10</span>
+                    </label>
+                    <input type="range" id="ac-pace" min="0.5" max="2.0" step="0.05" value="1.1"
+                      oninput="document.getElementById('ac-pace-val').textContent=parseFloat(this.value).toFixed(2)"
+                      style="width:100%;accent-color:var(--teal);margin-top:6px"/>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px">
+                      <span>0.5 slow</span><span>1.0 natural</span><span>2.0 fast</span>
+                    </div>
                   </div>
                 </div>
+
+                <!-- Temperature — v3 only -->
+                <div id="ac-temperature-row" class="form-grid" style="margin-bottom:16px">
+                  <div class="form-row">
+                    <label style="display:flex;justify-content:space-between">
+                      <span>Expression <span style="color:var(--muted);font-weight:400">(temperature)</span></span>
+                      <span id="ac-temp-val" style="font-family:var(--mono);color:var(--teal);font-size:11px">0.75</span>
+                    </label>
+                    <input type="range" id="ac-temperature" min="0.1" max="1.0" step="0.05" value="0.75"
+                      oninput="document.getElementById('ac-temp-val').textContent=parseFloat(this.value).toFixed(2)"
+                      style="width:100%;accent-color:var(--teal);margin-top:6px"/>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px">
+                      <span>0.1 flat</span><span>0.5 neutral</span><span>1.0 expressive</span>
+                    </div>
+                  </div>
+                  <div class="form-row" style="display:flex;align-items:flex-end;padding-bottom:4px">
+                    <div style="font-size:11px;color:var(--muted);line-height:1.6">
+                      Higher expression = more human-like variation in tone.<br>
+                      Lower = consistent and predictable. v3 only.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Greeting -->
+                <div class="form-row" style="margin-bottom:20px">
+                  <label>Custom Greeting <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                  <textarea id="ac-greeting" rows="3"
+                    placeholder="नमस्ते {name} जी! मैं {agent} बोल रही हूँ {company} से।&#10;&#10;Variables: {name} = customer name, {agent} = agent name, {company} = company name&#10;Tip: Keep it under 2 sentences for best results."></textarea>
+                </div>
+
                 <div style="display:flex;justify-content:flex-end;margin-top:20px">
                   <button class="btn btn-primary" onclick="saveAcctCallConfig()">Save Call Config</button>
                 </div>
@@ -3477,6 +3550,7 @@ async function saveCampaignSchedule() {
 // LIVE MONITOR
 // ════════════════════════════════════════
 let _liveTimerIntervals = {};  // track running intervals by call id
+let _liveRefreshInterval = null; // page-level auto-refresh every 10s
 
 async function renderLiveCalls() {
   try {
@@ -3953,7 +4027,14 @@ function showPage(name, el) {
   if (name === 'account')   loadAccountSettings();
   if (name === 'billing')      loadBilling();
   if (name === 'flowbuilder')  loadFlows();
-  if (name === 'monitor')   renderLiveCalls();
+  if (name === 'monitor') {
+    renderLiveCalls();
+    clearInterval(_liveRefreshInterval);
+    _liveRefreshInterval = setInterval(renderLiveCalls, 10000);
+  } else {
+    clearInterval(_liveRefreshInterval);
+    _liveRefreshInterval = null;
+  }
   if (name === 'campaigns') loadCampaigns();
   closeSidebar(); // close on mobile after navigation
 }
@@ -5645,8 +5726,27 @@ async function loadAccountSettings() {
     document.getElementById('ac-products').value     = c.company_products || '';
     document.getElementById('ac-guidelines').value   = c.call_guidelines  || '';
     document.getElementById('ac-agent-name').value   = c.agent_name       || 'Aira';
-    document.getElementById('ac-voice').value        = c.agent_voice      || 'anushka';
     document.getElementById('ac-greeting').value     = c.greeting_template|| '';
+
+    // TTS model + voice + pace + temperature
+    const ttsModel = d.tts_model || c.tts_model || 'v3';
+    selectTtsModel(ttsModel);
+    const savedVoice = c.agent_voice || (ttsModel === 'v3' ? 'kavya' : 'anushka');
+    document.getElementById('ac-voice').value = savedVoice;
+
+    const paceEl = document.getElementById('ac-pace');
+    if (paceEl) {
+      const paceVal = parseFloat(c.tts_pace || 1.1);
+      paceEl.value = paceVal;
+      paceEl.dataset.userSet = '1';
+      document.getElementById('ac-pace-val').textContent = paceVal.toFixed(2);
+    }
+    const tempEl = document.getElementById('ac-temperature');
+    if (tempEl) {
+      const tempVal = parseFloat(c.tts_temperature || 0.75);
+      tempEl.value = tempVal;
+      document.getElementById('ac-temp-val').textContent = tempVal.toFixed(2);
+    }
   } catch(e) { console.error('loadAccountSettings', e); }
 }
 
@@ -5690,6 +5790,9 @@ async function saveAcctCallConfig() {
     company_website:   document.getElementById('ac-website').value.trim(),
     call_language:     document.getElementById('ac-language').value,
     call_guidelines:   document.getElementById('ac-guidelines').value.trim(),
+    tts_model:         document.getElementById('ac-tts-model').value,
+    tts_pace:          parseFloat(document.getElementById('ac-pace').value),
+    tts_temperature:   parseFloat(document.getElementById('ac-temperature').value),
   };
 
   try {
@@ -5704,6 +5807,70 @@ async function saveAcctCallConfig() {
   } catch (err) {
     showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
   }
+}
+
+// ════════════════════════════════════════
+// TTS MODEL + VOICE SELECTOR
+// ════════════════════════════════════════
+const _V2_VOICES = [
+  { value: "anushka",  label: "Anushka — Female · Default voice for general use" },
+  { value: "manisha",  label: "Manisha — Female · Approachable female voice" },
+  { value: "arya",     label: "Arya — Female · Energetic female voice" },
+  { value: "vidya",    label: "Vidya — Female · Composed, reliable tone" },
+  { value: "abhilash", label: "Abhilash — Male · Articulate male voice" },
+  { value: "karun",    label: "Karun — Male · Strong, authoritative presence" },
+  { value: "hitesh",   label: "Hitesh — Male · Adaptable male voice" },
+];
+const _V3_VOICES = [
+  { value: "kavya",    label: "Kavya — Female · Everyday conversational tone ⭐" },
+  { value: "priya",    label: "Priya — Female · Upbeat voice with personality" },
+  { value: "suhani",   label: "Suhani — Female · Pleasant and soothing voice" },
+  { value: "ritu",     label: "Ritu — Female · Soft, approachable for customer interactions" },
+  { value: "simran",   label: "Simran — Female · Warm voice for conversational interfaces" },
+  { value: "pooja",    label: "Pooja — Female · Encouraging voice for assistance flows" },
+  { value: "shubh",    label: "Shubh — Male · Friendly default for IVR and support" },
+  { value: "ashutosh", label: "Ashutosh — Male · Traditional Hindi narration style" },
+  { value: "amit",     label: "Amit — Male · Formal voice for business communications" },
+  { value: "rahul",    label: "Rahul — Male · Composed voice that builds trust" },
+  { value: "ratan",    label: "Ratan — Male · Sharp articulation for clarity" },
+  { value: "rohan",    label: "Rohan — Male · Clear, confident voice for collections" },
+  { value: "manan",    label: "Manan — Male · Consistent voice for automated systems" },
+  { value: "dev",      label: "Dev — Male · Authoritative tone for recovery calls" },
+  { value: "sunny",    label: "Sunny — Male · Cheerful and upbeat voice" },
+  { value: "sumit",    label: "Sumit — Male · Pleasant male voice" },
+];
+
+function selectTtsModel(version) {
+  document.getElementById('ac-tts-model').value = version;
+
+  const v2Card = document.getElementById('tts-model-v2');
+  const v3Card = document.getElementById('tts-model-v3');
+  const isV3 = version === 'v3';
+  v2Card.style.borderColor = !isV3 ? 'rgba(0,210,150,0.4)' : 'var(--border)';
+  v2Card.style.background  = !isV3 ? 'rgba(0,210,150,0.05)' : 'var(--bg2)';
+  v3Card.style.borderColor =  isV3 ? 'rgba(0,210,150,0.4)' : 'var(--border)';
+  v3Card.style.background  =  isV3 ? 'rgba(0,210,150,0.05)' : 'var(--bg2)';
+
+  const voices = isV3 ? _V3_VOICES : _V2_VOICES;
+  const sel = document.getElementById('ac-voice');
+  const current = sel.value;
+  sel.innerHTML = voices.map(v =>
+    `<option value="${v.value}" ${v.value === current ? 'selected' : ''}>${v.label}</option>`
+  ).join('');
+  if (!voices.find(v => v.value === current)) sel.value = voices[0].value;
+
+  const tempRow = document.getElementById('ac-temperature-row');
+  if (tempRow) tempRow.style.display = isV3 ? 'grid' : 'none';
+
+  const paceEl = document.getElementById('ac-pace');
+  if (paceEl && !paceEl.dataset.userSet) {
+    paceEl.value = isV3 ? '1.1' : '1.0';
+    document.getElementById('ac-pace-val').textContent = isV3 ? '1.10' : '1.00';
+  }
+}
+
+function updateVoicePreview() {
+  // Placeholder — audio preview could be added here
 }
 
 // ════════════════════════════════════════

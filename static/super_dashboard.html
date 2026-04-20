@@ -1181,7 +1181,33 @@ async function openTenantDetail(id) {
           <div class="form-group" style="margin:0"><label>Agent Name</label><input id="cfg-agent-name" value="${c.agent_name||'Aira'}"/></div>
           <div class="form-group" style="margin:0"><label>Voice</label>
             <select id="cfg-voice">
-              ${['anushka','meera','pavithra','maitreyi','priya','neha','kavya','simran'].map(v=>`<option value="${v}" ${c.agent_voice===v?'selected':''}>${v}</option>`).join('')}
+              <optgroup label="── Bulbul V3 Voices ──">
+                <option value="kavya" ${c.agent_voice==='kavya'||!c.agent_voice?'selected':''}>Kavya — Female · Conversational ⭐</option>
+                <option value="priya" ${c.agent_voice==='priya'?'selected':''}>Priya — Female · Upbeat</option>
+                <option value="suhani" ${c.agent_voice==='suhani'?'selected':''}>Suhani — Female · Soothing</option>
+                <option value="ritu" ${c.agent_voice==='ritu'?'selected':''}>Ritu — Female · Approachable</option>
+                <option value="simran" ${c.agent_voice==='simran'?'selected':''}>Simran — Female · Warm</option>
+                <option value="pooja" ${c.agent_voice==='pooja'?'selected':''}>Pooja — Female · Encouraging</option>
+                <option value="shubh" ${c.agent_voice==='shubh'?'selected':''}>Shubh — Male · Friendly IVR</option>
+                <option value="ashutosh" ${c.agent_voice==='ashutosh'?'selected':''}>Ashutosh — Male · Hindi narration</option>
+                <option value="amit" ${c.agent_voice==='amit'?'selected':''}>Amit — Male · Business formal</option>
+                <option value="rahul" ${c.agent_voice==='rahul'?'selected':''}>Rahul — Male · Builds trust</option>
+                <option value="ratan" ${c.agent_voice==='ratan'?'selected':''}>Ratan — Male · Sharp clarity</option>
+                <option value="rohan" ${c.agent_voice==='rohan'?'selected':''}>Rohan — Male · Confident</option>
+                <option value="manan" ${c.agent_voice==='manan'?'selected':''}>Manan — Male · Automated systems</option>
+                <option value="dev" ${c.agent_voice==='dev'?'selected':''}>Dev — Male · Authoritative</option>
+                <option value="sunny" ${c.agent_voice==='sunny'?'selected':''}>Sunny — Male · Cheerful</option>
+                <option value="sumit" ${c.agent_voice==='sumit'?'selected':''}>Sumit — Male · Pleasant</option>
+              </optgroup>
+              <optgroup label="── Bulbul V2 Voices ──">
+                <option value="anushka" ${c.agent_voice==='anushka'?'selected':''}>Anushka — Female · General use</option>
+                <option value="manisha" ${c.agent_voice==='manisha'?'selected':''}>Manisha — Female · Approachable</option>
+                <option value="arya" ${c.agent_voice==='arya'?'selected':''}>Arya — Female · Energetic</option>
+                <option value="vidya" ${c.agent_voice==='vidya'?'selected':''}>Vidya — Female · Reliable</option>
+                <option value="abhilash" ${c.agent_voice==='abhilash'?'selected':''}>Abhilash — Male · Articulate</option>
+                <option value="karun" ${c.agent_voice==='karun'?'selected':''}>Karun — Male · Authoritative</option>
+                <option value="hitesh" ${c.agent_voice==='hitesh'?'selected':''}>Hitesh — Male · Adaptable</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -1218,7 +1244,7 @@ async function openTenantDetail(id) {
           <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🟢 Sarvam AI</div>
           <div class="form-group" style="margin:0"><label>Sarvam API Key</label>
             <div style="position:relative">
-              <input id="cfg-sarvam" type="password" placeholder="sk_live_…" value="${c.sarvam_api_key||''}" style="padding-right:40px"/>
+              <input id="cfg-sarvam" type="password" placeholder="${c.sarvam_api_key ? '••• key configured — paste to replace •••' : 'sk_live_…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-sarvam')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
           </div>
@@ -1228,7 +1254,7 @@ async function openTenantDetail(id) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="form-group" style="margin:0"><label>API Key</label>
               <div style="position:relative">
-                <input id="cfg-elevenlabs" type="password" placeholder="sk_…" value="${c.elevenlabs_api_key||''}" style="padding-right:40px"/>
+                <input id="cfg-elevenlabs" type="password" placeholder="${c.elevenlabs_api_key ? '••• key configured — paste to replace •••' : 'sk_…'}" style="padding-right:40px"/>
                 <button onclick="togglePwd('cfg-elevenlabs')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
               </div>
             </div>
@@ -1262,7 +1288,7 @@ async function openTenantDetail(id) {
           <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ Groq</div>
           <div class="form-group" style="margin:0"><label>Groq API Key</label>
             <div style="position:relative">
-              <input id="cfg-groq" type="password" placeholder="gsk_…" value="${c.groq_api_key||''}" style="padding-right:40px"/>
+              <input id="cfg-groq" type="password" placeholder="${c.groq_api_key ? '••• key configured — paste to replace •••' : 'gsk_…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-groq')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
           </div>
@@ -1271,7 +1297,7 @@ async function openTenantDetail(id) {
           <div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">✦ xAI Grok</div>
           <div class="form-group" style="margin:0"><label>xAI API Key</label>
             <div style="position:relative">
-              <input id="cfg-xai" type="password" placeholder="xai-…" value="${c.xai_api_key||''}" style="padding-right:40px"/>
+              <input id="cfg-xai" type="password" placeholder="${c.xai_api_key ? '••• key configured — paste to replace •••' : 'xai-…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-xai')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
           </div>
@@ -1280,7 +1306,7 @@ async function openTenantDetail(id) {
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🟢 OpenAI</div>
           <div class="form-group" style="margin:0"><label>OpenAI API Key</label>
             <div style="position:relative">
-              <input id="cfg-openai" type="password" placeholder="sk-…" value="${c.openai_api_key||''}" style="padding-right:40px"/>
+              <input id="cfg-openai" type="password" placeholder="${c.openai_api_key ? '••• key configured — paste to replace •••' : 'sk-…'}" style="padding-right:40px"/>
               <button onclick="togglePwd('cfg-openai')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px">👁</button>
             </div>
           </div>

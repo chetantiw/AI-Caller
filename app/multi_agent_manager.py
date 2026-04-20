@@ -264,15 +264,32 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts_label = "Sarvam TTS bulbul:v3 (fallback)"
     else:
         # ── Sarvam AI (default) ─────────────────────────────────────
-        # v3 voices — completely different set from v2
+        tts_model_ver = (tenant_config.get("tts_model") or "v3").lower()
+        tts_pace      = float(tenant_config.get("tts_pace") or 1.1)
+        tts_temp      = float(tenant_config.get("tts_temperature") or 0.75)
+        tts_pace = max(0.5, min(2.0, tts_pace))
+        tts_temp = max(0.1, min(1.0, tts_temp))
+        tts_model_str = "bulbul:v3" if tts_model_ver == "v3" else "bulbul:v2"
+
         _V3_VOICES = {
-            "aditya", "ritu", "priya", "neha", "rahul", "pooja", "rohan",
-            "simran", "kavya", "amit", "dev", "ishita", "shreya", "ratan",
-            "varun", "manan", "sumit", "roopa", "kabir", "aayan", "shubh",
-            "ashutosh", "advait", "amelia", "sophia",
+            "kavya", "priya", "suhani", "ritu", "simran", "pooja",
+            "shubh", "ashutosh", "amit", "rahul", "ratan", "rohan",
+            "manan", "dev", "sunny", "sumit",
         }
-        raw_voice = (tenant_config.get("agent_voice") or "kavya").lower()
-        tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
+        _V2_VOICES = {
+            "anushka", "manisha", "arya", "vidya",
+            "abhilash", "karun", "hitesh",
+        }
+
+        raw_voice = (tenant_config.get("agent_voice") or "").lower()
+        if tts_model_ver == "v3":
+            tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
+            tts_params = SarvamTTSService.InputParams(
+                language=Language.HI, pace=tts_pace, temperature=tts_temp)
+        else:
+            tts_voice = raw_voice if raw_voice in _V2_VOICES else "anushka"
+            tts_params = SarvamTTSService.InputParams(
+                language=Language.HI, pace=tts_pace, pitch=0.0, loudness=1.2)
 
         stt = SarvamSTTService(
             api_key=sarvam_key,
@@ -286,17 +303,13 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         )
         tts = SarvamTTSService(
             api_key=sarvam_key,
-            model="bulbul:v3",
+            model=tts_model_str,
             voice_id=tts_voice,
-            params=SarvamTTSService.InputParams(
-                language=Language.HI,
-                pace=1.1,
-                temperature=0.75,
-            ),
+            params=tts_params,
         )
         logger.info(
             f"[Speech Pipeline] Sarvam STT (saarika:v2.5) → "
-            f"Sarvam TTS (bulbul:v3, voice={tts_voice})"
+            f"Sarvam TTS ({tts_model_str}, voice={tts_voice}, pace={tts_pace}, temp={tts_temp})"
         )
         return stt, tts
 
