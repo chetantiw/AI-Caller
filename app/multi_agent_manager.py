@@ -259,7 +259,8 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts = SarvamTTSService(
                 api_key=sarvam_key, model="bulbul:v3", voice_id=voice,
                 params=SarvamTTSService.InputParams(
-                    language=Language.HI, pace=0.95, temperature=0.5),
+                    language=Language.HI, pace=0.95, temperature=0.5,
+                    enable_preprocessing=True),
             )
             tts_label = "Sarvam TTS bulbul:v3 (fallback)"
     else:
@@ -285,7 +286,8 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         if tts_model_ver == "v3":
             tts_voice = raw_voice if raw_voice in _V3_VOICES else "kavya"
             tts_params = SarvamTTSService.InputParams(
-                language=Language.HI, pace=tts_pace, temperature=tts_temp)
+                language=Language.HI, pace=tts_pace, temperature=tts_temp,
+                enable_preprocessing=True)
         else:
             tts_voice = raw_voice if raw_voice in _V2_VOICES else "anushka"
             tts_params = SarvamTTSService.InputParams(
@@ -689,10 +691,10 @@ def make_create_session(tenant_id: int, initial_config: dict):
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
-                    "confidence": 0.5,   # lower = catches softer/partial speech
-                    "start_secs": 0.1,   # agent stops within 100ms of client speaking
-                    "stop_secs":  0.4,   # 400ms silence before handing turn back to agent
-                    "min_volume": 0.35,  # pick up quieter interruptions
+                    "stop_secs":  0.6,
+                    "start_secs": 0.1,
+                    "confidence": 0.65,
+                    "min_volume": 0.5,
                 },
                 allow_interruptions=True,
             )
@@ -912,10 +914,10 @@ def make_platform_create_session():
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
                 vad={
-                    "confidence": 0.5,   # lower = catches softer/partial speech
-                    "start_secs": 0.1,   # agent stops within 100ms of client speaking
-                    "stop_secs":  0.4,   # 400ms silence before handing turn back to agent
-                    "min_volume": 0.35,  # pick up quieter interruptions
+                    "stop_secs":  0.6,
+                    "start_secs": 0.1,
+                    "confidence": 0.65,
+                    "min_volume": 0.5,
                 },
                 allow_interruptions=True,
             )

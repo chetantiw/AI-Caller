@@ -25,8 +25,6 @@ from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
 from piopiy.turns.user_start.vad_user_turn_start_strategy import VADUserTurnStartStrategy
-from piopiy.audio.vad.silero import SileroVADAnalyzer
-from piopiy.audio.vad.vad_analyzer import VADParams
 
 # ── DB ────────────────────────────────────────────────────────
 import sys
@@ -166,6 +164,7 @@ async def create_session(
             language=Language.HI,
             pace=1.1,
             temperature=0.75,
+            enable_preprocessing=True,
         ),
     )
 
@@ -176,20 +175,19 @@ async def create_session(
         idle_timeout_secs=120,
     )
 
-    # Pass SileroVADAnalyzer directly — avoids map_vad_params() key mismatch bug
-    # where stop_secs/start_secs dict keys were silently ignored (defaults used instead)
-    vad = SileroVADAnalyzer(params=VADParams(
-        confidence=0.7,
-        start_secs=0.1,   # detect speech start in 100ms (default 200ms)
-        stop_secs=0.3,    # end-of-turn after 300ms silence (default 800ms)
-    ))
+    _vad = {
+        "stop_secs":  0.6,
+        "start_secs": 0.1,
+        "confidence": 0.65,
+        "min_volume": 0.5,
+    }
 
     try:
         await voice_agent.Action(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad=vad,
+            vad=_vad,
             allow_interruptions=True,
             interruption_strategy=VADUserTurnStartStrategy(),
         )
