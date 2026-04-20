@@ -189,6 +189,7 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'faq_content',
         'webhook_url', 'webhook_secret', 'webhook_events',
         'tts_model', 'tts_pace', 'tts_temperature',
+        'agent_gender', 'behavior_rules',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:

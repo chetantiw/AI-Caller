@@ -2037,6 +2037,14 @@ tr:hover td { background: var(--teal-dim); }
                   <div class="form-row" style="grid-column:1/-1"><label>Call Guidelines</label>
                     <textarea id="ac-guidelines" rows="4" placeholder="- Keep answers to 2-3 sentences&#10;- Always try to schedule a demo&#10;- Politely close if no interest after 3 exchanges"></textarea>
                   </div>
+                  <div class="form-row" style="grid-column:1/-1">
+                    <label>Behavior Rules <span style="color:var(--muted);font-weight:400">(optional — how the agent should respond)</span></label>
+                    <textarea id="ac-behavior-rules" rows="5"
+                      placeholder="Write rules for how your agent should behave. Examples:&#10;- हर जवाब 2 वाक्य में दें&#10;- कोई filler words मत बोलो जैसे 'बिल्कुल', 'ज़रूर'&#10;- अगर customer interrupt करे तो रुक जाओ&#10;- Campus visit book करना लक्ष्य है"></textarea>
+                    <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                      These rules are injected directly into the AI agent's instructions on every call.
+                    </div>
+                  </div>
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
                   <button class="btn btn-outline" onclick="previewAcctPrompt()">👁 Preview AI Prompt</button>
@@ -2057,6 +2065,13 @@ tr:hover td { background: var(--teal-dim); }
                   <div class="form-row">
                     <label>Agent Name</label>
                     <input id="ac-agent-name" placeholder="e.g. Aira"/>
+                  </div>
+                  <div class="form-row">
+                    <label>Agent Gender</label>
+                    <select id="ac-agent-gender">
+                      <option value="female">Female (करूंगी, बोल रही हूँ)</option>
+                      <option value="male">Male (करूंगा, बोल रहा हूँ)</option>
+                    </select>
                   </div>
                   <div class="form-row">
                     <label>Call Language</label>
@@ -3554,90 +3569,85 @@ let _liveRefreshInterval = null; // page-level auto-refresh every 10s
 
 async function renderLiveCalls() {
   try {
-    // Get dashboard stats for the 3 monitor cards
     const stats = await apiFetch('/api/dashboard/stats');
-    document.getElementById('mon-today').textContent = stats.calls_today  ?? '0';
-    document.getElementById('mon-queue').textContent = stats.total_calls  ?? '0';
+    const monToday = document.getElementById('mon-today');
+    const monQueue = document.getElementById('mon-queue');
+    if (monToday) monToday.textContent = stats.calls_today ?? '0';
+    if (monQueue) monQueue.textContent = stats.total_calls ?? '0';
 
-    // Fetch in-memory active calls — populated by piopiy_agent, zero DB lag
-    const activeRes = await apiFetch('/api/active-calls');
-    const calls = activeRes.calls || [];
+    const res   = await apiFetch('/api/calls/active');
+    const calls = res.active_calls || [];
+    const list  = document.getElementById('live-calls-list');
+    if (!list) return;
 
-    document.getElementById('mon-live').textContent         = calls.length;
-    document.getElementById('live-calls-badge').textContent = calls.length || '0';
+    const monLive = document.getElementById('mon-live');
+    const liveBadge = document.getElementById('live-calls-badge');
+    if (monLive) monLive.textContent = calls.length;
+    if (liveBadge) liveBadge.textContent = calls.length || '0';
 
-    const el = document.getElementById('live-calls-list');
-    if (!el) return;
+    Object.keys(_liveTimerIntervals).forEach(id => {
+      if (!calls.find(c => String(c.id) === String(id))) {
+        clearInterval(_liveTimerIntervals[id]);
+        delete _liveTimerIntervals[id];
+      }
+    });
 
     if (calls.length === 0) {
-      Object.values(_liveTimerIntervals).forEach(clearInterval);
-      _liveTimerIntervals = {};
-      el.innerHTML = `
-        <div style="text-align:center; padding:40px; color:var(--muted); font-size:13px;">
-          <div style="font-size:32px;margin-bottom:12px;opacity:0.3">📵</div>
-          No active calls right now.<br>
-          <span style="font-size:11px;font-family:var(--mono)">Refreshes every 10 seconds.</span>
+      list.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px">
+          📵 No active calls right now
         </div>`;
       return;
     }
 
-    // Only rebuild HTML if the call set changed (avoids timer flicker)
-    const currentIds = new Set(calls.map(c => c.id));
-    const renderedIds = new Set(
-      [...el.querySelectorAll('[id^="live-card-"]')]
-        .map(el => parseInt(el.id.replace('live-card-', '')))
-    );
-    const setsMatch = currentIds.size === renderedIds.size &&
-      [...currentIds].every(id => renderedIds.has(id));
-
-    if (!setsMatch) {
-      // Clear timers for calls that ended
-      Object.keys(_liveTimerIntervals).forEach(id => {
-        if (!currentIds.has(parseInt(id))) {
-          clearInterval(_liveTimerIntervals[id]);
-          delete _liveTimerIntervals[id];
-        }
-      });
-
-      el.innerHTML = calls.map(c => {
-        const initials = (c.lead_name || c.phone || '?')
-          .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        return `
-        <div class="live-call-card active" id="live-card-${c.id}">
-          <div class="call-avatar">${initials}</div>
-          <div class="live-call-info">
-            <div class="name">${c.lead_name || c.phone || 'Unknown'}</div>
-            <div class="detail">${c.company || '—'} · ${c.phone || ''} · 🇮🇳 Hindi</div>
+    list.innerHTML = calls.map(c => {
+      const name    = c.lead_name || c.phone || '—';
+      const company = c.company   || '—';
+      const elapsed = c.elapsed_sec || 0;
+      const mm = Math.floor(elapsed / 60);
+      const ss = String(elapsed % 60).padStart(2, '0');
+      return `
+        <div class="live-call-card" id="live-card-${c.id}"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;
+                 background:var(--bg2);border:1px solid rgba(0,210,150,0.2);
+                 border-radius:var(--r);margin-bottom:8px">
+          <div style="width:10px;height:10px;border-radius:50%;
+                      background:var(--teal);
+                      box-shadow:0 0 0 3px rgba(0,210,150,0.2);
+                      animation:pulse 1.5s infinite"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+            <div style="font-size:11px;color:var(--muted)">${company} · ${c.phone || '—'}</div>
           </div>
-          <div class="live-timer" id="live-timer-${c.id}">0:00</div>
-          <div class="live-actions">
-            <button class="btn btn-outline btn-sm">📋 Notes</button>
+          <div id="live-timer-${c.id}"
+            style="font-family:var(--mono);font-size:14px;font-weight:700;
+                   color:var(--teal);min-width:42px;text-align:right">
+            ${mm}:${ss}
           </div>
+          <button onclick="endCall(${c.id})"
+            style="background:rgba(255,69,96,0.1);color:var(--red);border:1px solid rgba(255,69,96,0.3);
+                   border-radius:var(--r2);padding:4px 10px;font-size:11px;cursor:pointer">
+            End
+          </button>
         </div>`;
-      }).join('');
-    }
+    }).join('');
 
-    // Start/restart timers for all active calls
     calls.forEach(c => {
-      if (_liveTimerIntervals[c.id]) return; // already ticking
-      try {
-        const raw = c.started_at.replace(' ', 'T');
-        const startedAt = new Date(raw.includes('Z') || raw.includes('+') ? raw : raw + 'Z');
-        _liveTimerIntervals[c.id] = setInterval(() => {
-          const timerEl = document.getElementById('live-timer-' + c.id);
-          if (!timerEl) { clearInterval(_liveTimerIntervals[c.id]); delete _liveTimerIntervals[c.id]; return; }
-          const elapsed = Math.max(0, Math.floor((Date.now() - startedAt.getTime()) / 1000));
-          const m = Math.floor(elapsed / 60);
-          const s = String(elapsed % 60).padStart(2, '0');
-          timerEl.textContent = `${m}:${s}`;
-        }, 1000);
-      } catch(e) { console.error('Timer error for call', c.id, e); }
+      if (_liveTimerIntervals[c.id]) return;
+      const startElapsed = c.elapsed_sec || 0;
+      const startTime    = Date.now() - (startElapsed * 1000);
+      _liveTimerIntervals[c.id] = setInterval(() => {
+        const el = document.getElementById('live-timer-' + c.id);
+        if (!el) { clearInterval(_liveTimerIntervals[c.id]); delete _liveTimerIntervals[c.id]; return; }
+        const secs = Math.floor((Date.now() - startTime) / 1000);
+        el.textContent = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
+      }, 1000);
     });
 
   } catch(e) {
     console.error('Live monitor error:', e);
     const el = document.getElementById('live-calls-list');
-    if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);font-size:12px">Failed to load live calls.</div>';
+    if (el) el.innerHTML = '<div style="color:var(--red);padding:20px;text-align:center;font-size:12px">Failed to load active calls</div>';
   }
 }
 
@@ -4030,7 +4040,7 @@ function showPage(name, el) {
   if (name === 'monitor') {
     renderLiveCalls();
     clearInterval(_liveRefreshInterval);
-    _liveRefreshInterval = setInterval(renderLiveCalls, 3000);
+    _liveRefreshInterval = setInterval(renderLiveCalls, 5000);
   } else {
     clearInterval(_liveRefreshInterval);
     _liveRefreshInterval = null;
@@ -5724,8 +5734,10 @@ async function loadAccountSettings() {
     document.getElementById('ac-language').value     = c.call_language    || 'hindi';
     document.getElementById('ac-products').value     = c.company_products || '';
     document.getElementById('ac-guidelines').value   = c.call_guidelines  || '';
-    document.getElementById('ac-agent-name').value   = c.agent_name       || 'Aira';
-    document.getElementById('ac-greeting').value     = c.greeting_template|| '';
+    document.getElementById('ac-agent-name').value        = c.agent_name       || 'Aira';
+    document.getElementById('ac-agent-gender').value      = c.agent_gender     || 'female';
+    document.getElementById('ac-behavior-rules').value    = c.behavior_rules   || '';
+    document.getElementById('ac-greeting').value          = c.greeting_template|| '';
 
     // TTS model + voice + pace + temperature
     const ttsModel = d.tts_model || c.tts_model || 'v3';
@@ -5760,6 +5772,8 @@ async function saveAcctProfile() {
     company_products: document.getElementById('ac-products').value.trim(),
     call_guidelines:  document.getElementById('ac-guidelines').value.trim(),
     agent_name:       document.getElementById('ac-agent-name').value.trim() || 'Aira',
+    agent_gender:     document.getElementById('ac-agent-gender').value,
+    behavior_rules:   document.getElementById('ac-behavior-rules').value.trim(),
     agent_voice:      document.getElementById('ac-voice').value,
     greeting_template:document.getElementById('ac-greeting').value.trim(),
   };

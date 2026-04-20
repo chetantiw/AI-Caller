@@ -243,6 +243,27 @@ async def unregister_active_call(request: Request):
     return {"ok": True}
 
 
+@router.get("/calls/active")
+async def get_active_calls_db(request: Request):
+    """Return calls currently in progress — started but not ended, checked against DB."""
+    user = get_current_user(request)
+    tid  = user["tenant_id"]
+    with db.get_conn() as conn:
+        rows = conn.execute("""
+            SELECT c.id, c.phone, c.lead_name, c.company, c.call_sid,
+                   c.started_at, c.outcome, c.campaign_id,
+                   CAST((julianday('now') - julianday(c.started_at)) * 86400 AS INTEGER) as elapsed_sec
+            FROM calls c
+            WHERE c.tenant_id = ?
+              AND c.ended_at IS NULL
+              AND c.started_at IS NOT NULL
+              AND c.started_at >= datetime('now', '-30 minutes')
+            ORDER BY c.started_at DESC
+            LIMIT 20
+        """, (tid,)).fetchall()
+    return {"active_calls": [dict(r) for r in rows]}
+
+
 @router.get("/active-calls")
 async def get_active_calls(request: Request):
     """Returns currently active call sessions."""
@@ -2110,6 +2131,8 @@ async def get_tenant_profile(current_user: dict = Depends(get_current_user)):
             "tts_temperature":   config.get("tts_temperature", 0.75),
             "stt_provider":      config.get("stt_provider", "sarvam"),
             "deepgram_key_set":  bool((config.get("deepgram_api_key") or "").strip()),
+            "agent_gender":      config.get("agent_gender", "female"),
+            "behavior_rules":    config.get("behavior_rules", ""),
         },
     }
 
@@ -2195,6 +2218,8 @@ async def update_tenant_profile(request: Request, current_user: dict = Depends(_
     call_guidelines   = data.get("call_guidelines", "")
     agent_name        = data.get("agent_name", config.get("agent_name", "Aira"))
     agent_voice       = data.get("agent_voice", config.get("agent_voice", "kavya"))
+    agent_gender      = data.get("agent_gender", config.get("agent_gender", "female"))
+    behavior_rules    = data.get("behavior_rules", "").strip()
     greeting_template = data.get("greeting_template", config.get("greeting_template", ""))
     tts_model         = data.get("tts_model", config.get("tts_model", "v3"))
     tts_pace          = float(data.get("tts_pace", config.get("tts_pace", 1.1)))
@@ -2206,46 +2231,48 @@ async def update_tenant_profile(request: Request, current_user: dict = Depends(_
         "hinglish": "Hinglish में बोलें — Hindi और English mix करें।",
     }.get(call_language, "हमेशा हिंदी में बोलें।")
 
-    default_guidelines = (
+    if agent_gender == "male":
+        gender_rule = (
+            "आप एक पुरुष हैं। हमेशा masculine verb forms use करें: "
+            "'कर रहा हूँ', 'बोल रहा हूँ', 'करूंगा', 'बताऊंगा'।"
+        )
+    else:
+        gender_rule = (
+            "आप एक महिला हैं। हमेशा feminine verb forms use करें: "
+            "'कर रही हूँ', 'बोल रही हूँ', 'करूंगी', 'बताऊंगी'। "
+            "कभी masculine मत बोलें: 'कर रहा हूँ', 'करूंगा'।"
+        )
+
+    effective_guidelines = call_guidelines or (
         "- हर जवाब संक्षिप्त रखें (2-3 वाक्य)\n"
         "- अंत में demo schedule करने की कोशिश करें\n"
         "- रुचि नहीं है तो विनम्रता से call समाप्त करें"
     )
-    effective_guidelines = call_guidelines or default_guidelines
+    effective_rules = behavior_rules or (
+        "- हर जवाब 2 वाक्य में दें\n"
+        "- अंत में एक ही सवाल पूछें\n"
+        "- अगर customer interrupt करे तो रुक जाओ"
+    )
 
-    system_prompt = f"""आप {agent_name} हैं, {company_name} की professional AI sales agent हैं।
+    system_prompt = f"""आप {agent_name} हैं, {company_name} की professional AI agent हैं।
+{gender_rule}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESPONSE RULES — FOLLOW STRICTLY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Maximum 2 sentences per response. Never more.
-2. End with exactly one question per turn. Never two.
-3. No filler words: never say "Great!", "Sure!", "Certainly!", "Of course!"
-4. If the customer interrupts, STOP immediately. Acknowledge in 3 words, then listen.
-5. Match customer language exactly: Hindi→Hindi, English→English, Mixed→Hinglish.
-6. Say numbers in words — "तीस प्रतिशत" not "30%".
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COMPANY INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Company: {company_name}
-Industry: {company_industry}
-Products/Services: {company_products}
+COMPANY:
+{company_name} | {company_industry}
+Products: {company_products}
 Website: {company_website}
 
 {lang_instruction}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CALL GUIDELINES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BEHAVIOR RULES:
+{effective_rules}
+
+CALL GUIDELINES:
 {effective_guidelines}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HARD STOPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- "Remove my number" / "DNC" → Apologize, confirm removal, end call immediately.
-- Abusive customer → "माफ कीजिए, have a good day." End call.
-- Legal threat → End call immediately, no further response.
+HARD STOPS:
+- "number हटाओ" / "DNC" → माफी, call बंद।
+- Abusive caller → "माफ कीजिए, have a good day." Call बंद।
 """
 
     tdb.update_tenant_config(
@@ -2258,6 +2285,8 @@ HARD STOPS
         call_guidelines   = call_guidelines,
         agent_name        = agent_name,
         agent_voice       = agent_voice,
+        agent_gender      = agent_gender,
+        behavior_rules    = behavior_rules,
         greeting_template = greeting_template,
         system_prompt     = system_prompt,
         setup_complete    = 1,
