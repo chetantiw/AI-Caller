@@ -29,6 +29,8 @@ from piopiy.services.sarvam.stt import SarvamSTTService
 from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
 from piopiy.services.elevenlabs.stt import ElevenLabsRealtimeSTTService
+from piopiy.services.deepgram.stt import DeepgramSTTService
+from deepgram import LiveOptions
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
 from piopiy.frames.frames import (
@@ -211,7 +213,42 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     stt_lang = Language.HI_IN if "hi" in call_lang else Language.EN_IN
 
     # ── STT ──────────────────────────────────────────────────────
-    if stt_prov == "elevenlabs" and labs_key:
+    deepgram_key = (tenant_config.get("deepgram_api_key") or os.getenv("DEEPGRAM_API_KEY") or "").strip()
+
+    if stt_prov == "deepgram" and deepgram_key:
+        try:
+            dg_lang = "hi" if "hi" in call_lang else "en-IN"
+            stt = DeepgramSTTService(
+                api_key=deepgram_key,
+                live_options=LiveOptions(
+                    model="nova-2-general",
+                    language=dg_lang,
+                    encoding="linear16",
+                    channels=1,
+                    interim_results=True,
+                    smart_format=True,
+                    punctuate=True,
+                    endpointing=300,
+                ),
+            )
+            stt_label = f"Deepgram STT (nova-2-general, lang={dg_lang})"
+        except Exception as e:
+            logger.warning(f"[STT] Deepgram init failed ({e}) — falling back to Sarvam")
+            stt = SarvamSTTService(
+                api_key=sarvam_key, model="saarika:v2.5",
+                params=SarvamSTTService.InputParams(
+                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
+            )
+            stt_label = "Sarvam STT (fallback)"
+    elif stt_prov == "deepgram" and not deepgram_key:
+        logger.warning("[STT] Deepgram selected but DEEPGRAM_API_KEY not set — falling back to Sarvam")
+        stt = SarvamSTTService(
+            api_key=sarvam_key, model="saarika:v2.5",
+            params=SarvamSTTService.InputParams(
+                language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
+        )
+        stt_label = "Sarvam STT (fallback)"
+    elif stt_prov == "elevenlabs" and labs_key:
         try:
             stt       = ElevenLabsRealtimeSTTService(api_key=labs_key)
             stt_label = "ElevenLabs STT"
@@ -220,7 +257,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             stt = SarvamSTTService(
                 api_key=sarvam_key, model="saarika:v2.5",
                 params=SarvamSTTService.InputParams(
-                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True),
+                    language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
             )
             stt_label = "Sarvam STT (fallback)"
     else:
@@ -229,7 +266,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         stt = SarvamSTTService(
             api_key=sarvam_key, model="saarika:v2.5",
             params=SarvamSTTService.InputParams(
-                language=stt_lang, vad_signals=True, high_vad_sensitivity=True),
+                language=stt_lang, vad_signals=True, high_vad_sensitivity=True, mode="codemix"),
         )
         stt_label = f"Sarvam STT ({stt_lang})"
 
@@ -293,16 +330,6 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts_params = SarvamTTSService.InputParams(
                 language=Language.HI, pace=tts_pace, pitch=0.0, loudness=1.2)
 
-        stt = SarvamSTTService(
-            api_key=sarvam_key,
-            model="saarika:v2.5",
-            params=SarvamSTTService.InputParams(
-                language=stt_lang,
-                vad_signals=True,
-                high_vad_sensitivity=True,
-                mode="codemix",
-            ),
-        )
         tts = SarvamTTSService(
             api_key=sarvam_key,
             model=tts_model_str,
@@ -310,7 +337,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             params=tts_params,
         )
         logger.info(
-            f"[Speech Pipeline] Sarvam STT (saarika:v2.5) → "
+            f"[Speech Pipeline] {stt_label} → "
             f"Sarvam TTS ({tts_model_str}, voice={tts_voice}, pace={tts_pace}, temp={tts_temp})"
         )
         return stt, tts

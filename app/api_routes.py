@@ -280,7 +280,8 @@ async def get_active_calls(request: Request):
         _active_calls.pop(call_id, None)
 
     calls = [
-        c for c in _active_calls.values()
+        {**c, "id": c.get("call_id", c.get("id"))}
+        for c in _active_calls.values()
         if str(c.get("tenant_id", "1")) == str(tid)
     ]
     return {"calls": calls, "total": len(calls)}
@@ -2040,6 +2041,8 @@ async def piopiy_inbound(request: Request):
 
     _platform_cfg = tdb.get_tenant_config(1) or {}
     agent_id = (_platform_cfg.get("piopiy_agent_id") or "").strip()
+    if not agent_id:
+        agent_id = os.getenv("PIOPIY_AGENT_ID", "").strip()
 
 
 
@@ -2098,10 +2101,15 @@ async def get_tenant_profile(current_user: dict = Depends(get_current_user)):
             "call_language":     config.get("call_language", "hindi"),
             "call_guidelines":   config.get("call_guidelines", ""),
             "agent_name":        config.get("agent_name", "Aira"),
-            "agent_voice":       config.get("agent_voice", "anushka"),
+            "agent_voice":       config.get("agent_voice", "kavya"),
             "greeting_template": config.get("greeting_template", ""),
             "system_prompt":     config.get("system_prompt", ""),
             "setup_complete":    config.get("setup_complete", 0),
+            "tts_model":         config.get("tts_model", "v3"),
+            "tts_pace":          config.get("tts_pace", 1.1),
+            "tts_temperature":   config.get("tts_temperature", 0.75),
+            "stt_provider":      config.get("stt_provider", "sarvam"),
+            "deepgram_key_set":  bool((config.get("deepgram_api_key") or "").strip()),
         },
     }
 
@@ -2186,8 +2194,11 @@ async def update_tenant_profile(request: Request, current_user: dict = Depends(_
     call_language     = data.get("call_language", "hindi")
     call_guidelines   = data.get("call_guidelines", "")
     agent_name        = data.get("agent_name", config.get("agent_name", "Aira"))
-    agent_voice       = data.get("agent_voice", config.get("agent_voice", "anushka"))
+    agent_voice       = data.get("agent_voice", config.get("agent_voice", "kavya"))
     greeting_template = data.get("greeting_template", config.get("greeting_template", ""))
+    tts_model         = data.get("tts_model", config.get("tts_model", "v3"))
+    tts_pace          = float(data.get("tts_pace", config.get("tts_pace", 1.1)))
+    tts_temperature   = float(data.get("tts_temperature", config.get("tts_temperature", 0.75)))
 
     lang_instruction = {
         "hindi":    "हमेशा हिंदी में बोलें।",
@@ -2250,6 +2261,9 @@ HARD STOPS
         greeting_template = greeting_template,
         system_prompt     = system_prompt,
         setup_complete    = 1,
+        tts_model         = tts_model,
+        tts_pace          = tts_pace,
+        tts_temperature   = tts_temperature,
     )
     return {"ok": True, "message": "Profile updated. AI agent system prompt auto-generated."}
 
@@ -2266,6 +2280,7 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
         # Speech
         "speech_provider", "stt_provider", "tts_provider",
         "sarvam_api_key",
+        "deepgram_api_key",
         "elevenlabs_api_key", "elevenlabs_voice_id", "elevenlabs_model",
         # Telephony
         "piopiy_agent_id", "piopiy_agent_token", "piopiy_number",

@@ -2140,6 +2140,27 @@ tr:hover td { background: var(--teal-dim); }
                     placeholder="नमस्ते {name} जी! मैं {agent} बोल रही हूँ {company} से।&#10;&#10;Variables: {name} = customer name, {agent} = agent name, {company} = company name&#10;Tip: Keep it under 2 sentences for best results."></textarea>
                 </div>
 
+                <!-- STT Provider -->
+                <div style="border-top:1px solid var(--border);margin:20px 0;padding-top:20px">
+                  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">🎙️ Speech Recognition (STT)</div>
+                  <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Deepgram streams in real-time — ~100ms latency vs Sarvam's 0.7–3.8s batch transcription.</div>
+                  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg)" id="stt-opt-sarvam">
+                      <input type="radio" name="stt-provider" value="sarvam" onchange="onSttProviderChange()" style="accent-color:var(--teal)"> Sarvam saarika:v2.5
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg)" id="stt-opt-deepgram">
+                      <input type="radio" name="stt-provider" value="deepgram" onchange="onSttProviderChange()" style="accent-color:var(--teal)"> Deepgram nova-2 ⚡
+                    </label>
+                  </div>
+                  <div id="stt-deepgram-key-row" style="display:none">
+                    <label style="font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Deepgram API Key</label>
+                    <input type="password" id="ac-deepgram-key" autocomplete="off"
+                      style="width:100%;font-family:var(--mono);font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text)"
+                      placeholder="Leave blank to keep existing key">
+                    <div id="stt-deepgram-key-status" style="font-size:11px;color:var(--teal);margin-top:4px;"></div>
+                  </div>
+                </div>
+
                 <div style="display:flex;justify-content:flex-end;margin-top:20px">
                   <button class="btn btn-primary" onclick="saveAcctCallConfig()">Save Call Config</button>
                 </div>
@@ -4030,7 +4051,7 @@ function showPage(name, el) {
   if (name === 'monitor') {
     renderLiveCalls();
     clearInterval(_liveRefreshInterval);
-    _liveRefreshInterval = setInterval(renderLiveCalls, 10000);
+    _liveRefreshInterval = setInterval(renderLiveCalls, 3000);
   } else {
     clearInterval(_liveRefreshInterval);
     _liveRefreshInterval = null;
@@ -4070,13 +4091,12 @@ function initDashboard() {
     }
   }, 15000);
 
-  // Auto-refresh monitor page every 10s when active
+  // Auto-refresh monitor page every 3s when active
   setInterval(() => {
     if (currentUser && document.getElementById('page-monitor').classList.contains('active')) {
       renderLiveCalls();
-      loadSystemLog();
     }
-  }, 10000);
+  }, 3000);
 
   // Auto-refresh call logs every 20s when active
   setInterval(() => {
@@ -5747,7 +5767,27 @@ async function loadAccountSettings() {
       tempEl.value = tempVal;
       document.getElementById('ac-temp-val').textContent = tempVal.toFixed(2);
     }
+
+    // STT provider
+    const sttProv = c.stt_provider || 'sarvam';
+    document.querySelectorAll('input[name="stt-provider"]').forEach(r => {
+      r.checked = r.value === sttProv;
+    });
+    onSttProviderChange();
+    if (c.deepgram_key_set) {
+      document.getElementById('stt-deepgram-key-status').textContent = '✅ Key saved';
+    }
   } catch(e) { console.error('loadAccountSettings', e); }
+}
+
+function onSttProviderChange() {
+  const sel = document.querySelector('input[name="stt-provider"]:checked');
+  const isDeepgram = sel && sel.value === 'deepgram';
+  document.getElementById('stt-deepgram-key-row').style.display = isDeepgram ? 'block' : 'none';
+  ['stt-opt-sarvam','stt-opt-deepgram'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.borderColor = (el.querySelector('input').checked) ? 'var(--teal)' : 'var(--border)';
+  });
 }
 
 
@@ -5795,15 +5835,36 @@ async function saveAcctCallConfig() {
     tts_temperature:   parseFloat(document.getElementById('ac-temperature').value),
   };
 
+  // Save STT provider + optional Deepgram key via api-keys endpoint
+  const sttSel = document.querySelector('input[name="stt-provider"]:checked');
+  const sttProv = sttSel ? sttSel.value : 'sarvam';
+  const dgKey   = (document.getElementById('ac-deepgram-key')?.value || '').trim();
+  const keysBody = { stt_provider: sttProv };
+  if (dgKey) keysBody.deepgram_api_key = dgKey;
+
   try {
-    const res = await fetch('/api/tenant/profile', {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) showAcctAlert('✅ Call configuration saved.');
-    else showAcctAlert(data.detail || data.message || 'Error saving', 'error');
+    const [r1, r2] = await Promise.all([
+      fetch('/api/tenant/profile', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      fetch('/api/tenant/api-keys', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(keysBody),
+      }),
+    ]);
+    const d1 = await r1.json().catch(() => ({}));
+    if (r1.ok && r2.ok) {
+      showAcctAlert('✅ Call configuration saved.');
+      if (dgKey) {
+        document.getElementById('ac-deepgram-key').value = '';
+        document.getElementById('stt-deepgram-key-status').textContent = '✅ Key saved';
+      }
+    } else {
+      showAcctAlert(d1.detail || d1.message || 'Error saving', 'error');
+    }
   } catch (err) {
     showAcctAlert('Error saving settings: ' + (err.message || 'Network error'), 'error');
   }
