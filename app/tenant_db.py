@@ -190,6 +190,13 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'webhook_url', 'webhook_secret', 'webhook_events',
         'tts_model', 'tts_pace', 'tts_temperature',
         'agent_gender', 'behavior_rules',
+        'whatsapp_secret',
+        'quotation_tax_percent',
+        'quotation_valid_days',
+        'quotation_notes',
+        'email_user', 'email_pass',
+        'logo_path', 'brand_color',
+        'telecmi_sms_appid', 'telecmi_sms_secret',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
@@ -572,3 +579,268 @@ async def _fire_usage_alert(tenant_id: int, pct: float, alert_type: str) -> None
             )
     except Exception:
         pass  # never propagate alert errors
+
+
+# ─────────────────────────────────────────
+# PRODUCTS
+# ─────────────────────────────────────────
+
+def get_products(tenant_id: int) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM tenant_products WHERE tenant_id=? AND is_active=1 ORDER BY sort_order, name",
+            (tenant_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_product(tenant_id: int, data: dict) -> int:
+    pid = data.get("id")
+    with get_conn() as conn:
+        if pid:
+            conn.execute("""
+                UPDATE tenant_products SET name=?,description=?,price=?,
+                price_unit=?,category=?,sort_order=?,updated_at=datetime('now')
+                WHERE id=? AND tenant_id=?
+            """, (data["name"], data.get("description", ""), data.get("price", 0),
+                  data.get("price_unit", "fixed"), data.get("category", ""),
+                  data.get("sort_order", 0), pid, tenant_id))
+            conn.commit()
+            return pid
+        else:
+            cur = conn.execute("""
+                INSERT INTO tenant_products
+                    (tenant_id, name, description, price, price_unit, category, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (tenant_id, data["name"], data.get("description", ""),
+                  data.get("price", 0), data.get("price_unit", "fixed"),
+                  data.get("category", ""), data.get("sort_order", 0)))
+            conn.commit()
+            return cur.lastrowid
+
+
+def delete_product(tenant_id: int, product_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenant_products SET is_active=0 WHERE id=? AND tenant_id=?",
+            (product_id, tenant_id)
+        )
+        conn.commit()
+
+
+# ─────────────────────────────────────────
+# MESSAGE TEMPLATES
+# ─────────────────────────────────────────
+
+def get_templates(tenant_id: int, channel: str = None) -> list:
+    with get_conn() as conn:
+        if channel:
+            rows = conn.execute(
+                "SELECT * FROM message_templates WHERE tenant_id=? AND channel=? AND is_active=1",
+                (tenant_id, channel)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM message_templates WHERE tenant_id=? AND is_active=1",
+                (tenant_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_template(tenant_id: int, data: dict) -> int:
+    tid = data.get("id")
+    with get_conn() as conn:
+        if tid:
+            conn.execute("""
+                UPDATE message_templates
+                SET name=?, channel=?, subject=?, body=?
+                WHERE id=? AND tenant_id=?
+            """, (data["name"], data["channel"], data.get("subject", ""),
+                  data["body"], tid, tenant_id))
+            conn.commit()
+            return tid
+        else:
+            cur = conn.execute("""
+                INSERT INTO message_templates (tenant_id, name, channel, subject, body)
+                VALUES (?, ?, ?, ?, ?)
+            """, (tenant_id, data["name"], data["channel"],
+                  data.get("subject", ""), data["body"]))
+            conn.commit()
+            return cur.lastrowid
+
+
+def delete_template(tenant_id: int, template_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE message_templates SET is_active=0 WHERE id=? AND tenant_id=?",
+            (template_id, tenant_id)
+        )
+        conn.commit()
+
+
+# ─────────────────────────────────────────
+# COMMUNICATION TRIGGERS
+# ─────────────────────────────────────────
+
+def get_triggers(tenant_id: int) -> list:
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT t.*, m.name AS template_name, m.channel AS template_channel
+            FROM communication_triggers t
+            LEFT JOIN message_templates m ON t.template_id = m.id
+            WHERE t.tenant_id=? AND t.is_active=1
+            ORDER BY t.trigger_on, t.channel
+        """, (tenant_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_active_triggers(tenant_id: int, outcome: str) -> list:
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT t.*, m.body, m.subject, m.channel AS msg_channel
+            FROM communication_triggers t
+            JOIN message_templates m ON t.template_id = m.id
+            WHERE t.tenant_id=? AND t.is_active=1 AND m.is_active=1
+              AND (t.trigger_on=? OR t.trigger_on='any')
+        """, (tenant_id, outcome)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_trigger(tenant_id: int, data: dict) -> int:
+    tid = data.get("id")
+    with get_conn() as conn:
+        if tid:
+            conn.execute("""
+                UPDATE communication_triggers
+                SET trigger_on=?, channel=?, template_id=?, delay_mins=?
+                WHERE id=? AND tenant_id=?
+            """, (data["trigger_on"], data["channel"], data["template_id"],
+                  data.get("delay_mins", 0), tid, tenant_id))
+            conn.commit()
+            return tid
+        else:
+            cur = conn.execute("""
+                INSERT INTO communication_triggers
+                    (tenant_id, trigger_on, channel, template_id, delay_mins)
+                VALUES (?, ?, ?, ?, ?)
+            """, (tenant_id, data["trigger_on"], data["channel"],
+                  data["template_id"], data.get("delay_mins", 0)))
+            conn.commit()
+            return cur.lastrowid
+
+
+def delete_trigger(tenant_id: int, trigger_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE communication_triggers SET is_active=0 WHERE id=? AND tenant_id=?",
+            (trigger_id, tenant_id)
+        )
+        conn.commit()
+
+
+# ─────────────────────────────────────────
+# QUOTATIONS
+# ─────────────────────────────────────────
+
+def create_quotation(tenant_id: int, data: dict) -> int:
+    import json
+    from datetime import datetime
+    quote_number = (
+        f"QT-{datetime.now().strftime('%Y%m%d')}-"
+        f"{tenant_id:03d}-{int(datetime.now().timestamp()) % 10000:04d}"
+    )
+    with get_conn() as conn:
+        cur = conn.execute("""
+            INSERT INTO quotations
+                (tenant_id, lead_id, call_id, quote_number,
+                 customer_name, customer_phone, customer_email, customer_company,
+                 items, subtotal, tax_percent, tax_amount, total_amount,
+                 currency, valid_days, notes, sent_via)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (tenant_id, data.get("lead_id"), data.get("call_id"),
+              quote_number, data.get("customer_name", ""),
+              data.get("customer_phone", ""), data.get("customer_email", ""),
+              data.get("customer_company", ""),
+              json.dumps(data.get("items", [])),
+              data.get("subtotal", 0), data.get("tax_percent", 18),
+              data.get("tax_amount", 0), data.get("total_amount", 0),
+              data.get("currency", "INR"), data.get("valid_days", 7),
+              data.get("notes", ""), data.get("sent_via", "")))
+        conn.commit()
+        return cur.lastrowid
+
+
+def get_quotations(tenant_id: int, limit: int = 50) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM quotations WHERE tenant_id=? ORDER BY created_at DESC LIMIT ?",
+            (tenant_id, limit)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_quotation_status(quote_id: int, status: str, pdf_path: str = None):
+    with get_conn() as conn:
+        if pdf_path:
+            conn.execute(
+                "UPDATE quotations SET status=?, pdf_path=? WHERE id=?",
+                (status, pdf_path, quote_id)
+            )
+        else:
+            conn.execute(
+                "UPDATE quotations SET status=? WHERE id=?",
+                (status, quote_id)
+            )
+        conn.commit()
+
+
+# ─────────────────────────────────────────
+# TRANSFER DEPARTMENTS
+# ─────────────────────────────────────────
+
+def get_departments(tenant_id: int) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM transfer_departments "
+            "WHERE tenant_id=? AND is_active=1 "
+            "ORDER BY is_default DESC, name",
+            (tenant_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_department(tenant_id: int, data: dict) -> int:
+    did = data.get("id")
+    with get_conn() as conn:
+        if data.get("is_default"):
+            conn.execute(
+                "UPDATE transfer_departments SET is_default=0 WHERE tenant_id=?",
+                (tenant_id,)
+            )
+        if did:
+            conn.execute("""
+                UPDATE transfer_departments
+                SET name=?, phone=?, description=?, is_default=?
+                WHERE id=? AND tenant_id=?
+            """, (data["name"], data["phone"], data.get("description", ""),
+                  int(data.get("is_default", 0)), did, tenant_id))
+            conn.commit()
+            return did
+        else:
+            cur = conn.execute("""
+                INSERT INTO transfer_departments
+                    (tenant_id, name, phone, description, is_default)
+                VALUES (?, ?, ?, ?, ?)
+            """, (tenant_id, data["name"], data["phone"],
+                  data.get("description", ""), int(data.get("is_default", 0))))
+            conn.commit()
+            return cur.lastrowid
+
+
+def delete_department(tenant_id: int, dept_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transfer_departments SET is_active=0 WHERE id=? AND tenant_id=?",
+            (dept_id, tenant_id)
+        )
+        conn.commit()

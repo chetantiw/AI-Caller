@@ -479,6 +479,47 @@ async def _post_call(
                     f"Lead: {lead_label} | {duration_sec}s\n"
                     f"Sentiment: {sentiment}\nSummary: {summary}")
 
+        # ── Communication triggers ────────────────────────────────
+        try:
+            from app.communication_service import execute_triggers
+            lead_data = {}
+            if lead_id_db:
+                lead_obj = db.get_lead(lead_id_db)
+                if lead_obj:
+                    lead_data = dict(lead_obj)
+            await execute_triggers(tenant_id, sentiment, lead_data, summary)
+        except Exception as _te:
+            logger.warning(f"[T{tenant_id}] Trigger execution error: {_te}")
+
+        # ── Quotation tool callback ───────────────────────────────
+        try:
+            conversation = voice_agent._messages if hasattr(voice_agent, "_messages") else []
+            quotation_fired = any(
+                isinstance(m.get("content"), str) and "send_quotation" in m.get("content", "")
+                for m in conversation
+                if m.get("role") in ("tool", "function", "assistant")
+            )
+            if quotation_fired and lead_id_db:
+                lead_obj = db.get_lead(lead_id_db)
+                if lead_obj:
+                    products = tdb.get_products(tenant_id)
+                    items = [
+                        {"name": p["name"], "qty": 1, "price": p["price"]}
+                        for p in products if p.get("price", 0) > 0
+                    ]
+                    if items:
+                        from app.quotation_service import send_quotation
+                        await send_quotation(
+                            tenant_id,
+                            lead=dict(lead_obj),
+                            items=items,
+                            call_id=call_db_id,
+                            send_via="both",
+                        )
+                        logger.info(f"[T{tenant_id}] Quotation sent post-call")
+        except Exception as _qe:
+            logger.warning(f"[T{tenant_id}] Quotation send error: {_qe}")
+
     except Exception as e:
         logger.error(f"[Tenant {tenant_id}] Post-call error: {e}")
 

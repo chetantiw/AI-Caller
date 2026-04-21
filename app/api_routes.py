@@ -2564,6 +2564,17 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "webhook_url":         config.get("webhook_url", ""),
         "webhook_events":      config.get("webhook_events", "call_completed"),
         "webhook_secret_set":  bool(config.get("webhook_secret")),
+        # Communication / Quotations
+        "whatsapp_secret":       mask(config.get("whatsapp_secret", "")),
+        "whatsapp_secret_set":   bool(config.get("whatsapp_secret")),
+        "email_user":            config.get("email_user", ""),
+        "email_set":             bool(config.get("email_user")),
+        "quotation_tax_percent": config.get("quotation_tax_percent", 18),
+        "quotation_valid_days":  config.get("quotation_valid_days", 7),
+        "quotation_notes":       config.get("quotation_notes", ""),
+        "brand_color":           config.get("brand_color", "#1a1a2e"),
+        "telecmi_sms_appid":     mask(config.get("telecmi_sms_appid", "")),
+        "telecmi_sms_set":       bool(config.get("telecmi_sms_appid")),
     }
 
 
