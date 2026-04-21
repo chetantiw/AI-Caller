@@ -2007,6 +2007,10 @@ tr:hover td { background: var(--teal-dim); }
               style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
               🔗 Webhook
             </button>
+            <button id="acct-tab-notify" onclick="switchAcctTab('notify')"
+              style="flex:1;padding:9px 16px;border:none;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
+              📣 Notifications
+            </button>
           </div>
 
           <div id="acct-alert" style="display:none;padding:10px 14px;border-radius:var(--r2);font-size:13px;margin-bottom:16px;"></div>
@@ -2270,6 +2274,170 @@ tr:hover td { background: var(--teal-dim); }
               </div>
             </div>
           </div>
+
+          <!-- NOTIFICATIONS & AUTOMATION TAB -->
+          <div id="acct-panel-notify" style="display:none">
+
+            <!-- ── Channel Master Switches ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header"><div class="card-title"><span class="dot"></span> 📡 Channel Settings</div></div>
+              <div class="card-body">
+                <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Control which channels are active. WhatsApp and SMS are charged per message.</p>
+
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <!-- WhatsApp -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">📱 WhatsApp</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">TeleCMI · charged per message ⚠️</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-whatsapp" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-whatsapp" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-whatsapp" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                  <!-- SMS -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">💬 SMS</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">TeleCMI · charged per message ⚠️</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-sms" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-sms" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-sms" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                  <!-- Email -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">📧 Email</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">yagmail · free ✅</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-email" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-email" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-email" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                  <!-- Auto Quotation -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">📄 Auto Quotation</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">Send PDF quote when customer asks for pricing</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-quotation" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-quotation" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-quotation" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                  <!-- Call Transfer -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">🤝 Call Transfer to Human</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">Route call to team member when customer requests</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-transfer" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-transfer" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-transfer" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Trigger Rules ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> ⚡ Trigger Rules</div>
+                <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="openTriggerModal()">+ Add Rule</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div id="triggers-list" style="min-height:60px">
+                  <div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Message Templates ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 📝 Message Templates</div>
+                <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="openTemplateModal()">+ Add Template</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div style="font-size:11px;color:var(--muted);padding:10px 16px 0">
+                  Variables you can use: <code>{name}</code> <code>{company}</code> <code>{agent}</code> <code>{date}</code> <code>{time}</code> <code>{summary}</code> <code>{tenant_name}</code>
+                </div>
+                <div id="templates-list" style="min-height:60px">
+                  <div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Products & Services ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 📦 Products & Services</div>
+                <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="openProductModal()">+ Add Product</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div id="products-list" style="min-height:60px">
+                  <div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Transfer Departments ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 🤝 Transfer Departments</div>
+                <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="openDeptModal()">+ Add Department</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div id="depts-list" style="min-height:60px">
+                  <div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Quotation Settings ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header"><div class="card-title"><span class="dot"></span> 📄 Quotation Settings</div></div>
+              <div class="card-body">
+                <div class="form-grid">
+                  <div class="form-row">
+                    <label>Brand Color</label>
+                    <input type="color" id="ac-brand-color" value="#1a1a2e" style="width:100%;height:36px;padding:2px;border-radius:var(--r2);border:1px solid var(--border);background:var(--bg2);cursor:pointer"/>
+                  </div>
+                  <div class="form-row">
+                    <label>GST % <span style="color:var(--muted);font-weight:400">(default 18)</span></label>
+                    <input type="number" id="ac-tax-percent" value="18" min="0" max="28" placeholder="18"/>
+                  </div>
+                  <div class="form-row">
+                    <label>Valid Days</label>
+                    <input type="number" id="ac-valid-days" value="7" min="1" max="90" placeholder="7"/>
+                  </div>
+                  <div class="form-row" style="grid-column:1/-1">
+                    <label>Terms & Notes <span style="color:var(--muted);font-weight:400">(appears on PDF)</span></label>
+                    <textarea id="ac-quotation-notes" rows="3" placeholder="Payment terms, delivery timeline, warranty info..."></textarea>
+                  </div>
+                  <div class="form-row" style="grid-column:1/-1">
+                    <label>Company Logo <span style="color:var(--muted);font-weight:400">(PNG/JPG, shown on PDF)</span></label>
+                    <input type="file" id="ac-logo-file" accept=".png,.jpg,.jpeg" onchange="uploadLogo(this)"/>
+                    <div id="ac-logo-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:16px">
+                  <button class="btn btn-primary" onclick="saveQuotationSettings()">Save Quotation Settings</button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- end acct-panel-notify -->
 
           </div><!-- /tab panels min-height wrapper -->
 
@@ -5333,7 +5501,7 @@ async function cancelSchedule() {
 // ACCOUNT SETTINGS
 // ══════════════════════════════════════
 function switchAcctTab(name) {
-  ['profile','call','faq','webhook'].forEach(t => {
+  ['profile','call','faq','webhook','notify'].forEach(t => {
     const btn   = document.getElementById('acct-tab-' + t);
     const panel = document.getElementById('acct-panel-' + t);
     const active = t === name;
@@ -5342,6 +5510,7 @@ function switchAcctTab(name) {
   });
   if (name === 'faq')     loadFaq();
   if (name === 'webhook') { loadWebhookConfig(); loadWebhookLogs(); }
+  if (name === 'notify')  loadNotifyTab();
 }
 
 async function loadWebhookConfig() {
@@ -5551,6 +5720,347 @@ function showAcctAlert(msg, type = 'success') {
   el.style.color      = type === 'success' ? 'var(--teal)' : 'var(--red)';
   el.textContent      = msg;
   setTimeout(() => el.style.display = 'none', 4000);
+}
+
+// ════════════════════════════════════════
+// NOTIFICATIONS & AUTOMATION
+// ════════════════════════════════════════
+
+// ── Toggle helpers ────────────────────
+function _setToggle(id, on) {
+  const track = document.getElementById('track-' + id);
+  const thumb = document.getElementById('thumb-' + id);
+  const cb    = document.getElementById('toggle-' + id);
+  if (!track) return;
+  if (on) {
+    track.style.background = 'var(--teal)';
+    thumb.style.left       = '23px';
+    cb.checked             = true;
+  } else {
+    track.style.background = 'var(--border)';
+    thumb.style.left       = '3px';
+    cb.checked             = false;
+  }
+}
+
+async function saveChannelToggles() {
+  const body = {
+    whatsapp_enabled:      document.getElementById('toggle-whatsapp').checked  ? 1 : 0,
+    sms_enabled:           document.getElementById('toggle-sms').checked       ? 1 : 0,
+    email_enabled:         document.getElementById('toggle-email').checked     ? 1 : 0,
+    auto_quotation_enabled:document.getElementById('toggle-quotation').checked ? 1 : 0,
+    call_transfer_enabled: document.getElementById('toggle-transfer').checked  ? 1 : 0,
+  };
+  try {
+    await apiFetch('/api/tenant/api-keys', { method: 'PUT', body: JSON.stringify(body) });
+    showAcctAlert('✅ Channel settings saved.');
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+// ── Load all notification data ────────
+async function loadNotifyTab() {
+  await Promise.all([loadChannelToggles(), loadTriggers(), loadTemplates(), loadProducts(), loadDepts()]);
+}
+
+async function loadChannelToggles() {
+  try {
+    const d = await apiFetch('/api/tenant/api-keys');
+    _setToggle('whatsapp',  d.whatsapp_enabled);
+    _setToggle('sms',       d.sms_enabled);
+    _setToggle('email',     d.email_enabled  ?? 1);
+    _setToggle('quotation', d.auto_quotation_enabled);
+    _setToggle('transfer',  d.call_transfer_enabled);
+    // Quotation settings
+    if (d.brand_color)        document.getElementById('ac-brand-color').value       = d.brand_color;
+    if (d.quotation_tax_percent !== undefined) document.getElementById('ac-tax-percent').value  = d.quotation_tax_percent;
+    if (d.quotation_valid_days !== undefined)  document.getElementById('ac-valid-days').value   = d.quotation_valid_days;
+    if (d.quotation_notes)    document.getElementById('ac-quotation-notes').value   = d.quotation_notes;
+  } catch(e) { console.error('loadChannelToggles', e); }
+}
+
+// ── Triggers ──────────────────────────
+async function loadTriggers() {
+  try {
+    const res  = await apiFetch('/api/triggers');
+    const list = document.getElementById('triggers-list');
+    const data = res.triggers || [];
+    if (!data.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No trigger rules yet. Add one to auto-send messages after calls.</div>';
+      return;
+    }
+    const channelIcon = { whatsapp:'📱', sms:'💬', email:'📧', all:'📡' };
+    const outcomeLabel = { demo_booked:'Demo Booked', interested:'Interested',
+      not_interested:'Not Interested', no_answer:'No Answer',
+      transferred:'Transferred', any:'Any' };
+    list.innerHTML = data.map(t => `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;font-size:13px">
+          <b>${outcomeLabel[t.trigger_on] || t.trigger_on}</b>
+          <span style="color:var(--muted)"> → </span>
+          ${channelIcon[t.channel] || ''} ${t.channel}
+          <span style="color:var(--muted)"> → </span>
+          ${t.template_name || '—'}
+          ${t.delay_mins ? `<span style="color:var(--muted);font-size:11px"> (+${t.delay_mins}min)</span>` : ''}
+        </div>
+        <button onclick="editTrigger(${t.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px">✏️</button>
+        <button onclick="deleteTrigger(${t.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">🗑</button>
+      </div>`).join('');
+  } catch(e) { console.error('loadTriggers', e); }
+}
+
+function openTriggerModal(id) {
+  document.getElementById('trigger-edit-id').value = id || '';
+  document.getElementById('trigger-on').value      = 'demo_booked';
+  document.getElementById('trigger-channel').value = 'whatsapp';
+  document.getElementById('trigger-delay').value   = '0';
+  // Populate template dropdown
+  apiFetch('/api/templates').then(res => {
+    const sel = document.getElementById('trigger-template');
+    sel.innerHTML = '<option value="">— select template —</option>' +
+      (res.templates || []).map(t => `<option value="${t.id}">${t.name} (${t.channel})</option>`).join('');
+  });
+  document.getElementById('modal-trigger').style.display = 'flex';
+}
+
+async function editTrigger(id) {
+  openTriggerModal(id);
+  // Could pre-fill from existing data — for now just open modal
+}
+
+async function saveTrigger() {
+  const body = {
+    id:          document.getElementById('trigger-edit-id').value || undefined,
+    trigger_on:  document.getElementById('trigger-on').value,
+    channel:     document.getElementById('trigger-channel').value,
+    template_id: document.getElementById('trigger-template').value,
+    delay_mins:  parseInt(document.getElementById('trigger-delay').value) || 0,
+  };
+  try {
+    await apiFetch('/api/triggers', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('modal-trigger').style.display = 'none';
+    showAcctAlert('✅ Trigger rule saved.');
+    loadTriggers();
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+async function deleteTrigger(id) {
+  if (!confirm('Delete this trigger rule?')) return;
+  await apiFetch(`/api/triggers/${id}`, { method: 'DELETE' });
+  loadTriggers();
+}
+
+// ── Templates ─────────────────────────
+async function loadTemplates() {
+  try {
+    const res  = await apiFetch('/api/templates');
+    const list = document.getElementById('templates-list');
+    const data = res.templates || [];
+    if (!data.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No templates yet. Add a message template to use in trigger rules.</div>';
+      return;
+    }
+    const channelIcon = { whatsapp:'📱', sms:'💬', email:'📧' };
+    list.innerHTML = data.map(t => `
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-weight:600;font-size:13px">${channelIcon[t.channel]||''} ${t.name}</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="editTemplate(${t.id})" style="background:none;border:none;color:var(--muted);cursor:pointer">✏️</button>
+            <button onclick="deleteTemplate(${t.id})" style="background:none;border:none;color:var(--red);cursor:pointer">🗑</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.body.slice(0,80)}...</div>
+      </div>`).join('');
+  } catch(e) { console.error('loadTemplates', e); }
+}
+
+function openTemplateModal() {
+  document.getElementById('template-edit-id').value  = '';
+  document.getElementById('template-name').value     = '';
+  document.getElementById('template-channel').value  = 'whatsapp';
+  document.getElementById('template-subject').value  = '';
+  document.getElementById('template-body').value     = '';
+  document.getElementById('modal-template').style.display = 'flex';
+}
+
+async function editTemplate(id) {
+  openTemplateModal();
+  document.getElementById('template-edit-id').value = id;
+}
+
+async function saveTemplate() {
+  const name = document.getElementById('template-name').value.trim();
+  const body = document.getElementById('template-body').value.trim();
+  if (!name || !body) { showAcctAlert('Name and body are required', 'error'); return; }
+  const payload = {
+    id:      document.getElementById('template-edit-id').value || undefined,
+    name,
+    channel: document.getElementById('template-channel').value,
+    subject: document.getElementById('template-subject').value.trim(),
+    body,
+  };
+  try {
+    await apiFetch('/api/templates', { method: 'POST', body: JSON.stringify(payload) });
+    document.getElementById('modal-template').style.display = 'none';
+    showAcctAlert('✅ Template saved.');
+    loadTemplates();
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+async function deleteTemplate(id) {
+  if (!confirm('Delete this template?')) return;
+  await apiFetch(`/api/templates/${id}`, { method: 'DELETE' });
+  loadTemplates();
+}
+
+// ── Products ──────────────────────────
+async function loadProducts() {
+  try {
+    const res  = await apiFetch('/api/products');
+    const list = document.getElementById('products-list');
+    const data = res.products || [];
+    if (!data.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No products yet. Add products to include in auto-generated quotations.</div>';
+      return;
+    }
+    list.innerHTML = data.map(p => `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${p.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${p.category || ''} · ₹${(p.price||0).toLocaleString()} ${p.price_unit || ''}</div>
+        </div>
+        <button onclick="editProduct(${p.id})" style="background:none;border:none;color:var(--muted);cursor:pointer">✏️</button>
+        <button onclick="deleteProduct(${p.id})" style="background:none;border:none;color:var(--red);cursor:pointer">🗑</button>
+      </div>`).join('');
+  } catch(e) { console.error('loadProducts', e); }
+}
+
+function openProductModal() {
+  ['product-edit-id','product-name','product-desc','product-category'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('product-price').value = '';
+  document.getElementById('product-unit').value  = 'fixed';
+  document.getElementById('modal-product').style.display = 'flex';
+}
+
+async function editProduct(id) { openProductModal(); document.getElementById('product-edit-id').value = id; }
+
+async function saveProduct() {
+  const name = document.getElementById('product-name').value.trim();
+  if (!name) { showAcctAlert('Product name is required', 'error'); return; }
+  const body = {
+    id:          document.getElementById('product-edit-id').value || undefined,
+    name,
+    description: document.getElementById('product-desc').value.trim(),
+    price:       parseFloat(document.getElementById('product-price').value) || 0,
+    price_unit:  document.getElementById('product-unit').value,
+    category:    document.getElementById('product-category').value.trim(),
+  };
+  try {
+    await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('modal-product').style.display = 'none';
+    showAcctAlert('✅ Product saved.');
+    loadProducts();
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+async function deleteProduct(id) {
+  if (!confirm('Delete this product?')) return;
+  await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+  loadProducts();
+}
+
+// ── Departments ───────────────────────
+async function loadDepts() {
+  try {
+    const res  = await apiFetch('/api/departments');
+    const list = document.getElementById('depts-list');
+    const data = res.departments || [];
+    if (!data.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No departments yet. Add transfer departments for human handoff.</div>';
+      return;
+    }
+    list.innerHTML = data.map(d => `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${d.name} ${d.is_default ? '<span style="font-size:10px;background:rgba(0,210,150,0.15);color:var(--teal);padding:2px 6px;border-radius:8px;margin-left:6px">default</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--muted)">${d.phone} ${d.description ? '· ' + d.description : ''}</div>
+        </div>
+        <button onclick="editDept(${d.id})" style="background:none;border:none;color:var(--muted);cursor:pointer">✏️</button>
+        <button onclick="deleteDept(${d.id})" style="background:none;border:none;color:var(--red);cursor:pointer">🗑</button>
+      </div>`).join('');
+  } catch(e) { console.error('loadDepts', e); }
+}
+
+function openDeptModal() {
+  ['dept-edit-id','dept-name','dept-phone','dept-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('dept-default').checked = false;
+  document.getElementById('modal-dept').style.display = 'flex';
+}
+
+async function editDept(id) { openDeptModal(); document.getElementById('dept-edit-id').value = id; }
+
+async function saveDept() {
+  const name  = document.getElementById('dept-name').value.trim();
+  const phone = document.getElementById('dept-phone').value.trim();
+  if (!name || !phone) { showAcctAlert('Name and phone are required', 'error'); return; }
+  const body = {
+    id:          document.getElementById('dept-edit-id').value || undefined,
+    name, phone,
+    description: document.getElementById('dept-desc').value.trim(),
+    is_default:  document.getElementById('dept-default').checked ? 1 : 0,
+  };
+  try {
+    await apiFetch('/api/departments', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('modal-dept').style.display = 'none';
+    showAcctAlert('✅ Department saved.');
+    loadDepts();
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+async function deleteDept(id) {
+  if (!confirm('Delete this department?')) return;
+  await apiFetch(`/api/departments/${id}`, { method: 'DELETE' });
+  loadDepts();
+}
+
+// ── Quotation settings ────────────────
+async function saveQuotationSettings() {
+  const body = {
+    brand_color:           document.getElementById('ac-brand-color').value,
+    quotation_tax_percent: parseFloat(document.getElementById('ac-tax-percent').value) || 18,
+    quotation_valid_days:  parseInt(document.getElementById('ac-valid-days').value) || 7,
+    quotation_notes:       document.getElementById('ac-quotation-notes').value.trim(),
+  };
+  try {
+    await apiFetch('/api/tenant/api-keys', { method: 'PUT', body: JSON.stringify(body) });
+    showAcctAlert('✅ Quotation settings saved.');
+  } catch(e) { showAcctAlert('Error: ' + e.message, 'error'); }
+}
+
+async function uploadLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/tenant/logo', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${authToken}` },
+      body: form,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('ac-logo-status').textContent = '✅ Logo uploaded';
+      document.getElementById('ac-logo-status').style.color = 'var(--teal)';
+    } else {
+      document.getElementById('ac-logo-status').textContent = '❌ ' + (data.detail || 'Upload failed');
+      document.getElementById('ac-logo-status').style.color = 'var(--red)';
+    }
+  } catch(e) {
+    document.getElementById('ac-logo-status').textContent = '❌ ' + e.message;
+  }
 }
 
 async function loadUsageSummary() {
@@ -6687,6 +7197,183 @@ async function deleteFlow(id) {
 
     </div>
 
+  </div>
+</div>
+
+<!-- TRIGGER MODAL -->
+<div class="modal-overlay" id="modal-trigger" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border-radius:var(--r);padding:24px;width:420px;max-width:95vw">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="font-size:15px;font-weight:700">Trigger Rule</h3>
+      <button onclick="document.getElementById('modal-trigger').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <input type="hidden" id="trigger-edit-id"/>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">When outcome is</label>
+        <select id="trigger-on" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px">
+          <option value="demo_booked">Demo Booked</option>
+          <option value="interested">Interested</option>
+          <option value="not_interested">Not Interested</option>
+          <option value="no_answer">No Answer</option>
+          <option value="transferred">Call Transferred</option>
+          <option value="any">Any Outcome</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Send via</label>
+        <select id="trigger-channel" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px">
+          <option value="whatsapp">WhatsApp</option>
+          <option value="sms">SMS</option>
+          <option value="email">Email</option>
+          <option value="all">All Channels</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Using template</label>
+        <select id="trigger-template" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px">
+          <option value="">— select template —</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Delay (minutes after call)</label>
+        <input type="number" id="trigger-delay" value="0" min="0" max="1440"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+      <button onclick="document.getElementById('modal-trigger').style.display='none'" class="btn btn-outline">Cancel</button>
+      <button onclick="saveTrigger()" class="btn btn-primary">Save Rule</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE MODAL -->
+<div class="modal-overlay" id="modal-template" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border-radius:var(--r);padding:24px;width:480px;max-width:95vw">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="font-size:15px;font-weight:700">Message Template</h3>
+      <button onclick="document.getElementById('modal-template').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <input type="hidden" id="template-edit-id"/>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Template Name</label>
+        <input id="template-name" placeholder="e.g. Demo Confirmation WA"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Channel</label>
+        <select id="template-channel" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px">
+          <option value="whatsapp">WhatsApp</option>
+          <option value="sms">SMS</option>
+          <option value="email">Email</option>
+        </select>
+      </div>
+      <div id="template-subject-row">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Subject (email only)</label>
+        <input id="template-subject" placeholder="e.g. Your Demo Confirmation"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Message Body</label>
+        <textarea id="template-body" rows="6"
+          placeholder="नमस्ते {name} जी! आपका demo book हो गया है। {agent} आपसे {date} को बात करेंगी। — {tenant_name}"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px;resize:vertical"></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">
+          Variables: {name} {company} {agent} {date} {time} {summary} {tenant_name} {phone}
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+      <button onclick="document.getElementById('modal-template').style.display='none'" class="btn btn-outline">Cancel</button>
+      <button onclick="saveTemplate()" class="btn btn-primary">Save Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-overlay" id="modal-product" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border-radius:var(--r);padding:24px;width:420px;max-width:95vw">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="font-size:15px;font-weight:700">Product / Service</h3>
+      <button onclick="document.getElementById('modal-product').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <input type="hidden" id="product-edit-id"/>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Name *</label>
+        <input id="product-name" placeholder="e.g. IoT Energy Meter"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Description</label>
+        <input id="product-desc" placeholder="Brief description"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Price (₹)</label>
+          <input type="number" id="product-price" placeholder="45000" min="0"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Price Unit</label>
+          <select id="product-unit" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px">
+            <option value="fixed">Fixed</option>
+            <option value="per month">Per Month</option>
+            <option value="per year">Per Year</option>
+            <option value="per unit">Per Unit</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Category</label>
+        <input id="product-category" placeholder="e.g. Hardware, Service, Software"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+      <button onclick="document.getElementById('modal-product').style.display='none'" class="btn btn-outline">Cancel</button>
+      <button onclick="saveProduct()" class="btn btn-primary">Save Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEPARTMENT MODAL -->
+<div class="modal-overlay" id="modal-dept" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border-radius:var(--r);padding:24px;width:400px;max-width:95vw">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="font-size:15px;font-weight:700">Transfer Department</h3>
+      <button onclick="document.getElementById('modal-dept').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <input type="hidden" id="dept-edit-id"/>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Department Name *</label>
+        <input id="dept-name" placeholder="e.g. Sales Team"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Phone Number *</label>
+        <input id="dept-phone" placeholder="+91 98765 43210"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Description</label>
+        <input id="dept-desc" placeholder="e.g. Handles product inquiries"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="dept-default" style="width:16px;height:16px"/>
+        <label for="dept-default" style="font-size:13px;cursor:pointer">Set as default transfer department</label>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+      <button onclick="document.getElementById('modal-dept').style.display='none'" class="btn btn-outline">Cancel</button>
+      <button onclick="saveDept()" class="btn btn-primary">Save Department</button>
+    </div>
   </div>
 </div>
 

@@ -197,6 +197,8 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'email_user', 'email_pass',
         'logo_path', 'brand_color',
         'telecmi_sms_appid', 'telecmi_sms_secret',
+        'whatsapp_enabled', 'sms_enabled', 'email_enabled',
+        'auto_quotation_enabled', 'call_transfer_enabled',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:

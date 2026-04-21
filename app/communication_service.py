@@ -141,14 +141,24 @@ async def execute_triggers(
     Run all active triggers for this outcome concurrently.
     Called from _post_call() after every call.
     """
+    tenant_config = tdb.get_tenant_config(tenant_id) or {}
+
+    # Master switches — check before anything
+    wa_enabled    = bool(tenant_config.get("whatsapp_enabled", 0))
+    sms_enabled   = bool(tenant_config.get("sms_enabled", 0))
+    email_enabled = bool(tenant_config.get("email_enabled", 1))
+
+    if not any([wa_enabled, sms_enabled, email_enabled]):
+        logger.debug(f"[Triggers] All channels disabled for tenant={tenant_id}")
+        return
+
     triggers = tdb.get_active_triggers(tenant_id, outcome)
     if not triggers:
         logger.debug(f"[Triggers] No triggers for outcome={outcome} tenant={tenant_id}")
         return
 
-    tenant_config = tdb.get_tenant_config(tenant_id) or {}
-    vars_map      = _build_vars(tenant_config, lead, call_summary)
-    tasks         = []
+    vars_map = _build_vars(tenant_config, lead, call_summary)
+    tasks    = []
 
     for t in triggers:
         message = _render(t["body"], vars_map)
@@ -157,16 +167,18 @@ async def execute_triggers(
         phone   = lead.get("phone", "")
         email   = lead.get("email", "")
 
-        if channel in ("whatsapp", "all"):
+        # Respect master switches
+        if channel in ("whatsapp", "all") and wa_enabled and phone:
             tasks.append(send_whatsapp(phone, message, tenant_config))
-        if channel in ("sms", "all"):
+        if channel in ("sms", "all") and sms_enabled and phone:
             tasks.append(send_sms(phone, message, tenant_config))
-        if channel in ("email", "all"):
+        if channel in ("email", "all") and email_enabled and email:
             tasks.append(send_email(email, subject, message, tenant_config))
 
         logger.info(f"[Triggers] Firing: outcome={outcome} channel={channel} tenant={tenant_id}")
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    errors  = [r for r in results if isinstance(r, Exception)]
-    if errors:
-        logger.warning(f"[Triggers] {len(errors)} failed: {errors}")
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        errors  = [r for r in results if isinstance(r, Exception)]
+        if errors:
+            logger.warning(f"[Triggers] {len(errors)} send errors: {errors}")
