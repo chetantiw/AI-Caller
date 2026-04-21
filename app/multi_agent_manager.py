@@ -35,6 +35,8 @@ from piopiy.frames.frames import (
     LLMTextFrame, LLMFullResponseStartFrame, LLMFullResponseEndFrame, LLMContextFrame,
 )
 from piopiy.processors.frame_processor import FrameDirection
+from piopiy.adapters.schemas.tools_schema import ToolsSchema
+from piopiy.adapters.schemas.function_schema import FunctionSchema
 
 # ── DB ─────────────────────────────────────────────────────────
 from app import database as db
@@ -694,16 +696,27 @@ def make_create_session(tenant_id: int, initial_config: dict):
             idle_timeout_secs=120,
         )
 
+        _end_call_tool = FunctionSchema(
+            name="end_call",
+            description=(
+                "Hang up and end this call immediately. "
+                "Call this when: customer says bye/goodbye/band karo/rakhna, "
+                "or says 'number hatao'/'DNC'/'do not call', "
+                "or becomes abusive, or gives a legal threat, "
+                "or says 'not interested' twice, "
+                "or the conversation has naturally concluded."
+            ),
+            properties={},
+            required=[],
+        )
+        _tools = ToolsSchema(standard_tools=[_end_call_tool])
+
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad={
-                    "stop_secs":  0.6,
-                    "start_secs": 0.1,
-                    "confidence": 0.65,
-                    "min_volume": 0.5,
-                },
+                vad=True,
                 allow_interruptions=True,
+                mcp_tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:
@@ -917,16 +930,27 @@ def make_platform_create_session():
             idle_timeout_secs=120,
         )
 
+        _end_call_tool = FunctionSchema(
+            name="end_call",
+            description=(
+                "Hang up and end this call immediately. "
+                "Call this when: customer says bye/goodbye/band karo/rakhna, "
+                "or says 'number hatao'/'DNC'/'do not call', "
+                "or becomes abusive, or gives a legal threat, "
+                "or says 'not interested' twice, "
+                "or the conversation has naturally concluded."
+            ),
+            properties={},
+            required=[],
+        )
+        _tools = ToolsSchema(standard_tools=[_end_call_tool])
+
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad={
-                    "stop_secs":  0.6,
-                    "start_secs": 0.1,
-                    "confidence": 0.65,
-                    "min_volume": 0.5,
-                },
+                vad=True,
                 allow_interruptions=True,
+                mcp_tools=_tools,
             )
             await voice_agent.start()
         except asyncio.CancelledError:

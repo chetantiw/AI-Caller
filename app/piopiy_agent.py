@@ -25,6 +25,8 @@ from piopiy.services.sarvam.tts import SarvamTTSService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
 from piopiy.turns.user_start.vad_user_turn_start_strategy import VADUserTurnStartStrategy
+from piopiy.adapters.schemas.tools_schema import ToolsSchema
+from piopiy.adapters.schemas.function_schema import FunctionSchema
 
 # ── DB ────────────────────────────────────────────────────────
 import sys
@@ -182,14 +184,29 @@ async def create_session(
         "min_volume": 0.5,
     }
 
+    _end_call_tool = FunctionSchema(
+        name="end_call",
+        description=(
+            "Hang up and end this call immediately. "
+            "Call this when: customer says bye/goodbye/band karo/rakhna, "
+            "or says 'number hatao'/'DNC'/'do not call', "
+            "or becomes abusive, or gives a legal threat, "
+            "or says 'not interested' twice, "
+            "or the conversation has naturally concluded."
+        ),
+        properties={},
+        required=[],
+    )
+    _tools = ToolsSchema(standard_tools=[_end_call_tool])
+
     try:
         await voice_agent.Action(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad=_vad,
+            vad=True,
             allow_interruptions=True,
-            interruption_strategy=VADUserTurnStartStrategy(),
+            mcp_tools=_tools,
         )
         await voice_agent.start()
 
