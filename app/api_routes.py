@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import database as db
 from app import tenant_db as tdb
-from app.plan_features import check_feature, check_campaign_limit, check_seat_limit, get_plan_features
+from app.plan_features import check_feature, check_campaign_limit, check_seat_limit, get_plan_features, get_all_plan_comparison, check_minutes_quota
 
 router = APIRouter(prefix="/api")
 
@@ -2170,17 +2170,141 @@ async def get_tenant_usage_summary(current_user: dict = Depends(get_current_user
 
 @router.get("/tenant/plan-features")
 async def get_plan_features_route(current_user: dict = Depends(get_current_user)):
-    """Returns plan features + current usage for the logged-in tenant."""
+    """Returns plan features, quota status, and plan-comparison matrix for the logged-in tenant."""
     tid    = current_user.get("tenant_id", 1)
     tenant = tdb.get_tenant(tid) or {}
     plan   = tenant.get("plan", "starter")
     features = get_plan_features(plan)
+
+    minutes_used  = float(tenant.get("minutes_used") or 0)
+    minutes_limit = int(tenant.get("minutes_limit") or features.get("minutes_limit") or 1000)
+    quota         = check_minutes_quota(plan, minutes_used, minutes_limit)
+
     return {
-        "plan":         plan,
-        "features":     features,
-        "calls_used":   tenant.get("calls_used", 0),
-        "calls_limit":  tenant.get("calls_limit", 1000),
-        "minutes_used": tenant.get("minutes_used", 0),
+        "plan":             plan,
+        "features":         features,
+        "calls_used":       tenant.get("calls_used", 0),
+        "calls_limit":      tenant.get("calls_limit", 1000),
+        "minutes_used":     minutes_used,
+        "minutes_limit":    minutes_limit,
+        "quota":            quota,
+        "plan_comparison":  get_all_plan_comparison(),
+    }
+
+
+@router.get("/tenant/check-feature/{feature}")
+async def check_feature_route(feature: str, current_user: dict = Depends(get_current_user)):
+    """Check whether a single feature is allowed on the current tenant's plan."""
+    tid    = current_user.get("tenant_id", 1)
+    tenant = tdb.get_tenant(tid) or {}
+    plan   = tenant.get("plan", "starter")
+    return check_feature(plan, feature)
+
+
+@router.post("/tenant/addon-minutes")
+async def purchase_addon_minutes(request: Request, current_user: dict = Depends(_require_admin)):
+    """Record an add-on minute purchase and bump the tenant's minute quota."""
+    data    = await request.json()
+    tid     = current_user.get("tenant_id", 1)
+    minutes = int(data.get("minutes", 0) or 0)
+    amount  = float(data.get("amount", 0) or 0)
+    notes   = (data.get("notes") or "").strip()
+    if minutes <= 0:
+        raise HTTPException(status_code=400, detail="Invalid minutes quantity")
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO addon_purchases (tenant_id, addon_type, minutes, amount, notes)"
+            " VALUES (?, 'minutes', ?, ?, ?)",
+            (tid, minutes, amount, notes),
+        )
+        conn.execute(
+            "UPDATE tenants SET minutes_limit = COALESCE(minutes_limit, 0) + ? WHERE id=?",
+            (minutes, tid),
+        )
+        conn.commit()
+    db.add_log(f"💳 Add-on purchased: {minutes} min (₹{amount}) for tenant {tid}")
+    return {"ok": True, "minutes_added": minutes}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USE CASE TEMPLATES — pre-configured industry agent setups
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/tenant/templates")
+async def list_use_case_templates(current_user: dict = Depends(get_current_user)):
+    """List all available use case templates (industry presets)."""
+    from app.use_case_templates import get_all_templates
+    return {"templates": get_all_templates()}
+
+
+@router.post("/tenant/templates/{template_key}/apply")
+async def apply_use_case_template(
+    template_key: str,
+    request: Request,
+    current_user: dict = Depends(_require_admin),
+):
+    """Apply a use case template to the current tenant — sets agent config,
+    seeds message templates, and wires trigger rules (idempotent on repeat)."""
+    from app.use_case_templates import apply_template
+
+    tenant_id    = current_user.get("tenant_id", 1)
+    data         = await request.json()
+    company_name = (data.get("company_name") or "").strip()
+    products     = (data.get("products") or "").strip()
+
+    if not company_name:
+        cfg          = tdb.get_tenant_config(tenant_id) or {}
+        company_name = cfg.get("company_name", "")
+
+    try:
+        config = apply_template(tenant_id, template_key, company_name, products)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Save main config fields (skip private _-prefixed keys)
+    save_fields = {k: v for k, v in config.items() if not k.startswith("_")}
+    tdb.update_tenant_config(tenant_id, **save_fields)
+
+    triggers      = config.get("_triggers", [])
+    msg_templates = config.get("_templates", {})
+
+    # Seed message templates that aren't already present (by name)
+    existing_templates = tdb.get_templates(tenant_id)
+    existing_names     = {t["name"] for t in existing_templates}
+
+    template_id_map = {}
+    for tpl_key, tpl_data in msg_templates.items():
+        if tpl_data["name"] not in existing_names:
+            tid2 = tdb.upsert_template(tenant_id, {
+                "name":    tpl_data["name"],
+                "channel": tpl_data["channel"],
+                "subject": tpl_data.get("subject", ""),
+                "body":    tpl_data["body"],
+            })
+            template_id_map[tpl_key] = tid2
+
+    # Wire trigger rules only if tenant has none yet
+    existing_triggers = tdb.get_triggers(tenant_id)
+    if not existing_triggers:
+        for tr in triggers:
+            tpl_name = tr.get("template_name", "")
+            tpl_id   = template_id_map.get(tpl_name)
+            if tpl_id:
+                tdb.upsert_trigger(tenant_id, {
+                    "trigger_on":  tr["trigger_on"],
+                    "channel":     tr["channel"],
+                    "template_id": tpl_id,
+                    "delay_mins":  0,
+                })
+
+    return {
+        "ok":            True,
+        "template_key":  template_key,
+        "agent_name":    config["agent_name"],
+        "agent_voice":   config["agent_voice"],
+        "triggers_set":  len(triggers),
+        "templates_set": len(msg_templates),
+        "message":       f"Template '{template_key}' applied successfully.",
     }
 
 
@@ -2323,9 +2447,17 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
         "piopiy_agent_id", "piopiy_agent_token", "piopiy_number",
         # Messaging
         "telegram_bot_token", "telegram_chat_id",
-        "whatsapp_api_key", "whatsapp_number",
+        "whatsapp_api_key", "whatsapp_number", "whatsapp_secret",
+        "telecmi_sms_appid", "telecmi_sms_secret",
+        "email_user", "email_pass",
         # Webhook
         "webhook_url", "webhook_secret", "webhook_events",
+        # Channel master switches
+        "whatsapp_enabled", "sms_enabled", "email_enabled",
+        "auto_quotation_enabled", "call_transfer_enabled",
+        # Quotation / branding
+        "brand_color", "logo_path",
+        "quotation_tax_percent", "quotation_valid_days", "quotation_notes",
     )
     update_data = {f: data[f] for f in saveable_fields if f in data}
     if update_data:
@@ -2759,3 +2891,105 @@ def _build_faq_prompt_section(faq_content: str) -> str:
         "If a customer asks something covered here, use this answer directly.\n\n"
         + faq_content.strip()
     )
+
+
+# ═════════════════════════════════════════════════════════════════
+# NOTIFICATIONS & AUTOMATION — products, templates, triggers, depts
+# ═════════════════════════════════════════════════════════════════
+
+@router.get("/products")
+async def list_products(current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    return {"products": tdb.get_products(tid)}
+
+
+@router.post("/products")
+async def save_product(request: Request, current_user: dict = Depends(_require_admin)):
+    tid  = current_user.get("tenant_id", 1)
+    data = await request.json()
+    if not (data.get("name") or "").strip():
+        raise HTTPException(status_code=400, detail="Product name is required")
+    pid = tdb.upsert_product(tid, data)
+    return {"ok": True, "id": pid}
+
+
+@router.delete("/products/{product_id}")
+async def delete_product(product_id: int, current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    tdb.delete_product(tid, product_id)
+    return {"ok": True}
+
+
+@router.get("/templates")
+async def list_templates(current_user: dict = Depends(_require_admin), channel: str = None):
+    tid = current_user.get("tenant_id", 1)
+    return {"templates": tdb.get_templates(tid, channel)}
+
+
+@router.post("/templates")
+async def save_template(request: Request, current_user: dict = Depends(_require_admin)):
+    tid  = current_user.get("tenant_id", 1)
+    data = await request.json()
+    if not (data.get("name") or "").strip() or not (data.get("body") or "").strip():
+        raise HTTPException(status_code=400, detail="Name and body are required")
+    if not (data.get("channel") or "").strip():
+        raise HTTPException(status_code=400, detail="Channel is required")
+    tid_out = tdb.upsert_template(tid, data)
+    return {"ok": True, "id": tid_out}
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(template_id: int, current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    tdb.delete_template(tid, template_id)
+    return {"ok": True}
+
+
+@router.get("/triggers")
+async def list_triggers(current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    return {"triggers": tdb.get_triggers(tid)}
+
+
+@router.post("/triggers")
+async def save_trigger(request: Request, current_user: dict = Depends(_require_admin)):
+    tid  = current_user.get("tenant_id", 1)
+    data = await request.json()
+    if not data.get("trigger_on") or not data.get("channel") or not data.get("template_id"):
+        raise HTTPException(status_code=400, detail="trigger_on, channel and template_id are required")
+    try:
+        data["template_id"] = int(data["template_id"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="template_id must be numeric")
+    rid = tdb.upsert_trigger(tid, data)
+    return {"ok": True, "id": rid}
+
+
+@router.delete("/triggers/{trigger_id}")
+async def delete_trigger(trigger_id: int, current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    tdb.delete_trigger(tid, trigger_id)
+    return {"ok": True}
+
+
+@router.get("/departments")
+async def list_departments(current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    return {"departments": tdb.get_departments(tid)}
+
+
+@router.post("/departments")
+async def save_department(request: Request, current_user: dict = Depends(_require_admin)):
+    tid  = current_user.get("tenant_id", 1)
+    data = await request.json()
+    if not (data.get("name") or "").strip() or not (data.get("phone") or "").strip():
+        raise HTTPException(status_code=400, detail="Name and phone are required")
+    did = tdb.upsert_department(tid, data)
+    return {"ok": True, "id": did}
+
+
+@router.delete("/departments/{dept_id}")
+async def delete_department(dept_id: int, current_user: dict = Depends(_require_admin)):
+    tid = current_user.get("tenant_id", 1)
+    tdb.delete_department(tid, dept_id)
+    return {"ok": True}

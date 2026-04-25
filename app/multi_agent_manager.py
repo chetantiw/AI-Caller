@@ -443,6 +443,38 @@ async def _post_call(
         billed_minutes = max(1, math.ceil(duration_sec / 60))
         tdb.log_usage(tenant_id, minutes=billed_minutes)
 
+        # ── Reseller usage tracking ──────────────────────
+        # If this tenant belongs to a reseller, log against the reseller's quota
+        # and fire a quota alert if minutes-used crosses the warning threshold.
+        reseller_id = cfg.get("reseller_id") or (
+            tdb.get_tenant(tenant_id) or {}
+        ).get("reseller_id")
+        if reseller_id and duration_sec > 0:
+            try:
+                from app.reseller_db import (
+                    log_reseller_usage, check_reseller_quota, get_reseller
+                )
+                duration_min = duration_sec / 60.0
+                log_reseller_usage(reseller_id, tenant_id, call_db_id, duration_min)
+
+                quota = check_reseller_quota(reseller_id)
+                if quota["status"] in ("warning_80", "exceeded"):
+                    r = get_reseller(reseller_id) or {}
+                    tok  = r.get("telegram_bot_token", "")
+                    chat = r.get("telegram_chat_id", "")
+                    if tok and chat:
+                        from app.usage_alert_service import check_and_alert
+                        asyncio.create_task(check_and_alert(
+                            tenant_id=reseller_id,
+                            tenant_name=r.get("name", ""),
+                            minutes_used=quota["used"],
+                            minutes_limit=quota["limit"],
+                            telegram_token=tok,
+                            telegram_chat_id=chat,
+                        ))
+            except Exception as e:
+                logger.warning(f"[Reseller] Usage tracking failed for tenant {tenant_id}: {e}")
+
         # CRM webhook — fire-and-forget
         # ── Fire webhook (non-blocking) ──────────────────
         try:

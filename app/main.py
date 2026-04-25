@@ -54,6 +54,7 @@ from app.exotel_pipeline import run_exotel_pipeline
 
 from app.api_routes import router as api_router
 from app import super_routes
+from app.reseller_routes import reseller_router
 
 from app import database as db
 
@@ -63,7 +64,7 @@ load_dotenv()
 
 app = FastAPI(
 
-    title="MuTech AI Caller — Aira",
+    title="DialBot — AI Calling Platform",
 
     description="PIOPIY + Exotel | Sarvam AI + LLM | Hindi voice sales agent",
 
@@ -83,7 +84,7 @@ async def startup_event():
 
     provider = _get_telephony()
 
-    db.add_log(f"🟢 MuTech AI Caller v3.0 started | Telephony: {provider}")
+    db.add_log(f"🟢 DialBot started | Telephony: {provider}")
 
     logger.info(f"Server started | Telephony: {provider}")
 
@@ -117,6 +118,7 @@ async def startup_event():
 
 app.include_router(api_router)
 app.include_router(super_routes.router, prefix="/super")
+app.include_router(reseller_router)
 
 
 
