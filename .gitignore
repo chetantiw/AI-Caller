@@ -36,3 +36,9 @@ Thumbs.db
 
 # Misc
 files.zip
+
+# Database — never commit DB files; data belongs outside version control
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*

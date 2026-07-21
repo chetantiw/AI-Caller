@@ -214,6 +214,18 @@ async def send_quotation(
     """
     tenant_config = tdb.get_tenant_config(tenant_id) or {}
 
+    # Master switches — respect tenant channel toggles
+    wa_enabled    = bool(tenant_config.get("whatsapp_enabled", 0))
+    email_enabled = bool(tenant_config.get("email_enabled", 1))
+    if send_via == "both":
+        if wa_enabled and not email_enabled:
+            send_via = "whatsapp"
+        elif email_enabled and not wa_enabled:
+            send_via = "email"
+        elif not wa_enabled and not email_enabled:
+            logger.warning(f"[Quotation] All channels disabled — not sending (tenant={tenant_id})")
+            send_via = "none"
+
     # Calculate totals
     subtotal   = sum(i.get("qty", 1) * i.get("price", 0) for i in items)
     tax_pct    = float(tenant_config.get("quotation_tax_percent") or 18)
