@@ -25,20 +25,144 @@ def _render(template_body: str, data: dict) -> str:
     return template_body
 
 
-def _build_vars(tenant_config: dict, lead: dict, call_summary: str = "") -> dict:
+def _clean_summary(summary: str) -> str:
+    s = (summary or "").strip()
+    if not s:
+        return ""
+    if s.lower() in (
+        "call completed. analysis unavailable.",
+        "call completed",
+        "n/a",
+        "none",
+        "null",
+    ):
+        return ""
+    return s
+
+
+def _extract_demo_schedule(summary: str) -> dict:
+    """
+    Pull demo day/time from call summary when the agent booked or discussed a demo.
+    Returns keys: demo_when (human text), has_schedule (bool).
+    """
+    text = _clean_summary(summary)
+    if not text:
+        return {"demo_when": "", "has_schedule": False}
+
+    # Common patterns from transcripts/summaries
+    patterns = [
+        # Monday at 2 PM / Monday 2PM / on Monday at 14:00
+        r"(?:on\s+)?((?:mon|tues|wednes|thurs|fri|satur|sun)day)\s*(?:at\s*)?(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)",
+        # 2 PM on Monday
+        r"(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.))\s+on\s+((?:mon|tues|wednes|thurs|fri|satur|sun)day)",
+        # 20 Sept / September 20 at 2 PM
+        r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,?\s*\d{4})?)\s*(?:at\s*)?(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)",
+        r"(\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*(?:\s+\d{4})?)\s*(?:at\s*)?(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)",
+        # demo scheduled for ...
+        r"demo(?:\s+is)?\s+(?:scheduled|booked|fixed|set)\s+(?:for|on)\s+([^\.\n,]{5,60})",
+        r"(?:schedule|booked|confirmed).*?demo.*?(?:for|on|at)\s+([^\.\n,]{5,60})",
+    ]
+    low = text.lower()
+    for pat in patterns:
+        m = re.search(pat, low, flags=re.I)
+        if not m:
+            continue
+        parts = [p.strip(" .,:;") for p in m.groups() if p and str(p).strip()]
+        if not parts:
+            continue
+        # Prefer original casing slice when possible
+        start, end = m.span()
+        raw = text[start:end].strip(" .,:;")
+        demo_when = raw if len(raw) >= 4 else " ".join(parts)
+        # Normalize whitespace
+        demo_when = re.sub(r"\s+", " ", demo_when)
+        if len(demo_when) >= 4:
+            return {"demo_when": demo_when, "has_schedule": True}
+    return {"demo_when": "", "has_schedule": False}
+
+
+def _offer_line(tenant_config: dict) -> str:
+    """Short product offer line — keep WhatsApp concise."""
+    products = (tenant_config.get("company_products") or "").strip()
+    industry = (tenant_config.get("company_industry") or "").strip().lower()
+    company = (tenant_config.get("company_name") or "").strip() or "our team"
+    company_l = company.lower()
+
+    # Prefer a clean one-liner for MuTech / IoT-robotics tenants
+    if "mutech" in company_l or "iot" in industry or "robot" in industry:
+        return "We are happy to offer you our IoT and robotics solutions."
+
+    if products:
+        # Turn bullets/newlines into a short phrase; avoid dumping full catalog
+        cleaned = products.replace("\r", "\n")
+        parts = []
+        for line in cleaned.split("\n"):
+            line = re.sub(r"^[\-\*\u2022\d\.\)\s]+", "", line).strip(" -•\t")
+            if line:
+                parts.append(line)
+        if not parts:
+            parts = [re.sub(r"\s+", " ", products).strip()]
+        # Max 3 items for WhatsApp readability
+        short_items = parts[:3]
+        short = ", ".join(short_items)
+        if len(parts) > 3:
+            short += ", and more"
+        if len(short) > 120:
+            short = short[:117].rstrip() + "..."
+        return f"We are happy to offer you our {short}."
+
+    if industry:
+        return f"We are happy to offer you our {industry} solutions."
+    return "We are happy to offer you our solutions."
+
+
+def _build_vars(tenant_config: dict, lead: dict, call_summary: str = "",
+                outcome: str = "") -> dict:
     """Build variable dict for template rendering."""
     now = datetime.now()
+    summary = _clean_summary(call_summary)
+    demo = _extract_demo_schedule(summary)
+    company = (tenant_config.get("company_name") or "").strip() or "our team"
+    company = company.rstrip(" .")  # avoid "Ltd.."
+    name = (lead.get("name") or lead.get("lead_name") or "").strip()
+    greeting_name = f" {name}" if name else ""
+
+    if demo["has_schedule"]:
+        demo_block = (
+            f"Your demo is noted for *{demo['demo_when']}*. "
+            "Reply here if you need to reschedule."
+        )
+        demo_or_followup = demo_block
+    else:
+        demo_block = (
+            "If you would like a demo, please share your preferred *date and time* here."
+        )
+        demo_or_followup = (
+            "Please share a convenient *date and time* for a demo or follow-up call."
+        )
+
+    followup_ask = (
+        "Also let us know a good time for a follow-up call if you prefer a call back."
+    )
+
     return {
-        "name":         lead.get("name") or lead.get("lead_name") or "",
-        "phone":        lead.get("phone") or "",
-        "email":        lead.get("email") or "",
-        "company":      lead.get("company") or "",
-        "agent":        tenant_config.get("agent_name") or "Aira",
-        "tenant_name":  tenant_config.get("company_name") or "",
-        "date":         now.strftime("%d %B %Y"),
-        "time":         now.strftime("%I:%M %p"),
-        "summary":      call_summary or "",
-        "website":      tenant_config.get("company_website") or "",
+        "name":            name,
+        "greeting_name":   greeting_name,
+        "phone":           lead.get("phone") or "",
+        "email":           lead.get("email") or "",
+        "company":         lead.get("company") or "",
+        "agent":           tenant_config.get("agent_name") or "Aira",
+        "tenant_name":     company,
+        "date":            now.strftime("%d %B %Y"),
+        "time":            now.strftime("%I:%M %p"),
+        "summary":         summary,
+        "website":         tenant_config.get("company_website") or "",
+        "offer_line":      _offer_line(tenant_config),
+        "demo_when":       demo["demo_when"],
+        "demo_block":      demo_block,
+        "demo_or_followup": demo_or_followup,
+        "followup_ask":    followup_ask,
+        "outcome":         (outcome or "").strip().lower(),
     }
 
 
@@ -51,34 +175,43 @@ def _normalize_phone(phone: str) -> str:
     return digits
 
 
-def _default_feedback_message(tenant_config: dict, lead: dict, outcome: str, call_summary: str = "") -> str:
-    vars_map = _build_vars(tenant_config, lead, call_summary)
-    name = vars_map["name"] or "there"
-    agent = vars_map["agent"]
-    company = vars_map["tenant_name"] or "our team"
-    summary = (call_summary or "").strip()
-    if outcome == "demo_booked":
-        body = (
-            f"Hi {name}! Your demo request with {company} is noted. "
-            f"{agent} will follow up with schedule details soon."
-        )
-    elif outcome == "interested":
-        body = (
-            f"Hi {name}! Thanks for your interest in {company}. "
-            f"{agent} will share the next details shortly. Reply here anytime."
-        )
+# Canonical WhatsApp copy (also seeded into message_templates)
+TEMPLATE_ANSWERED = (
+    "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+    "{offer_line}\n\n"
+    "{demo_or_followup}\n"
+    "{followup_ask}\n\n"
+    "Reply on this chat anytime — we are happy to help."
+)
+
+TEMPLATE_INTERESTED = (
+    "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+    "{offer_line}\n\n"
+    "Glad to know you are interested. {demo_or_followup}\n"
+    "{followup_ask}\n\n"
+    "Reply here and our team will assist you."
+)
+
+TEMPLATE_DEMO = (
+    "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+    "{offer_line}\n\n"
+    "{demo_block}\n"
+    "{followup_ask}\n\n"
+    "Reply on this WhatsApp for any change in schedule or questions."
+)
+
+
+def _default_feedback_message(tenant_config: dict, lead: dict, outcome: str,
+                              call_summary: str = "") -> str:
+    o = (outcome or "answered").strip().lower()
+    vars_map = _build_vars(tenant_config, lead, call_summary, outcome=o)
+    if o == "demo_booked":
+        body = _render(TEMPLATE_DEMO, vars_map)
+    elif o == "interested":
+        body = _render(TEMPLATE_INTERESTED, vars_map)
     else:
-        body = (
-            f"Hi {name}! Thanks for speaking with {agent} from {company}."
-        )
-    if summary and summary.lower() not in (
-        "call completed. analysis unavailable.",
-        "call completed",
-        "n/a",
-    ):
-        body += f"\n\nSummary: {summary[:280]}"
-    body += "\n\nReply to this chat if you have any questions."
-    return body
+        body = _render(TEMPLATE_ANSWERED, vars_map)
+    return re.sub(r"\n{3,}", "\n\n", body).strip()
 
 
 # ── WhatsApp via OpenClaw (per-tenant profile) ─────────────────
@@ -309,13 +442,39 @@ async def execute_triggers(
         uniq.append(t)
     triggers = uniq
 
-    vars_map = _build_vars(tenant_config, lead, call_summary)
+    primary_outcome = outcomes[0] if outcomes else (outcome or "answered")
+    # If summary clearly has a demo booking, prefer demo copy even when
+    # sentiment came back as neutral/answered.
+    summary_l = _clean_summary(call_summary).lower()
+    if primary_outcome in ("answered", "neutral", "interested") and (
+        "demo" in summary_l and any(
+            k in summary_l for k in ("book", "schedule", "monday", "tuesday", "wednesday",
+                                     "thursday", "friday", "saturday", "sunday", "pm", "am")
+        )
+    ):
+        primary_outcome = "demo_booked"
+
+    vars_map = _build_vars(tenant_config, lead, call_summary, outcome=primary_outcome)
     tasks = []
     fired = 0
 
     for t in triggers:
-        message = _render(t.get("body") or "", vars_map)
+        # Prefer smart canonical WhatsApp copy for known outcomes so portal
+        # templates stay in sync with product messaging.
+        trig_on = (t.get("trigger_on") or "").lower()
         channel = (t.get("channel") or t.get("msg_channel") or "").lower()
+        if channel in ("whatsapp", "all"):
+            if trig_on == "demo_booked" or primary_outcome == "demo_booked":
+                message = _render(TEMPLATE_DEMO, vars_map)
+            elif trig_on == "interested":
+                message = _render(TEMPLATE_INTERESTED, vars_map)
+            elif trig_on in ("answered", "any", "neutral"):
+                message = _render(TEMPLATE_ANSWERED, vars_map)
+            else:
+                message = _render(t.get("body") or "", vars_map)
+        else:
+            message = _render(t.get("body") or "", vars_map)
+
         subject = _render(
             t.get("subject") or f"Message from {vars_map['tenant_name'] or 'our team'}",
             vars_map,
@@ -338,12 +497,14 @@ async def execute_triggers(
         )
 
     # Fallback: if WhatsApp is enabled, call was answered-like, no template fired,
-    # still send a basic feedback SMS-less WhatsApp so portal toggle "just works".
+    # still send feedback so portal toggle "just works".
     answered_like = (outcomes[0] if outcomes else "") in (
         "answered", "interested", "demo_booked", "neutral", "callback"
     ) or (outcome or "").lower() in ("answered", "interested", "demo_booked", "neutral")
     if wa_enabled and phone and feedback_on_answered and answered_like and fired == 0:
-        msg = _default_feedback_message(tenant_config, lead, outcomes[0] if outcomes else outcome, call_summary)
+        msg = _default_feedback_message(
+            tenant_config, lead, primary_outcome, call_summary
+        )
         logger.info(f"[Triggers] Fallback WhatsApp feedback tenant={tenant_id} outcome={outcome}")
         tasks.append(send_whatsapp(phone, msg, tenant_config, tenant_id=tenant_id))
 

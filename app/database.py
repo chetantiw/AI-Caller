@@ -530,24 +530,33 @@ def init_db():
                     """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
                        VALUES (?, 'Post-call Thank You (WhatsApp)', 'whatsapp', '', ?)""",
                     (tid,
-                     "Hi {name}! Thanks for speaking with {agent} from {tenant_name}. "
-                     "Summary: {summary}\n\nReply here if you have any questions.")
+                     "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+                     "{offer_line}\n\n"
+                     "{demo_or_followup}\n"
+                     "{followup_ask}\n\n"
+                     "Reply on this chat anytime — we are happy to help.")
                 )
                 thank_id = cur.lastrowid
                 cur = conn.execute(
                     """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
                        VALUES (?, 'Interested Follow-up (WhatsApp)', 'whatsapp', '', ?)""",
                     (tid,
-                     "Hi {name}! Great speaking with you. {agent} from {tenant_name} here. "
-                     "We'll share the next details shortly. Reply anytime.")
+                     "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+                     "{offer_line}\n\n"
+                     "Glad to know you are interested. {demo_or_followup}\n"
+                     "{followup_ask}\n\n"
+                     "Reply here and our team will assist you.")
                 )
                 interest_id = cur.lastrowid
                 cur = conn.execute(
                     """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
                        VALUES (?, 'Demo Confirmation (WhatsApp)', 'whatsapp', '', ?)""",
                     (tid,
-                     "Hi {name}! Your demo with {tenant_name} is noted. "
-                     "Our team will confirm the schedule soon. — {agent}")
+                     "Hi{greeting_name}! Thank you for reaching out to {tenant_name}. "
+                     "{offer_line}\n\n"
+                     "{demo_block}\n"
+                     "{followup_ask}\n\n"
+                     "Reply on this WhatsApp for any change in schedule or questions.")
                 )
                 demo_id = cur.lastrowid
                 conn.execute(
