@@ -2124,6 +2124,8 @@ async def get_tenant_profile(current_user: dict = Depends(get_current_user)):
             "agent_name":        config.get("agent_name", "Aira"),
             "agent_voice":       config.get("agent_voice", "kavya"),
             "greeting_template": config.get("greeting_template", ""),
+            "outbound_greeting_template": config.get("outbound_greeting_template") or config.get("greeting_template", ""),
+            "inbound_greeting_template": config.get("inbound_greeting_template", ""),
             "system_prompt":     config.get("system_prompt", ""),
             "setup_complete":    config.get("setup_complete", 0),
             "tts_model":         config.get("tts_model", "v3"),
@@ -2344,7 +2346,14 @@ async def update_tenant_profile(request: Request, current_user: dict = Depends(_
     agent_voice       = data.get("agent_voice", config.get("agent_voice", "kavya"))
     agent_gender      = data.get("agent_gender", config.get("agent_gender", "female"))
     behavior_rules    = data.get("behavior_rules", "").strip()
-    greeting_template = data.get("greeting_template", config.get("greeting_template", ""))
+    outbound_greeting = data.get(
+        "outbound_greeting_template",
+        data.get("greeting_template", config.get("outbound_greeting_template") or config.get("greeting_template", "")),
+    )
+    inbound_greeting = data.get(
+        "inbound_greeting_template",
+        config.get("inbound_greeting_template", ""),
+    )
     tts_model         = data.get("tts_model", config.get("tts_model", "v3"))
     tts_pace          = float(data.get("tts_pace", config.get("tts_pace", 1.1)))
     tts_temperature   = float(data.get("tts_temperature", config.get("tts_temperature", 0.75)))
@@ -2369,7 +2378,8 @@ async def update_tenant_profile(request: Request, current_user: dict = Depends(_
 
     effective_guidelines = call_guidelines or (
         "- हर जवाब संक्षिप्त रखें (2-3 वाक्य)\n"
-        "- अंत में demo schedule करने की कोशिश करें\n"
+        "- पहले customer के सवाल का पूरा और स्पष्ट जवाब दें\n"
+        "- सभी सवालों का जवाब देने के बाद ही, रुचि दिखे तो demo offer करें\n"
         "- रुचि नहीं है तो विनम्रता से call समाप्त करें"
     )
     effective_rules = behavior_rules or (
@@ -2419,7 +2429,9 @@ HARD STOPS — end_call TOOL चलाओ तुरंत
         agent_voice       = agent_voice,
         agent_gender      = agent_gender,
         behavior_rules    = behavior_rules,
-        greeting_template = greeting_template,
+        greeting_template = outbound_greeting,
+        outbound_greeting_template = outbound_greeting,
+        inbound_greeting_template = inbound_greeting,
         system_prompt     = system_prompt,
         setup_complete    = 1,
         tts_model         = tts_model,

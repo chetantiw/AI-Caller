@@ -2031,13 +2031,6 @@ tr:hover td { background: var(--teal-dim); }
                   <div class="form-row"><label>Company Name *</label><input id="ac-company-name" placeholder="e.g. Acme Corp"/></div>
                   <div class="form-row"><label>Industry</label><input id="ac-industry" placeholder="e.g. Industrial IoT, SaaS"/></div>
                   <div class="form-row"><label>Website</label><input id="ac-website" placeholder="https://yoursite.com"/></div>
-                  <div class="form-row"><label>Call Language</label>
-                    <select id="ac-language">
-                      <option value="hindi">Hindi</option>
-                      <option value="english">English</option>
-                      <option value="hinglish">Hinglish (Hindi + English)</option>
-                    </select>
-                  </div>
                   <div class="form-row" style="grid-column:1/-1"><label>Products / Services *</label>
                     <textarea id="ac-products" rows="3" placeholder="- Smart Energy Metering&#10;- Predictive Maintenance&#10;- Industrial IoT Sensors"></textarea>
                   </div>
@@ -2094,10 +2087,10 @@ tr:hover td { background: var(--teal-dim); }
                 <div style="margin-bottom:16px">
                   <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔊 Voice Model</div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-                    <div id="tts-model-v2" onclick="selectTtsModel('v2')"
-                      style="border-radius:var(--r);border:1px solid var(--border);padding:12px;cursor:pointer;transition:all .2s;background:var(--bg2)">
-                      <div style="font-weight:600;font-size:13px;margin-bottom:3px">Bulbul v2</div>
-                      <div style="font-size:11px;color:var(--muted)">Stable · sub-1s latency · classic voices</div>
+                    <div id="tts-model-v2"
+                      style="border-radius:var(--r);border:1px solid var(--border);padding:12px;opacity:.55;background:var(--bg2)">
+                      <div style="font-weight:600;font-size:13px;margin-bottom:3px">Bulbul v2 (retired)</div>
+                      <div style="font-size:11px;color:var(--muted)">No longer available from Sarvam</div>
                     </div>
                     <div id="tts-model-v3" onclick="selectTtsModel('v3')"
                       style="border-radius:var(--r);border:1px solid rgba(0,210,150,0.4);padding:12px;cursor:pointer;transition:all .2s;background:rgba(0,210,150,0.05)">
@@ -2155,11 +2148,13 @@ tr:hover td { background: var(--teal-dim); }
                   </div>
                 </div>
 
-                <!-- Greeting -->
+                <div class="form-row" style="margin-bottom:14px">
+                  <label>Outbound Welcome Message <span style="color:var(--muted);font-weight:400">(when the agent calls a lead)</span></label>
+                  <textarea id="ac-outbound-greeting" rows="3" placeholder="Hello {name}! I am {agent} from {company}. How can I help you today?"></textarea>
+                </div>
                 <div class="form-row" style="margin-bottom:20px">
-                  <label>Custom Greeting <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-                  <textarea id="ac-greeting" rows="3"
-                    placeholder="नमस्ते {name} जी! मैं {agent} बोल रही हूँ {company} से।&#10;&#10;Variables: {name} = customer name, {agent} = agent name, {company} = company name&#10;Tip: Keep it under 2 sentences for best results."></textarea>
+                  <label>Inbound Welcome Message <span style="color:var(--muted);font-weight:400">(when a customer calls you)</span></label>
+                  <textarea id="ac-inbound-greeting" rows="3" placeholder="Hello! Thank you for calling {company}. How can I help you today?"></textarea>
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;margin-top:20px">
@@ -4192,7 +4187,11 @@ function closeSidebar() {
   document.getElementById('sidebar-overlay').classList.remove('open');
 }
 
-function showPage(name, el) {
+function showPage(name, el, updateUrl = true) {
+  if (!PAGE_META[name]) name = 'dashboard';
+  if (updateUrl && window.location.hash !== '#' + name) {
+    window.location.hash = name;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -4221,6 +4220,15 @@ function showPage(name, el) {
   closeSidebar(); // close on mobile after navigation
 }
 
+function restorePageFromUrl() {
+  const name = window.location.hash.replace(/^#/, '').trim();
+  if (!name || !PAGE_META[name]) return;
+  const nav = document.querySelector(`.nav-item[onclick*="'${name}'"]`);
+  showPage(name, nav, false);
+}
+
+window.addEventListener('hashchange', restorePageFromUrl);
+
 // ════════════════════════════════════════
 // INIT DASHBOARD
 // ════════════════════════════════════════
@@ -4238,6 +4246,7 @@ function initDashboard() {
   loadUsers();
   loadAnalytics();
   loadLeads();
+  restorePageFromUrl();
   // Auto-refresh every 15s for general data
   setInterval(() => {
     if (currentUser) {
@@ -6256,10 +6265,11 @@ async function loadAccountSettings() {
     document.getElementById('ac-agent-name').value        = c.agent_name       || 'Aira';
     document.getElementById('ac-agent-gender').value      = c.agent_gender     || 'female';
     document.getElementById('ac-behavior-rules').value    = c.behavior_rules   || '';
-    document.getElementById('ac-greeting').value          = c.greeting_template|| '';
+    document.getElementById('ac-outbound-greeting').value = c.outbound_greeting_template || c.greeting_template || '';
+    document.getElementById('ac-inbound-greeting').value  = c.inbound_greeting_template || '';
 
     // TTS model + voice + pace + temperature
-    const ttsModel = d.tts_model || c.tts_model || 'v3';
+    const ttsModel = c.tts_model || 'v3';
     selectTtsModel(ttsModel);
     const savedVoice = c.agent_voice || (ttsModel === 'v3' ? 'kavya' : 'anushka');
     document.getElementById('ac-voice').value = savedVoice;
@@ -6287,14 +6297,14 @@ async function saveAcctProfile() {
     company_name:     document.getElementById('ac-company-name').value.trim(),
     company_industry: document.getElementById('ac-industry').value.trim(),
     company_website:  document.getElementById('ac-website').value.trim(),
-    call_language:    document.getElementById('ac-language').value,
     company_products: document.getElementById('ac-products').value.trim(),
     call_guidelines:  document.getElementById('ac-guidelines').value.trim(),
     agent_name:       document.getElementById('ac-agent-name').value.trim() || 'Aira',
     agent_gender:     document.getElementById('ac-agent-gender').value,
     behavior_rules:   document.getElementById('ac-behavior-rules').value.trim(),
     agent_voice:      document.getElementById('ac-voice').value,
-    greeting_template:document.getElementById('ac-greeting').value.trim(),
+    outbound_greeting_template: document.getElementById('ac-outbound-greeting').value.trim(),
+    inbound_greeting_template:  document.getElementById('ac-inbound-greeting').value.trim(),
   };
   if (!body.company_name) { showAcctAlert('Company name is required.', 'error'); return; }
 
@@ -6316,7 +6326,8 @@ async function saveAcctCallConfig() {
   const body = {
     agent_name:        document.getElementById('ac-agent-name').value.trim() || 'Aira',
     agent_voice:       document.getElementById('ac-voice').value,
-    greeting_template: document.getElementById('ac-greeting').value.trim(),
+    outbound_greeting_template: document.getElementById('ac-outbound-greeting').value.trim(),
+    inbound_greeting_template:  document.getElementById('ac-inbound-greeting').value.trim(),
     company_name:      document.getElementById('ac-company-name').value.trim(),
     company_industry:  document.getElementById('ac-industry').value.trim(),
     company_products:  document.getElementById('ac-products').value.trim(),

@@ -31,6 +31,8 @@ from piopiy.services.elevenlabs.tts import ElevenLabsTTSService
 from piopiy.services.elevenlabs.stt import ElevenLabsRealtimeSTTService
 from piopiy.services.groq.llm import GroqLLMService
 from piopiy.transcriptions.language import Language
+from piopiy.turns.user_start.vad_user_turn_start_strategy import VADUserTurnStartStrategy
+from piopiy.turns.user_start.min_words_user_turn_start_strategy import MinWordsUserTurnStartStrategy
 from piopiy.frames.frames import (
     LLMTextFrame, LLMFullResponseStartFrame, LLMFullResponseEndFrame, LLMContextFrame,
 )
@@ -162,6 +164,14 @@ _XAI_BASE_URL = "https://api.x.ai/v1"
 _XAI_DEFAULT_MODEL = "grok-4-1-fast"
 _GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
+_CALL_VAD = {
+    "stop_secs": 0.3,
+    "start_secs": 0.05,
+    "confidence": 0.6,
+    "min_volume": 0.45,
+}
+
+
 def _build_llm(tenant_config: dict, tenant_id: int = 1) -> _ContextCommittingGroqLLM:
     """Build the LLM service based on llm_provider in tenant config.
 
@@ -198,7 +208,7 @@ def _build_llm(tenant_config: dict, tenant_id: int = 1) -> _ContextCommittingGro
     )
 
 
-def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
+def _build_stt_tts(tenant_config: dict, tenant_id: int = None, call_language: str = "hindi"):
     """
     Build STT and TTS independently.
     STT: sarvam (saarika:v2.5 default) | sarvam_v3 (saaras:v3) | deepgram (Nova-3)
@@ -211,6 +221,11 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
     labs_voice   = (tenant_config.get("elevenlabs_voice_id") or "").strip()
     stt_provider = (tenant_config.get("stt_provider") or "sarvam").lower()
     speech_provider = (tenant_config.get("speech_provider") or "sarvam").lower()
+    call_language = (call_language or tenant_config.get("call_language") or "hindi").lower()
+    is_english = call_language == "english"
+    stt_language = "en" if is_english else "hi"
+    sarvam_stt_language = Language.EN_IN if is_english else Language.HI_IN
+    sarvam_tts_language = Language.EN if is_english else Language.HI
 
     # ── STT ─────────────────────────────────────────────────────
     if stt_provider == "deepgram" and deepgram_key:
@@ -221,7 +236,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
                 api_key=deepgram_key,
                 live_options=_LO(
                     model="nova-3-general",
-                    language="hi",
+                    language=stt_language,
                     encoding="linear16",
                     channels=1,
                     interim_results=True,
@@ -236,7 +251,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             stt = SarvamSTTService(
                 api_key=sarvam_key, model="saarika:v2.5",
                 params=SarvamSTTService.InputParams(
-                    language=Language.HI_IN, vad_signals=True,
+                    language=sarvam_stt_language, vad_signals=True,
                     high_vad_sensitivity=True, mode="codemix"),
             )
             stt_label = "Sarvam saarika:v2.5 (fallback)"
@@ -245,6 +260,7 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         stt = SarvamSTTService(
             api_key=sarvam_key, model="saaras:v3",
             params=SarvamSTTService.InputParams(
+                language=sarvam_stt_language,
                 vad_signals=True,
                 high_vad_sensitivity=True, mode="codemix"),
         )
@@ -256,13 +272,16 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
         stt = SarvamSTTService(
             api_key=sarvam_key, model="saarika:v2.5",
             params=SarvamSTTService.InputParams(
-                language=Language.HI_IN, vad_signals=True,
+                language=sarvam_stt_language, vad_signals=True,
                 high_vad_sensitivity=True, mode="codemix"),
         )
         stt_label = "Sarvam saarika:v2.5"
 
     # ── TTS ─────────────────────────────────────────────────────
+    # Sarvam retired bulbul:v2; keep old saved settings compatible.
     tts_model_ver = (tenant_config.get("tts_model") or "v3").lower()
+    if tts_model_ver == "v2":
+        tts_model_ver = "v3"
     tts_pace      = max(0.5, min(2.0, float(tenant_config.get("tts_pace") or 1.1)))
     tts_temp      = max(0.1, min(1.0, float(tenant_config.get("tts_temperature") or 0.75)))
 
@@ -282,8 +301,8 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts = SarvamTTSService(
                 api_key=sarvam_key, model="bulbul:v3", voice_id="kavya",
                 params=SarvamTTSService.InputParams(
-                    language=Language.HI, pace=tts_pace, temperature=tts_temp,
-                    enable_preprocessing=True),
+                    language=sarvam_tts_language, pace=tts_pace, temperature=tts_temp,
+                    enable_preprocessing=False),
             )
             tts_label = "Sarvam bulbul:v3 (fallback)"
     else:
@@ -299,21 +318,45 @@ def _build_stt_tts(tenant_config: dict, tenant_id: int = None):
             tts = SarvamTTSService(
                 api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
                 params=SarvamTTSService.InputParams(
-                    language=Language.HI, pace=tts_pace, temperature=tts_temp,
-                    enable_preprocessing=True),
+                    language=sarvam_tts_language, pace=tts_pace, temperature=tts_temp,
+                    enable_preprocessing=False),
             )
         else:
             tts_voice = raw_voice if raw_voice in _V2 else "anushka"
             tts = SarvamTTSService(
-                api_key=sarvam_key, model="bulbul:v2", voice_id=tts_voice,
+                api_key=sarvam_key, model="bulbul:v3", voice_id=tts_voice,
                 params=SarvamTTSService.InputParams(
-                    language=Language.HI, pace=tts_pace, pitch=0.0, loudness=1.2,
-                    enable_preprocessing=True),
+                    language=sarvam_tts_language, pace=tts_pace, pitch=0.0, loudness=1.2,
+                    enable_preprocessing=False),
             )
-        tts_label = f"Sarvam bulbul:{tts_model_ver} | voice={tts_voice} | pace={tts_pace}"
+        tts_label = f"Sarvam bulbul:{tts_model_ver} | lang={call_language} | voice={tts_voice} | pace={tts_pace}"
 
     logger.info(f"[T{tid}] STT: {stt_label} | TTS: {tts_label}")
     return stt, tts
+
+
+def _make_language_switch_handler(stt, tts, language_state: dict):
+    """Create a tool handler that changes STT and Sarvam TTS mid-call."""
+    async def switch_language(language: str = "hindi"):
+        target = (language or "").strip().lower()
+        if target not in {"hindi", "english"}:
+            return {"ok": False, "message": "Language must be hindi or english."}
+
+        target_stt = Language.EN_IN if target == "english" else Language.HI_IN
+        target_tts = Language.EN if target == "english" else Language.HI
+
+        if hasattr(stt, "set_language"):
+            await stt.set_language(target_stt)
+        if isinstance(tts, SarvamTTSService):
+            tts._settings["target_language_code"] = tts.language_to_service_language(target_tts)
+            await tts._disconnect()
+            await tts._connect()
+
+        language_state["value"] = target
+        logger.info(f"[Call] Language switched to {target}")
+        return {"ok": True, "language": target}
+
+    return switch_language
 
 # ── Logging ────────────────────────────────────────────────────
 from loguru import logger
@@ -626,13 +669,14 @@ def make_create_session(tenant_id: int, initial_config: dict):
             c for c in (tenant_config.get("piopiy_number") or "") if c.isdigit()
         )
 
+        call_language = (tenant_config.get("call_language") or "hindi").strip().lower()
+
         # Build system prompt if not set via settings page
         if not system_prompt:
             company_name     = tenant_config.get("company_name", "")
             company_industry = tenant_config.get("company_industry", "")
             company_products = tenant_config.get("company_products", "")
             company_website  = tenant_config.get("company_website", "")
-            call_language    = tenant_config.get("call_language", "hindi")
             call_guidelines  = tenant_config.get("call_guidelines", "")
             lang_instruction = {
                 "hindi":    "हमेशा हिंदी में बोलें।",
@@ -641,7 +685,8 @@ def make_create_session(tenant_id: int, initial_config: dict):
             }.get(call_language, "हमेशा हिंदी में बोलें।")
             default_guidelines = (
                 "- हर जवाब 2-3 वाक्य में दें\n"
-                "- अंत में demo schedule करने की कोशिश करें\n"
+                "- पहले customer के सवाल का पूरा और स्पष्ट जवाब दें\n"
+                "- सभी सवालों का जवाब देने के बाद ही, रुचि दिखे तो demo offer करें\n"
                 "- रुचि नहीं है तो विनम्रता से call समाप्त करें"
             )
             system_prompt = (
@@ -654,6 +699,18 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 f"Call Guidelines:\n{call_guidelines or default_guidelines}\n\n"
                 "हर जवाब में: पहले information दें, फिर customer से एक question पूछें।"
             )
+
+        language_instruction = {
+            "hindi": "Always respond in Hindi.",
+            "english": "Always respond entirely in English.",
+            "hinglish": "Respond in natural Hinglish, mixing Hindi and English.",
+        }.get(call_language, "Always respond in Hindi.")
+        system_prompt += f"\n\nLanguage requirement: {language_instruction}"
+        system_prompt += (
+            "\n\nResponse priority: Answer the customer's current question completely first. "
+            "Do not offer or ask for a demo while questions remain unanswered. "
+            "Offer a demo only after the customer has no further questions or shows clear interest."
+        )
 
         logger.info(
             f"[Tenant {tenant_id}] 📞 Call | call_id={call_id} "
@@ -730,7 +787,10 @@ def make_create_session(tenant_id: int, initial_config: dict):
 
         # ── Greeting ──────────────────────────────────────────
         company_name  = tenant_config.get("company_name", "")
-        greeting_tmpl = tenant_config.get("greeting_template") or ""
+        greeting_tmpl = (
+            tenant_config.get("inbound_greeting_template") if is_inbound
+            else tenant_config.get("outbound_greeting_template")
+        ) or tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
             _tenant_plan_g = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
             from app.plan_features import check_feature as _cf_g
@@ -740,6 +800,13 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 )
             else:
                 greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+        elif call_language == "english":
+            greeting = (
+                f"Hello{' ' + customer_name if customer_name else ''}! "
+                f"I am {agent_name} from {company_name or 'our company'}. "
+                "We help businesses with industrial automation and smart IoT solutions. "
+                "How can I help you today?"
+            )
         elif is_inbound:
             co = f"आपकी {company_name} में " if company_name else ""
             greeting = f"नमस्ते! {co}स्वागत है। बताइए, मैं आपकी कैसे सहायता कर सकती हूँ?"
@@ -760,7 +827,9 @@ def make_create_session(tenant_id: int, initial_config: dict):
                 tenant_config = dict(tenant_config)
                 tenant_config["elevenlabs_voice_id"] = _validated_voice
 
-        stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
+        stt, tts = _build_stt_tts(
+            tenant_config, tenant_id=tenant_id, call_language=call_language
+        )
         llm = _build_llm(tenant_config, tenant_id=tenant_id)
 
         voice_agent = VoiceAgent(
@@ -782,15 +851,37 @@ def make_create_session(tenant_id: int, initial_config: dict):
             properties={},
             required=[],
         )
-        _tools = ToolsSchema(standard_tools=[_end_call_tool])
+        _switch_language_tool = FunctionSchema(
+            name="switch_language",
+            description=(
+                "Switch the conversation language when the caller asks to speak Hindi or English, "
+                "or clearly changes language. Use only 'hindi' or 'english'."
+            ),
+            properties={
+                "language": {
+                    "type": "string",
+                    "enum": ["hindi", "english"],
+                    "description": "The language to use for all subsequent replies.",
+                }
+            },
+            required=["language"],
+        )
+        _language_state = {"value": call_language}
+        voice_agent.add_tool(
+            _switch_language_tool,
+            _make_language_switch_handler(stt, tts, _language_state),
+        )
+        _tools = ToolsSchema(standard_tools=[_end_call_tool, _switch_language_tool])
 
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad=True,
+                vad=_CALL_VAD,
                 allow_interruptions=True,
+                interruption_strategy=MinWordsUserTurnStartStrategy(min_words=1, use_interim=True),
                 mcp_tools=_tools,
             )
+
             await voice_agent.start()
         except asyncio.CancelledError:
             logger.info(f"[Tenant {tenant_id}] Session cancelled | call_id={call_id}")
@@ -866,13 +957,14 @@ def make_platform_create_session():
             f"| agent_name={agent_name}"
         )
 
+        call_language = (tenant_config.get("call_language") or "hindi").strip().lower()
+
         # Build default system prompt if tenant has none configured
         if not system_prompt:
             company_name     = tenant_config.get("company_name", "")
             company_industry = tenant_config.get("company_industry", "")
             company_products = tenant_config.get("company_products", "")
             company_website  = tenant_config.get("company_website", "")
-            call_language    = tenant_config.get("call_language", "hindi")
             call_guidelines  = tenant_config.get("call_guidelines", "")
             lang_instruction = {
                 "hindi":    "हमेशा हिंदी में बोलें।",
@@ -881,7 +973,8 @@ def make_platform_create_session():
             }.get(call_language, "हमेशा हिंदी में बोलें।")
             default_guidelines = (
                 "- हर जवाब 2-3 वाक्य में दें\n"
-                "- अंत में demo schedule करने की कोशिश करें\n"
+                "- पहले customer के सवाल का पूरा और स्पष्ट जवाब दें\n"
+                "- सभी सवालों का जवाब देने के बाद ही, रुचि दिखे तो demo offer करें\n"
                 "- रुचि नहीं है तो विनम्रता से call समाप्त करें"
             )
             system_prompt = (
@@ -894,6 +987,18 @@ def make_platform_create_session():
                 f"Call Guidelines:\n{call_guidelines or default_guidelines}\n\n"
                 "हर जवाब में: पहले information दें, फिर customer से एक question पूछें।"
             )
+
+        language_instruction = {
+            "hindi": "Always respond in Hindi.",
+            "english": "Always respond entirely in English.",
+            "hinglish": "Respond in natural Hinglish, mixing Hindi and English.",
+        }.get(call_language, "Always respond in Hindi.")
+        system_prompt += f"\n\nLanguage requirement: {language_instruction}"
+        system_prompt += (
+            "\n\nResponse priority: Answer the customer's current question completely first. "
+            "Do not offer or ask for a demo while questions remain unanswered. "
+            "Offer a demo only after the customer has no further questions or shows clear interest."
+        )
 
         # ── Detect call direction ─────────────────────────────
         from_digits = "".join(c for c in str(from_number or "") if c.isdigit())
@@ -964,7 +1069,10 @@ def make_platform_create_session():
 
         # ── Greeting ──────────────────────────────────────────
         company_name  = tenant_config.get("company_name", "")
-        greeting_tmpl = tenant_config.get("greeting_template") or ""
+        greeting_tmpl = (
+            tenant_config.get("inbound_greeting_template") if is_inbound
+            else tenant_config.get("outbound_greeting_template")
+        ) or tenant_config.get("greeting_template") or ""
         if greeting_tmpl:
             _tenant_plan_g = (tdb.get_tenant(tenant_id) or {}).get("plan", "starter")
             from app.plan_features import check_feature as _cf_g
@@ -974,6 +1082,13 @@ def make_platform_create_session():
                 )
             else:
                 greeting = greeting_tmpl.replace("{name}", customer_name or "").replace("{agent}", agent_name).replace("{company}", company_name)
+        elif call_language == "english":
+            greeting = (
+                f"Hello{' ' + customer_name if customer_name else ''}! "
+                f"I am {agent_name} from {company_name or 'our company'}. "
+                "We help businesses with industrial automation and smart IoT solutions. "
+                "How can I help you today?"
+            )
         elif is_inbound:
             co = f"आपकी {company_name} में " if company_name else ""
             greeting = f"नमस्ते! {co}स्वागत है। बताइए, मैं आपकी कैसे सहायता कर सकती हूँ?"
@@ -994,7 +1109,9 @@ def make_platform_create_session():
                 tenant_config = dict(tenant_config)
                 tenant_config["elevenlabs_voice_id"] = _validated_voice
 
-        stt, tts = _build_stt_tts(tenant_config, tenant_id=tenant_id)
+        stt, tts = _build_stt_tts(
+            tenant_config, tenant_id=tenant_id, call_language=call_language
+        )
         llm = _build_llm(tenant_config, tenant_id=tenant_id)
 
         voice_agent = VoiceAgent(
@@ -1016,15 +1133,37 @@ def make_platform_create_session():
             properties={},
             required=[],
         )
-        _tools = ToolsSchema(standard_tools=[_end_call_tool])
+        _switch_language_tool = FunctionSchema(
+            name="switch_language",
+            description=(
+                "Switch the conversation language when the caller asks to speak Hindi or English, "
+                "or clearly changes language. Use only 'hindi' or 'english'."
+            ),
+            properties={
+                "language": {
+                    "type": "string",
+                    "enum": ["hindi", "english"],
+                    "description": "The language to use for all subsequent replies.",
+                }
+            },
+            required=["language"],
+        )
+        _language_state = {"value": call_language}
+        voice_agent.add_tool(
+            _switch_language_tool,
+            _make_language_switch_handler(stt, tts, _language_state),
+        )
+        _tools = ToolsSchema(standard_tools=[_end_call_tool, _switch_language_tool])
 
         try:
             await voice_agent.Action(
                 stt=stt, llm=llm, tts=tts,
-                vad=True,
+                vad=_CALL_VAD,
                 allow_interruptions=True,
+                interruption_strategy=MinWordsUserTurnStartStrategy(min_words=1, use_interim=True),
                 mcp_tools=_tools,
             )
+
             await voice_agent.start()
         except asyncio.CancelledError:
             logger.info(f"[Platform Agent | T{tenant_id}] Session cancelled | call_id={call_id}")

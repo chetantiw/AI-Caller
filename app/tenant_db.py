@@ -171,7 +171,8 @@ def get_tenant_config(tenant_id: int) -> Optional[dict]:
 def update_tenant_config(tenant_id: int, **kwargs):
     allowed = {
         'agent_name', 'agent_language', 'agent_voice', 'system_prompt',
-        'greeting_template', 'piopiy_agent_id', 'piopiy_agent_token',
+        'greeting_template', 'outbound_greeting_template', 'inbound_greeting_template',
+        'piopiy_agent_id', 'piopiy_agent_token',
         'piopiy_number', 'sarvam_api_key', 'groq_api_key',
         'exotel_sid', 'exotel_api_key', 'exotel_api_token', 'exotel_number',
         'telegram_bot_token', 'telegram_chat_id',

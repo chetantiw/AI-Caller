@@ -364,12 +364,27 @@ def init_db():
             "ALTER TABLE tenant_configs ADD COLUMN elevenlabs_voice_id TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN whatsapp_api_key TEXT",
             "ALTER TABLE tenant_configs ADD COLUMN whatsapp_number TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN outbound_greeting_template TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN inbound_greeting_template TEXT",
         ]:
             try:
                 conn.execute(col_sql)
                 conn.commit()
             except Exception:
                 pass  # column already exists
+
+        # Preserve existing greetings as outbound greetings when the split
+        # greeting fields are introduced.
+        try:
+            conn.execute("""
+                UPDATE tenant_configs
+                SET outbound_greeting_template = greeting_template
+                WHERE (outbound_greeting_template IS NULL OR outbound_greeting_template = '')
+                  AND greeting_template IS NOT NULL AND greeting_template != ''
+            """)
+            conn.commit()
+        except Exception:
+            pass
 
         try:
             conn.execute("ALTER TABLE tenant_configs ADD COLUMN faq_content TEXT")

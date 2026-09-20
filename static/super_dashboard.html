@@ -1211,17 +1211,6 @@ async function openTenantDetail(id) {
             </select>
           </div>
         </div>
-        <div class="form-group"><label>Greeting Template</label><input id="cfg-greeting" placeholder="Hello {name}! I'm {agent} from {company}…" value="${c.greeting_template||''}"/></div>
-        <div class="form-group"><label>System Prompt</label><textarea id="cfg-prompt" style="min-height:140px">${c.system_prompt||''}</textarea></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="form-group" style="margin:0"><label>Language</label>
-            <select id="cfg-lang">
-              <option value="hindi" ${(c.agent_language||'hindi')==='hindi'?'selected':''}>Hindi</option>
-              <option value="english" ${c.agent_language==='english'?'selected':''}>English</option>
-              <option value="hinglish" ${c.agent_language==='hinglish'?'selected':''}>Hinglish</option>
-            </select>
-          </div>
-        </div>
       </div>
 
       <!-- TAB: Speech -->
@@ -1422,9 +1411,6 @@ async function saveConfig() {
   const updates = {
     agent_name:           document.getElementById('cfg-agent-name')?.value || undefined,
     agent_voice:          document.getElementById('cfg-voice')?.value || undefined,
-    agent_language:       document.getElementById('cfg-lang')?.value || undefined,
-    greeting_template:    document.getElementById('cfg-greeting')?.value || undefined,
-    system_prompt:        document.getElementById('cfg-prompt')?.value || undefined,
     // Speech
     stt_provider:         document.getElementById('cfg-stt-provider')?.value || undefined,
     sarvam_api_key:       document.getElementById('cfg-sarvam')?.value || undefined,

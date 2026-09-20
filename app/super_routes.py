@@ -314,6 +314,10 @@ async def update_tenant_config(tenant_id: int, req: UpdateTenantConfigRequest,
         k: v for k, v in req.dict().items()
         if v is not None and not (isinstance(v, str) and "••••••••" in v)
     }
+    # The Super Admin UI calls this field agent_language, while the live call
+    # pipeline reads call_language.
+    if req.agent_language and "call_language" not in updates:
+        updates["call_language"] = req.agent_language
     tdb.update_tenant_config(tenant_id, **updates)
     return {"message": "Config updated successfully"}
 

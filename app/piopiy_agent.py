@@ -204,8 +204,9 @@ async def create_session(
             stt=stt,
             llm=llm,
             tts=tts,
-            vad=True,
+            vad=_vad,
             allow_interruptions=True,
+            interruption_strategy=VADUserTurnStartStrategy(),
             mcp_tools=_tools,
         )
         await voice_agent.start()
