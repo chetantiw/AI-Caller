@@ -554,7 +554,7 @@ async def _post_call(
                     f"Lead: {lead_label} | {duration_sec}s\n"
                     f"Sentiment: {sentiment}\nSummary: {summary}")
 
-        # ── Communication triggers ────────────────────────────────
+        # ── Communication triggers (WhatsApp / SMS / Email) ───────
         try:
             from app.communication_service import execute_triggers
             lead_data = {}
@@ -562,7 +562,26 @@ async def _post_call(
                 lead_obj = db.get_lead(lead_id_db)
                 if lead_obj:
                     lead_data = dict(lead_obj)
-            await execute_triggers(tenant_id, sentiment, lead_data, summary)
+            # Always carry call phone/name so feedback works even without lead_id
+            if not lead_data.get("phone") and customer_phone:
+                lead_data["phone"] = customer_phone
+            if not lead_data.get("name") and customer_name:
+                lead_data["name"] = customer_name
+            if not lead_data.get("company") and company:
+                lead_data["company"] = company
+            # Prefer sentiment for messaging; fall back to call outcome
+            trigger_outcome = sentiment or outcome or "answered"
+            if (outcome or "").lower() == "answered" and (sentiment or "").lower() in (
+                "neutral", "unknown", "", "none"
+            ):
+                trigger_outcome = "answered"
+            await execute_triggers(
+                tenant_id,
+                trigger_outcome,
+                lead_data,
+                summary,
+                customer_phone=customer_phone or "",
+            )
         except Exception as _te:
             logger.warning(f"[T{tenant_id}] Trigger execution error: {_te}")
 

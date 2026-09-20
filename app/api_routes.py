@@ -2467,6 +2467,10 @@ async def update_tenant_api_keys(request: Request, current_user: dict = Depends(
         # Channel master switches
         "whatsapp_enabled", "sms_enabled", "email_enabled",
         "auto_quotation_enabled", "call_transfer_enabled",
+        # OpenClaw / WhatsApp provider (per-tenant — never shared globally)
+        "openclaw_enabled", "openclaw_profile", "openclaw_account",
+        "openclaw_whatsapp_number", "openclaw_gateway_url",
+        "openclaw_status", "whatsapp_provider", "whatsapp_feedback_on_answered",
         # Quotation / branding
         "brand_color", "logo_path",
         "quotation_tax_percent", "quotation_valid_days", "quotation_notes",
@@ -2719,7 +2723,76 @@ async def get_tenant_api_keys(current_user: dict = Depends(_require_admin)):
         "brand_color":           config.get("brand_color", "#1a1a2e"),
         "telecmi_sms_appid":     mask(config.get("telecmi_sms_appid", "")),
         "telecmi_sms_set":       bool(config.get("telecmi_sms_appid")),
+        # Channel master switches (required for Notifications tab round-trip)
+        "whatsapp_enabled":            int(config.get("whatsapp_enabled") or 0),
+        "sms_enabled":                 int(config.get("sms_enabled") or 0),
+        "email_enabled":               int(config.get("email_enabled") if config.get("email_enabled") is not None else 1),
+        "auto_quotation_enabled":      int(config.get("auto_quotation_enabled") or 0),
+        "call_transfer_enabled":       int(config.get("call_transfer_enabled") or 0),
+        "whatsapp_feedback_on_answered": int(
+            config.get("whatsapp_feedback_on_answered")
+            if config.get("whatsapp_feedback_on_answered") is not None else 1
+        ),
+        "whatsapp_provider":           config.get("whatsapp_provider") or "openclaw",
+        # Per-tenant OpenClaw (each client links their own WhatsApp)
+        "openclaw_enabled":            int(config.get("openclaw_enabled") or 0),
+        "openclaw_profile":            config.get("openclaw_profile") or "",
+        "openclaw_account":            config.get("openclaw_account") or "default",
+        "openclaw_whatsapp_number":    config.get("openclaw_whatsapp_number") or "",
+        "openclaw_status":             config.get("openclaw_status") or "not_linked",
+        "openclaw_linked_at":          config.get("openclaw_linked_at") or "",
+        "openclaw_gateway_url":        config.get("openclaw_gateway_url") or "",
     }
+
+
+@router.get("/tenant/openclaw/status")
+async def openclaw_status(current_user: dict = Depends(_require_admin)):
+    """OpenClaw WhatsApp link status for THIS tenant only."""
+    from app.openclaw_service import get_openclaw_status
+    tid = current_user.get("tenant_id", 1)
+    return get_openclaw_status(tid)
+
+
+@router.post("/tenant/openclaw/link")
+async def openclaw_link(current_user: dict = Depends(_require_admin)):
+    """
+    Prepare a per-tenant OpenClaw profile for WhatsApp linking.
+    Does NOT reuse another client's number. MuTech default session is only
+    used when this tenant's profile is explicitly set to default/main.
+    """
+    from app.openclaw_service import start_whatsapp_link
+    tid = current_user.get("tenant_id", 1)
+    return start_whatsapp_link(tid)
+
+
+@router.post("/tenant/openclaw/unlink")
+async def openclaw_unlink(current_user: dict = Depends(_require_admin)):
+    """Disable OpenClaw WhatsApp for this tenant only."""
+    from app.openclaw_service import unlink_whatsapp
+    tid = current_user.get("tenant_id", 1)
+    return unlink_whatsapp(tid)
+
+
+@router.post("/tenant/openclaw/test")
+async def openclaw_test(request: Request, current_user: dict = Depends(_require_admin)):
+    """Send a test WhatsApp via this tenant's linked OpenClaw profile."""
+    from app.openclaw_service import send_test_whatsapp
+    tid = current_user.get("tenant_id", 1)
+    data = await request.json()
+    phone = (data.get("phone") or "").strip()
+    message = (data.get("message") or "").strip() or None
+    if not phone:
+        raise HTTPException(status_code=400, detail="phone is required")
+    result = await send_test_whatsapp(tid, phone, message)
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "WhatsApp send failed. Link OpenClaw for this client under "
+                "Account → Notifications, then try again."
+            ),
+        )
+    return result
 
 
 @router.put("/tenant/system-prompt")

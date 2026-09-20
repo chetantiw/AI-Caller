@@ -399,6 +399,179 @@ def init_db():
         except Exception:
             pass  # column already exists
 
+        # ── Notifications / OpenClaw / messaging columns ──────────
+        for col_sql in [
+            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_secret TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN telecmi_sms_appid TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN telecmi_sms_secret TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN email_user TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN email_pass TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE tenant_configs ADD COLUMN sms_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE tenant_configs ADD COLUMN email_enabled INTEGER DEFAULT 1",
+            "ALTER TABLE tenant_configs ADD COLUMN auto_quotation_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE tenant_configs ADD COLUMN call_transfer_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE tenant_configs ADD COLUMN brand_color TEXT DEFAULT '#1a1a2e'",
+            "ALTER TABLE tenant_configs ADD COLUMN logo_path TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN quotation_tax_percent REAL DEFAULT 18",
+            "ALTER TABLE tenant_configs ADD COLUMN quotation_valid_days INTEGER DEFAULT 7",
+            "ALTER TABLE tenant_configs ADD COLUMN quotation_notes TEXT",
+            # Per-tenant OpenClaw WhatsApp link (NOT global)
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_profile TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_account TEXT DEFAULT 'default'",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_whatsapp_number TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_gateway_url TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_gateway_token TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_status TEXT DEFAULT 'not_linked'",
+            "ALTER TABLE tenant_configs ADD COLUMN openclaw_linked_at TEXT",
+            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_feedback_on_answered INTEGER DEFAULT 1",
+            "ALTER TABLE tenant_configs ADD COLUMN whatsapp_provider TEXT DEFAULT 'openclaw'",
+        ]:
+            try:
+                conn.execute(col_sql)
+                conn.commit()
+            except Exception:
+                pass
+
+        # Notification automation tables
+        try:
+            conn.executescript("""
+            CREATE TABLE IF NOT EXISTS message_templates (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id  INTEGER NOT NULL,
+                name       TEXT NOT NULL,
+                channel    TEXT NOT NULL,
+                subject    TEXT DEFAULT '',
+                body       TEXT NOT NULL,
+                is_active  INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS communication_triggers (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id   INTEGER NOT NULL,
+                trigger_on  TEXT NOT NULL,
+                channel     TEXT NOT NULL,
+                template_id INTEGER,
+                delay_mins  INTEGER DEFAULT 0,
+                is_active   INTEGER DEFAULT 1,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS tenant_products (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id   INTEGER NOT NULL,
+                name        TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                price       REAL DEFAULT 0,
+                price_unit  TEXT DEFAULT 'fixed',
+                category    TEXT DEFAULT '',
+                sort_order  INTEGER DEFAULT 0,
+                is_active   INTEGER DEFAULT 1,
+                updated_at  TEXT DEFAULT (datetime('now')),
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS transfer_departments (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id  INTEGER NOT NULL,
+                name       TEXT NOT NULL,
+                phone      TEXT NOT NULL,
+                is_active  INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS quotations (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id        INTEGER NOT NULL,
+                lead_id          INTEGER,
+                call_id          INTEGER,
+                quote_number     TEXT,
+                customer_name    TEXT,
+                customer_phone   TEXT,
+                customer_email   TEXT,
+                customer_company TEXT,
+                items            TEXT,
+                subtotal         REAL DEFAULT 0,
+                tax_percent      REAL DEFAULT 18,
+                tax_amount       REAL DEFAULT 0,
+                total_amount     REAL DEFAULT 0,
+                currency         TEXT DEFAULT 'INR',
+                valid_days       INTEGER DEFAULT 7,
+                notes            TEXT,
+                sent_via         TEXT,
+                created_at       TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS notification_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id   INTEGER NOT NULL,
+                channel     TEXT,
+                provider    TEXT,
+                target      TEXT,
+                outcome     TEXT,
+                status      TEXT,
+                detail      TEXT,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+            """)
+            conn.commit()
+        except Exception as e:
+            print(f"[DB] notification tables warn: {e}")
+
+        # Seed default WhatsApp templates/triggers for tenants missing them
+        try:
+            tenants = conn.execute("SELECT id FROM tenants").fetchall()
+            for trow in tenants:
+                tid = trow["id"] if isinstance(trow, sqlite3.Row) else trow[0]
+                existing = conn.execute(
+                    "SELECT COUNT(*) AS c FROM message_templates WHERE tenant_id=? AND is_active=1",
+                    (tid,)
+                ).fetchone()[0]
+                if existing:
+                    continue
+                cur = conn.execute(
+                    """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
+                       VALUES (?, 'Post-call Thank You (WhatsApp)', 'whatsapp', '', ?)""",
+                    (tid,
+                     "Hi {name}! Thanks for speaking with {agent} from {tenant_name}. "
+                     "Summary: {summary}\n\nReply here if you have any questions.")
+                )
+                thank_id = cur.lastrowid
+                cur = conn.execute(
+                    """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
+                       VALUES (?, 'Interested Follow-up (WhatsApp)', 'whatsapp', '', ?)""",
+                    (tid,
+                     "Hi {name}! Great speaking with you. {agent} from {tenant_name} here. "
+                     "We'll share the next details shortly. Reply anytime.")
+                )
+                interest_id = cur.lastrowid
+                cur = conn.execute(
+                    """INSERT INTO message_templates (tenant_id, name, channel, subject, body)
+                       VALUES (?, 'Demo Confirmation (WhatsApp)', 'whatsapp', '', ?)""",
+                    (tid,
+                     "Hi {name}! Your demo with {tenant_name} is noted. "
+                     "Our team will confirm the schedule soon. — {agent}")
+                )
+                demo_id = cur.lastrowid
+                conn.execute(
+                    """INSERT INTO communication_triggers
+                       (tenant_id, trigger_on, channel, template_id, delay_mins)
+                       VALUES (?, 'answered', 'whatsapp', ?, 0)""",
+                    (tid, thank_id)
+                )
+                conn.execute(
+                    """INSERT INTO communication_triggers
+                       (tenant_id, trigger_on, channel, template_id, delay_mins)
+                       VALUES (?, 'interested', 'whatsapp', ?, 0)""",
+                    (tid, interest_id)
+                )
+                conn.execute(
+                    """INSERT INTO communication_triggers
+                       (tenant_id, trigger_on, channel, template_id, delay_mins)
+                       VALUES (?, 'demo_booked', 'whatsapp', ?, 0)""",
+                    (tid, demo_id)
+                )
+            conn.commit()
+        except Exception as e:
+            print(f"[DB] seed notification templates warn: {e}")
+
 
     print(f"[DB] Initialized at {DB_PATH}")
 

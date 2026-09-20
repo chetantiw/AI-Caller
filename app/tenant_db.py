@@ -200,6 +200,11 @@ def update_tenant_config(tenant_id: int, **kwargs):
         'telecmi_sms_appid', 'telecmi_sms_secret',
         'whatsapp_enabled', 'sms_enabled', 'email_enabled',
         'auto_quotation_enabled', 'call_transfer_enabled',
+        # Per-tenant OpenClaw WhatsApp
+        'openclaw_enabled', 'openclaw_profile', 'openclaw_account',
+        'openclaw_whatsapp_number', 'openclaw_gateway_url', 'openclaw_gateway_token',
+        'openclaw_status', 'openclaw_linked_at',
+        'whatsapp_feedback_on_answered', 'whatsapp_provider',
     }
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:

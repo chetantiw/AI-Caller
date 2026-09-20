@@ -2280,19 +2280,30 @@ tr:hover td { background: var(--teal-dim); }
             <div class="card" style="margin-bottom:16px">
               <div class="card-header"><div class="card-title"><span class="dot"></span> 📡 Channel Settings</div></div>
               <div class="card-body">
-                <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Control which channels are active. WhatsApp and SMS are charged per message.</p>
+                <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Control which channels are active. Each client links their own WhatsApp via OpenClaw — MuTech's number is not shared automatically.</p>
 
                 <div style="display:flex;flex-direction:column;gap:12px">
                   <!-- WhatsApp -->
                   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
                     <div>
-                      <div style="font-weight:600;font-size:13px">📱 WhatsApp</div>
-                      <div style="font-size:11px;color:var(--muted);margin-top:2px">TeleCMI · charged per message ⚠️</div>
+                      <div style="font-weight:600;font-size:13px">📱 WhatsApp Feedback</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">OpenClaw · your linked number only</div>
                     </div>
                     <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
                       <input type="checkbox" id="toggle-whatsapp" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
                       <span id="track-whatsapp" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
                       <span id="thumb-whatsapp" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
+                    </label>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+                    <div>
+                      <div style="font-weight:600;font-size:13px">✅ Auto thank-you on answered calls</div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">Send feedback even when sentiment is neutral</div>
+                    </div>
+                    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                      <input type="checkbox" id="toggle-wa-feedback" onchange="saveChannelToggles()" style="opacity:0;width:0;height:0">
+                      <span id="track-wa-feedback" style="position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.3s"></span>
+                      <span id="thumb-wa-feedback" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>
                     </label>
                   </div>
                   <!-- SMS -->
@@ -2344,6 +2355,38 @@ tr:hover td { background: var(--teal-dim); }
                     </label>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- ── OpenClaw WhatsApp Link (per client) ── -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><span class="dot"></span> 🔗 OpenClaw WhatsApp Link</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn" style="font-size:11px;padding:6px 12px" onclick="refreshOpenClawStatus()">Refresh</button>
+                  <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="prepareOpenClawLink()">Prepare Link</button>
+                  <button class="btn" style="font-size:11px;padding:6px 12px" onclick="testOpenClawWhatsApp()">Send Test</button>
+                  <button class="btn" style="font-size:11px;padding:6px 12px;color:#f87171" onclick="unlinkOpenClawWhatsApp()">Unlink</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+                  Each client links their own WhatsApp number here. The MuTech automation number is <b>not</b> used for other clients.
+                </p>
+                <div id="openclaw-status-box" style="padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);font-size:12px;line-height:1.6">
+                  Loading OpenClaw status…
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+                  <div class="form-row" style="margin:0">
+                    <label>Test phone (E.164)</label>
+                    <input id="openclaw-test-phone" type="text" placeholder="+91XXXXXXXXXX"/>
+                  </div>
+                  <div class="form-row" style="margin:0">
+                    <label>Optional test message</label>
+                    <input id="openclaw-test-msg" type="text" placeholder="Hello from AI Caller"/>
+                  </div>
+                </div>
+                <div id="openclaw-link-cmd" style="display:none;margin-top:12px;padding:10px;background:#0b1220;border:1px solid var(--border);border-radius:var(--r2);font-family:var(--mono);font-size:11px;white-space:pre-wrap;color:#93c5fd"></div>
               </div>
             </div>
 
@@ -5758,16 +5801,18 @@ function _setToggle(id, on) {
 
 async function saveChannelToggles() {
   // Sync visual track/thumb to current checkbox state
-  ['whatsapp','sms','email','quotation','transfer'].forEach(id => {
+  ['whatsapp','wa-feedback','sms','email','quotation','transfer'].forEach(id => {
     const cb = document.getElementById('toggle-' + id);
     if (cb) _setToggle(id, cb.checked);
   });
   const body = {
     whatsapp_enabled:      document.getElementById('toggle-whatsapp').checked  ? 1 : 0,
+    whatsapp_feedback_on_answered: document.getElementById('toggle-wa-feedback')?.checked ? 1 : 0,
     sms_enabled:           document.getElementById('toggle-sms').checked       ? 1 : 0,
     email_enabled:         document.getElementById('toggle-email').checked     ? 1 : 0,
     auto_quotation_enabled:document.getElementById('toggle-quotation').checked ? 1 : 0,
     call_transfer_enabled: document.getElementById('toggle-transfer').checked  ? 1 : 0,
+    whatsapp_provider: 'openclaw',
   };
   try {
     await apiFetch('/api/tenant/api-keys', { method: 'PUT', body: JSON.stringify(body) });
@@ -5777,23 +5822,109 @@ async function saveChannelToggles() {
 
 // ── Load all notification data ────────
 async function loadNotifyTab() {
-  await Promise.all([loadChannelToggles(), loadTriggers(), loadTemplates(), loadProducts(), loadDepts()]);
+  await Promise.all([
+    loadChannelToggles(),
+    refreshOpenClawStatus(),
+    loadTriggers(),
+    loadTemplates(),
+    loadProducts(),
+    loadDepts(),
+  ]);
 }
 
 async function loadChannelToggles() {
   try {
     const d = await apiFetch('/api/tenant/api-keys');
-    _setToggle('whatsapp',  d.whatsapp_enabled);
-    _setToggle('sms',       d.sms_enabled);
+    _setToggle('whatsapp',  !!d.whatsapp_enabled);
+    _setToggle('wa-feedback', d.whatsapp_feedback_on_answered ?? 1);
+    _setToggle('sms',       !!d.sms_enabled);
     _setToggle('email',     d.email_enabled  ?? 1);
-    _setToggle('quotation', d.auto_quotation_enabled);
-    _setToggle('transfer',  d.call_transfer_enabled);
+    _setToggle('quotation', !!d.auto_quotation_enabled);
+    _setToggle('transfer',  !!d.call_transfer_enabled);
     // Quotation settings
     if (d.brand_color)        document.getElementById('ac-brand-color').value       = d.brand_color;
     if (d.quotation_tax_percent !== undefined) document.getElementById('ac-tax-percent').value  = d.quotation_tax_percent;
     if (d.quotation_valid_days !== undefined)  document.getElementById('ac-valid-days').value   = d.quotation_valid_days;
     if (d.quotation_notes)    document.getElementById('ac-quotation-notes').value   = d.quotation_notes;
   } catch(e) { console.error('loadChannelToggles', e); }
+}
+
+function _renderOpenClawStatus(s) {
+  const box = document.getElementById('openclaw-status-box');
+  if (!box) return;
+  if (!s) {
+    box.textContent = 'Unable to load OpenClaw status.';
+    return;
+  }
+  const linked = s.linked || s.status === 'linked';
+  const color = linked ? '#34d399' : (s.status === 'pending_link' ? '#fbbf24' : '#f87171');
+  box.innerHTML = `
+    <div><b>Status:</b> <span style="color:${color}">${s.status || 'unknown'}${linked ? ' ✅' : ''}</span></div>
+    <div><b>Profile:</b> <code>${s.profile || '—'}</code></div>
+    <div><b>Sender number:</b> ${s.sender_number || '— not linked —'}</div>
+    <div><b>OpenClaw enabled:</b> ${s.enabled ? 'yes' : 'no'} · <b>WhatsApp toggle:</b> ${s.whatsapp_enabled ? 'on' : 'off'}</div>
+    <div style="color:var(--muted);margin-top:6px">${s.detail || ''}</div>
+    ${s.uses_shared_mutech_session ? '<div style="margin-top:8px;color:#fbbf24">⚠ This tenant uses the default/MuTech OpenClaw session by explicit profile setting.</div>' : '<div style="margin-top:8px;color:var(--muted)">Isolated client profile — will not use another client\u2019s WhatsApp.</div>'}
+  `;
+}
+
+async function refreshOpenClawStatus() {
+  try {
+    const s = await apiFetch('/api/tenant/openclaw/status');
+    _renderOpenClawStatus(s);
+    return s;
+  } catch (e) {
+    _renderOpenClawStatus(null);
+    console.error('refreshOpenClawStatus', e);
+  }
+}
+
+async function prepareOpenClawLink() {
+  try {
+    const r = await apiFetch('/api/tenant/openclaw/link', { method: 'POST', body: '{}' });
+    const cmdBox = document.getElementById('openclaw-link-cmd');
+    if (cmdBox) {
+      cmdBox.style.display = 'block';
+      cmdBox.textContent = (r.message || '') + '\n\n' + (r.login_command || '') + '\n\n' + (r.docs || '');
+    }
+    showAcctAlert('OpenClaw profile ready. Complete QR login on the server, then Refresh.');
+    await refreshOpenClawStatus();
+  } catch (e) {
+    showAcctAlert('OpenClaw link error: ' + e.message, 'error');
+  }
+}
+
+async function testOpenClawWhatsApp() {
+  const phone = (document.getElementById('openclaw-test-phone')?.value || '').trim();
+  const message = (document.getElementById('openclaw-test-msg')?.value || '').trim();
+  if (!phone) {
+    showAcctAlert('Enter a test phone number first.', 'error');
+    return;
+  }
+  try {
+    await apiFetch('/api/tenant/openclaw/test', {
+      method: 'POST',
+      body: JSON.stringify({ phone, message: message || undefined }),
+    });
+    showAcctAlert('✅ Test WhatsApp sent via this client\u2019s OpenClaw profile.');
+    await refreshOpenClawStatus();
+  } catch (e) {
+    showAcctAlert('Test failed: ' + e.message, 'error');
+  }
+}
+
+async function unlinkOpenClawWhatsApp() {
+  if (!confirm('Unlink OpenClaw WhatsApp for THIS client only?')) return;
+  try {
+    await apiFetch('/api/tenant/openclaw/unlink', { method: 'POST', body: '{}' });
+    showAcctAlert('OpenClaw WhatsApp unlinked for this client.');
+    const cmdBox = document.getElementById('openclaw-link-cmd');
+    if (cmdBox) cmdBox.style.display = 'none';
+    await refreshOpenClawStatus();
+    await loadChannelToggles();
+  } catch (e) {
+    showAcctAlert('Unlink failed: ' + e.message, 'error');
+  }
 }
 
 // ── Triggers ──────────────────────────
